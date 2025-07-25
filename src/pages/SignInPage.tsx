@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { useAuth } from '../hooks/useAuth'; // Assuming you have this hook
+import { useAuth } from '../hooks/useAuth';
 import { Mail, Lock, LayoutPanelLeft } from 'lucide-react';
 
 
