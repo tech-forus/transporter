@@ -139,7 +139,7 @@ const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpe
                               <MobileNavLink to="/#pricing" icon={<UserIcon size={20}/>}>Pricing</MobileNavLink>
                                <div className="pt-8 mt-auto border-t border-slate-200">
                                 <Link to="/transporter-signin" onClick={closeMenu} className="block w-full text-center px-6 py-3 mb-3 bg-slate-100 text-slate-700 rounded-lg font-medium">Sign In</Link>
-                                <Link to="/transporter-signup" onClick={closeMenu} className="block w-full text-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium">Get Started</Link>
+                                <Link to="/transporter-signup" onClick={closeMenu} className="block w-full text-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium">Sign Up</Link>
                                </div>
                              </>
                            )}
@@ -170,7 +170,7 @@ const Header: React.FC = () => {
                                     <div className="hidden sm:flex items-center gap-4">
                                         <NavLink to="/transporter-signin">Sign In</NavLink>
                                         <Link to="/transporter-signup" className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
-                                            Get Started
+                                            Sign Up
                                         </Link>
                                     </div>
                                 </>
