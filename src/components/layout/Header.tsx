@@ -15,12 +15,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Reusable & Styled Components ---
 const BrandLogo = () => (
-    <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-        <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-            <Truck className="w-5 h-5 text-white" />
-        </div>
-        <h1 className="hidden sm:block text-xl font-bold text-slate-800">Freight Compare</h1>
-    </Link>
+    const BrandLogo = () => (
+  <a
+    href="https://freightcompare.netlify.app/"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center gap-2 flex-shrink-0"
+  >
+    <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+      <Truck className="w-5 h-5 text-white" />
+    </div>
+    <h1 className="hidden sm:block text-xl font-bold text-slate-800">
+      Freight Compare
+    </h1>
+  </a>
 );
 
 const NavLink: React.FC<{ to: string, children: React.ReactNode }> = ({ to, children }) => (
