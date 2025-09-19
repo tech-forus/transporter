@@ -68,7 +68,7 @@ const StepCard: React.FC<{ icon: React.ReactNode; title: string; children: React
 
 const TransporterLandingPage: React.FC = () => {
   // Use env var if present; fallback to a local route
-  const SIGNUP_URL = (import.meta as any).env?.VITE_TRANSPORTER_SIGNUP_URL ?? '/signup';
+  const SIGNUP_URL = (import.meta as any).env?.VITE_TRANSPORTER_SIGNUP_URL ?? '/transporter-signup';
 
   return (
     <div className="bg-gray-50 text-gray-800 antialiased">
