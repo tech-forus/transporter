@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Mail, Zap, Target, DollarSign, Search, Briefcase, UserCheck, Phone } from 'lucide-react';
 
 // --- Reusable Hook for Fade-in Animation ---
@@ -67,9 +68,6 @@ const StepCard: React.FC<{ icon: React.ReactNode; title: string; children: React
 );
 
 const TransporterLandingPage: React.FC = () => {
-  // Use env var if present; fallback to a local route
-  const SIGNUP_URL = (import.meta as any).env?.VITE_TRANSPORTER_SIGNUP_URL ?? '/transporter-signup';
-
   return (
     <div className="bg-gray-50 text-gray-800 antialiased">
       {/* --- Hero Section --- */}
@@ -96,14 +94,14 @@ const TransporterLandingPage: React.FC = () => {
                 Contact Us
               </a>
 
-              {/* NEW Get Started button */}
-              <a
-                href="transporter-signup"
+              {/* Get Started uses React Router (same as header) */}
+              <Link
+                to="/transporter-signup"
                 className="inline-block px-8 py-3 bg-white text-blue-700 border border-blue-600 text-base font-semibold rounded-lg shadow hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300"
                 aria-label="Get Started"
               >
                 Get Started
-              </a>
+              </Link>
             </div>
           </AnimatedSection>
         </div>
@@ -197,7 +195,10 @@ const TransporterLandingPage: React.FC = () => {
                     <Mail className="w-6 h-6 mr-3 text-blue-500" />
                     <span>partners@example.com</span>
                   </a>
-                  <a href="tel:+911234567890" className="flex items-center text-lg text-gray-700 hover:text-blue-600 transition">
+                  <a
+                    href="tel:+911234567890"
+                    className="flex items-center text-lg text-gray-700 hover:text-blue-600 transition"
+                  >
                     <Phone className="w-6 h-6 mr-3 text-blue-500" />
                     <span>+91 123-456-7890</span>
                   </a>
