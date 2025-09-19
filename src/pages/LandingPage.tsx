@@ -98,7 +98,7 @@ const TransporterLandingPage: React.FC = () => {
 
               {/* NEW Get Started button */}
               <a
-                href={SIGNUP_URL}
+                href={/transporter-signup}
                 className="inline-block px-8 py-3 bg-white text-blue-700 border border-blue-600 text-base font-semibold rounded-lg shadow hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300"
                 aria-label="Get Started"
               >
