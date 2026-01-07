@@ -95,7 +95,7 @@ export const BiddingDetails: React.FC = () => {
                 message: string
                 data: BiddingDetail
             }>(
-                `https://backend-bcxr.onrender.com/api/bidding/details/${id}`,
+                `https://backend-2-4tjr.onrender.com/api/bidding/details/${id}`,
                 { withCredentials: true }
             )
             if (!res.data.success) {
@@ -132,7 +132,7 @@ export const BiddingDetails: React.FC = () => {
         setSubmitError(null)
         try {
             await axios.post(
-                `https://backend-bcxr.onrender.com/api/bidding/${id}/bid`,
+                `https://backend-2-4tjr.onrender.com/api/bidding/${id}/bid`,
                 { transporterId: user._id, bidAmount: newBidAmount },
                 { withCredentials: true }
             )

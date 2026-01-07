@@ -116,7 +116,7 @@ export default function AddPrice() {
     setLoading(true);
     try {
       console.log(payload);
-      await axios.post("https://backend-bcxr.onrender.com/api/transporter/auth/addprice", payload, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post("https://backend-2-4tjr.onrender.com/api/transporter/auth/addprice", payload, { headers: { Authorization: `Bearer ${token}` } });
       toast.success("Price configuration saved successfully!");
       navigate("/compare");
     } catch (err: any) { toast.error( err.response?.data?.message || "Save failed."); console.error(err);

@@ -277,7 +277,7 @@ export default function SignUpPage() {
     
     try {
       const token = Cookies.get('authToken');
-      await axios.post('https://backend-bcxr.onrender.com/api/transporter/auth/addtransporter', dataToSubmit, {
+      await axios.post('https://backend-2-4tjr.onrender.com/api/transporter/auth/addtransporter', dataToSubmit, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       toast.success('Transporter added successfully!', { id: toastId });

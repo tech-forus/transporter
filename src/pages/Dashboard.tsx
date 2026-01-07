@@ -59,7 +59,7 @@ const Dashboard: React.FC = () => {
           semiLimitedBids: Bid[]
         }
       }>(
-        'https://backend-bcxr.onrender.com/api/bidding/getbids',
+        'https://backend-2-4tjr.onrender.com/api/bidding/getbids',
         { tid: user._id },
         { headers: { 'Content-Type': 'application/json' } }
       )
