@@ -59,7 +59,7 @@ const Dashboard: React.FC = () => {
           semiLimitedBids: Bid[]
         }
       }>(
-        'https://backend-2-4tjr.onrender.com/api/bidding/getbids',
+        'https://freight-compare-backend-production.up.railway.app/api/bidding/getbids',
         { tid: user._id },
         { headers: { 'Content-Type': 'application/json' } }
       )

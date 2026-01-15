@@ -95,7 +95,7 @@ export const BiddingDetails: React.FC = () => {
                 message: string
                 data: BiddingDetail
             }>(
-                `https://backend-2-4tjr.onrender.com/api/bidding/details/${id}`,
+                `https://freight-compare-backend-production.up.railway.app/api/bidding/details/${id}`,
                 { withCredentials: true }
             )
             if (!res.data.success) {
@@ -132,7 +132,7 @@ export const BiddingDetails: React.FC = () => {
         setSubmitError(null)
         try {
             await axios.post(
-                `https://backend-2-4tjr.onrender.com/api/bidding/${id}/bid`,
+                `https://freight-compare-backend-production.up.railway.app/api/bidding/${id}/bid`,
                 { transporterId: user._id, bidAmount: newBidAmount },
                 { withCredentials: true }
             )
