@@ -38,7 +38,7 @@ type PriceRate = {
   handlingCharges: VariableFixedThreshold; // ✨ Use the new type here
   fmCharges: VariableFixed;
   appointmentCharges: VariableFixed;
-  divisor: number;
+  kFactor: number;
   minCharges: number;
   greenTax: number;
   daccCharges: number;
@@ -46,20 +46,20 @@ type PriceRate = {
 };
 
 // --- Styled & Reusable Components ---
-const Card = ({ children, className }: { children: React.ReactNode; className?: string; }) => ( <div className={`bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 sm:p-8 ${className}`}>{children}</div> );
-const InputField = ({ icon, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { icon?: React.ReactNode; }) => ( <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400">{icon}</span><input {...props} className={`w-full ${icon ? "pl-10" : "px-3"} py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition`}/></div> );
-const AccordionItem = ({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode; }) => { const [isOpen, setIsOpen] = useState(false); return (<div className="border border-slate-200 rounded-lg"><button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-4 text-left"><div className="flex items-center gap-3"><span className="text-blue-600">{icon}</span><h3 className="font-semibold text-slate-800">{title}</h3></div><ChevronDown size={20} className={`text-slate-500 transition-transform ${ isOpen ? "rotate-180" : "" }`}/></button><AnimatePresence><motion.div initial={false} animate={isOpen ? { height: "auto", opacity: 1, marginTop: "1rem" } : { height: 0, opacity: 0, marginTop: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="overflow-hidden px-4 pb-4">{children}</motion.div></AnimatePresence></div>); };
+const Card = ({ children, className }: { children: React.ReactNode; className?: string; }) => (<div className={`bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 sm:p-8 ${className}`}>{children}</div>);
+const InputField = ({ icon, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { icon?: React.ReactNode; }) => (<div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400">{icon}</span><input {...props} className={`w-full ${icon ? "pl-10" : "px-3"} py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition`} /></div>);
+const AccordionItem = ({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode; }) => { const [isOpen, setIsOpen] = useState(false); return (<div className="border border-slate-200 rounded-lg"><button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-4 text-left"><div className="flex items-center gap-3"><span className="text-blue-600">{icon}</span><h3 className="font-semibold text-slate-800">{title}</h3></div><ChevronDown size={20} className={`text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`} /></button><AnimatePresence><motion.div initial={false} animate={isOpen ? { height: "auto", opacity: 1, marginTop: "1rem" } : { height: 0, opacity: 0, marginTop: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="overflow-hidden px-4 pb-4">{children}</motion.div></AnimatePresence></div>); };
 
 // Standard 2-input group
-const ChargeInputGroup = ({ section, value, handler }: { section: keyof PriceRate; value: VariableFixed; handler: (s: keyof PriceRate, f: keyof VariableFixed, e: ChangeEvent<HTMLInputElement>) => void }) => (<div className="grid grid-cols-2 gap-4"><InputField type="number" step="0.01" icon={<Percent size={14} />} placeholder="Variable (%)" value={value.variable || ""} onChange={e => handler(section, "variable", e)}/><InputField type="number" icon={<DollarSign size={14} />} placeholder="Fixed (₹)" value={value.fixed || ""} onChange={e => handler(section, "fixed", e)} /></div>);
+const ChargeInputGroup = ({ section, value, handler }: { section: keyof PriceRate; value: VariableFixed; handler: (s: keyof PriceRate, f: keyof VariableFixed, e: ChangeEvent<HTMLInputElement>) => void }) => (<div className="grid grid-cols-2 gap-4"><InputField type="number" step="0.01" icon={<Percent size={14} />} placeholder="Variable (%)" value={value.variable || ""} onChange={e => handler(section, "variable", e)} /><InputField type="number" icon={<DollarSign size={14} />} placeholder="Fixed (₹)" value={value.fixed || ""} onChange={e => handler(section, "fixed", e)} /></div>);
 
 // ✨ NEW: 3-input group specifically for Handling Charges
-const HandlingChargeInputGroup = ({ value, handler }: { value: VariableFixedThreshold; handler: (s: 'handlingCharges', f: keyof VariableFixedThreshold, e: ChangeEvent<HTMLInputElement>) => void}) => (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <InputField type="number" step="0.01" icon={<Percent size={14} />} placeholder="Variable (%)" value={value.variable || ""} onChange={e => handler('handlingCharges', "variable", e)}/>
-        <InputField type="number" icon={<DollarSign size={14} />} placeholder="Fixed (₹)" value={value.fixed || ""} onChange={e => handler('handlingCharges', "fixed", e)}/>
-        <InputField type="number" icon={<Scale size={14} />} placeholder="Threshold Wt. (Kg)" value={value.thresholdWeight || ""} onChange={e => handler('handlingCharges', "thresholdWeight", e)}/>
-    </div>
+const HandlingChargeInputGroup = ({ value, handler }: { value: VariableFixedThreshold; handler: (s: 'handlingCharges', f: keyof VariableFixedThreshold, e: ChangeEvent<HTMLInputElement>) => void }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <InputField type="number" step="0.01" icon={<Percent size={14} />} placeholder="Variable (%)" value={value.variable || ""} onChange={e => handler('handlingCharges', "variable", e)} />
+    <InputField type="number" icon={<DollarSign size={14} />} placeholder="Fixed (₹)" value={value.fixed || ""} onChange={e => handler('handlingCharges', "fixed", e)} />
+    <InputField type="number" icon={<Scale size={14} />} placeholder="Threshold Wt. (Kg)" value={value.thresholdWeight || ""} onChange={e => handler('handlingCharges', "thresholdWeight", e)} />
+  </div>
 );
 
 export default function AddPrice() {
@@ -76,9 +76,9 @@ export default function AddPrice() {
     handlingCharges: { variable: 0, fixed: 0, thresholdWeight: 0 }, // ✨ Initialized here
     fmCharges: { variable: 0, fixed: 0 },
     appointmentCharges: { variable: 0, fixed: 0 },
-    divisor: 1, minCharges: 0, greenTax: 0, daccCharges: 0, miscellanousCharges: 0,
+    kFactor: 1, minCharges: 0, greenTax: 0, daccCharges: 0, miscellanousCharges: 0,
   });
-  
+
   // Other states
   const [transporterName, setTransporterName] = useState("");
   const [zoneLabels, setZoneLabels] = useState<string[]>([]);
@@ -98,7 +98,7 @@ export default function AddPrice() {
         : { ...prev, [section]: val }
     );
   };
-  
+
   // Load saved data on mount
   useEffect(() => {
     const savedName = sessionStorage.getItem("companyName");
@@ -111,7 +111,7 @@ export default function AddPrice() {
           setZoneLabels(arr);
           setZoneRates(arr.map(() => arr.map(() => 0)));
         }
-      } catch {}
+      } catch { }
     }
   }, []);
   const token = Cookies.get("authToken");
@@ -128,7 +128,8 @@ export default function AddPrice() {
       await axios.post("https://freight-compare-backend-production.up.railway.app/api/transporter/auth/addprice", payload, { headers: { Authorization: `Bearer ${token}` } });
       toast.success("Price configuration saved successfully!");
       navigate("/compare");
-    } catch (err: any) { toast.error( err.response?.data?.message || "Save failed."); console.error(err);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Save failed."); console.error(err);
     } finally { setLoading(false); }
   };
 
@@ -139,41 +140,41 @@ export default function AddPrice() {
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Price Configuration</h1>
           <p className="mt-2 text-lg text-slate-600">Set up rates and surcharges for <span className="font-bold text-blue-600">{transporterName || "your new transporter"}</span>.</p>
         </motion.div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Transporter Name and Basic Rates Cards remain unchanged */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}><Card><div className="flex items-center gap-3"><Truck size={22} className="text-blue-600" /><h2 className="text-xl font-bold text-slate-800">Transporter</h2></div><input type="text" className="mt-4 w-full bg-slate-100 p-3 rounded-lg border text-lg font-semibold" value={transporterName} disabled /></Card></motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}><Card><div className="flex items-center gap-3"><DollarSign size={22} className="text-blue-600" /><h2 className="text-xl font-bold text-slate-800">Basic Rates & Fuel</h2></div><p className="text-sm text-slate-500 mt-1 mb-4">Set the foundational rates for this transporter's pricing.</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><InputField icon={<Weight size={14}/>} type="number" placeholder="Min. Chargeable Weight" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e)}/><InputField icon={<Package size={14}/>} type="number" placeholder="Docket Charges (₹)" value={priceRate.docketCharges || ""} onChange={(e) => handleRateChange("docketCharges", null, e)}/><InputField icon={<Percent size={14}/>} type="number" placeholder="Fuel Surcharge (%)" value={priceRate.fuel || ""} onChange={(e) => handleRateChange("fuel", null, e)}/></div></Card></motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}><Card><div className="flex items-center gap-3"><DollarSign size={22} className="text-blue-600" /><h2 className="text-xl font-bold text-slate-800">Basic Rates & Fuel</h2></div><p className="text-sm text-slate-500 mt-1 mb-4">Set the foundational rates for this transporter's pricing.</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><InputField icon={<Weight size={14} />} type="number" placeholder="Min. Chargeable Weight" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e)} /><InputField icon={<Package size={14} />} type="number" placeholder="Docket Charges (₹)" value={priceRate.docketCharges || ""} onChange={(e) => handleRateChange("docketCharges", null, e)} /><InputField icon={<Percent size={14} />} type="number" placeholder="Fuel Surcharge (%)" value={priceRate.fuel || ""} onChange={(e) => handleRateChange("fuel", null, e)} /></div></Card></motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <Card>
               <div className="flex items-center gap-3"><Cog size={22} className="text-blue-600" /><h2 className="text-xl font-bold text-slate-800">Surcharge Configuration</h2></div>
               <p className="text-sm text-slate-500 mt-1 mb-6">Define variable and fixed costs for various additional charges.</p>
               <div className="space-y-4">
-                 <AccordionItem title="Risk & Value Charges" icon={<SlidersHorizontal size={18} />}><div className="space-y-4"><label className="font-medium text-sm text-slate-600">ROV Charges</label><ChargeInputGroup section="rovCharges" value={priceRate.rovCharges} handler={handleRateChange}/><label className="font-medium text-sm text-slate-600">Insurance Charges</label><ChargeInputGroup section="insuranceCharges" value={priceRate.insuranceCharges} handler={handleRateChange}/></div></AccordionItem>
-                 <AccordionItem title="Delivery & Service Charges" icon={<Package size={18} />}><div className="space-y-4"><label className="font-medium text-sm text-slate-600">ODA Charges</label><ChargeInputGroup section="odaCharges" value={priceRate.odaCharges} handler={handleRateChange}/><label className="font-medium text-sm text-slate-600">Appointment Charges</label><ChargeInputGroup section="appointmentCharges" value={priceRate.appointmentCharges} handler={handleRateChange}/></div></AccordionItem>
+                <AccordionItem title="Risk & Value Charges" icon={<SlidersHorizontal size={18} />}><div className="space-y-4"><label className="font-medium text-sm text-slate-600">ROV Charges</label><ChargeInputGroup section="rovCharges" value={priceRate.rovCharges} handler={handleRateChange} /><label className="font-medium text-sm text-slate-600">Insurance Charges</label><ChargeInputGroup section="insuranceCharges" value={priceRate.insuranceCharges} handler={handleRateChange} /></div></AccordionItem>
+                <AccordionItem title="Delivery & Service Charges" icon={<Package size={18} />}><div className="space-y-4"><label className="font-medium text-sm text-slate-600">ODA Charges</label><ChargeInputGroup section="odaCharges" value={priceRate.odaCharges} handler={handleRateChange} /><label className="font-medium text-sm text-slate-600">Appointment Charges</label><ChargeInputGroup section="appointmentCharges" value={priceRate.appointmentCharges} handler={handleRateChange} /></div></AccordionItem>
                 <AccordionItem title="Payment & Handling Charges" icon={<BotMessageSquare size={18} />}>
                   <div className="space-y-4">
-                     {/* ✨ MODIFICATION: Replaced ChargeInputGroup with HandlingChargeInputGroup for Handling Charges */}
+                    {/* ✨ MODIFICATION: Replaced ChargeInputGroup with HandlingChargeInputGroup for Handling Charges */}
                     <label className="font-medium text-sm text-slate-600">Handling Charges</label>
                     <HandlingChargeInputGroup value={priceRate.handlingCharges} handler={handleRateChange} />
-                    
-                    <label className="font-medium text-sm text-slate-600">COD Charges</label><ChargeInputGroup section="codCharges" value={priceRate.codCharges} handler={handleRateChange}/>
-                    <label className="font-medium text-sm text-slate-600">To-Pay Charges</label><ChargeInputGroup section="topayCharges" value={priceRate.topayCharges} handler={handleRateChange}/>
-                    <label className="font-medium text-sm text-slate-600">Prepaid Charges</label><ChargeInputGroup section="prepaidCharges" value={priceRate.prepaidCharges} handler={handleRateChange}/>
-                    <label className="font-medium text-sm text-slate-600">FM Charges</label><ChargeInputGroup section="fmCharges" value={priceRate.fmCharges} handler={handleRateChange}/>
+
+                    <label className="font-medium text-sm text-slate-600">COD Charges</label><ChargeInputGroup section="codCharges" value={priceRate.codCharges} handler={handleRateChange} />
+                    <label className="font-medium text-sm text-slate-600">To-Pay Charges</label><ChargeInputGroup section="topayCharges" value={priceRate.topayCharges} handler={handleRateChange} />
+                    <label className="font-medium text-sm text-slate-600">Prepaid Charges</label><ChargeInputGroup section="prepaidCharges" value={priceRate.prepaidCharges} handler={handleRateChange} />
+                    <label className="font-medium text-sm text-slate-600">FM Charges</label><ChargeInputGroup section="fmCharges" value={priceRate.fmCharges} handler={handleRateChange} />
                   </div>
                 </AccordionItem>
-                <AccordionItem title="Other Parameters" icon={<SlidersHorizontal size={18} />}><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"><InputField type="number" placeholder="Divisor Coefficient" value={priceRate.divisor || ""} onChange={(e) => handleRateChange("divisor", null, e)}/><InputField type="number" placeholder="Min. Overall Charges" value={priceRate.minCharges || ""} onChange={(e) => handleRateChange("minCharges", null, e)}/><InputField type="number" placeholder="Green Tax" value={priceRate.greenTax || ""} onChange={(e) => handleRateChange("greenTax", null, e)}/><InputField type="number" placeholder="DACC Charges" value={priceRate.daccCharges || ""} onChange={(e) => handleRateChange("daccCharges", null, e)}/><InputField type="number" placeholder="Misc. Charges" value={priceRate.miscellanousCharges || ""} onChange={(e) =>handleRateChange("miscellanousCharges", null, e)}/></div></AccordionItem>
+                <AccordionItem title="Other Parameters" icon={<SlidersHorizontal size={18} />}><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"><InputField type="number" placeholder="Divisor Coefficient" value={priceRate.kFactor || ""} onChange={(e) => handleRateChange("kFactor", null, e)} /><InputField type="number" placeholder="Min. Overall Charges" value={priceRate.minCharges || ""} onChange={(e) => handleRateChange("minCharges", null, e)} /><InputField type="number" placeholder="Green Tax" value={priceRate.greenTax || ""} onChange={(e) => handleRateChange("greenTax", null, e)} /><InputField type="number" placeholder="DACC Charges" value={priceRate.daccCharges || ""} onChange={(e) => handleRateChange("daccCharges", null, e)} /><InputField type="number" placeholder="Misc. Charges" value={priceRate.miscellanousCharges || ""} onChange={(e) => handleRateChange("miscellanousCharges", null, e)} /></div></AccordionItem>
               </div>
             </Card>
           </motion.div>
-          
+
           {/* Zone-to-Zone Rates Card */}
-          <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.4}}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
             <Card>
               <div className="flex items-center gap-3">
-                <SlidersHorizontal size={22} className="text-blue-600"/>
+                <SlidersHorizontal size={22} className="text-blue-600" />
                 <h2 className="text-xl font-bold text-slate-800">Zone-to-Zone Rates</h2>
               </div>
               <p className="text-sm text-slate-500 mt-1 mb-6">
@@ -186,7 +187,7 @@ export default function AddPrice() {
               />
             </Card>
           </motion.div>
-          <div className="pt-4 text-center"><button type="submit" disabled={loading} className="w-full max-w-xs inline-flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white text-base font-semibold rounded-lg shadow-lg shadow-blue-500/50 hover:bg-blue-700 disabled:opacity-50">{loading ? <><Loader2 className="animate-spin" size={20}/>Saving...</> : <><Save size={20}/> Save Configuration</>}</button></div>
+          <div className="pt-4 text-center"><button type="submit" disabled={loading} className="w-full max-w-xs inline-flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white text-base font-semibold rounded-lg shadow-lg shadow-blue-500/50 hover:bg-blue-700 disabled:opacity-50">{loading ? <><Loader2 className="animate-spin" size={20} />Saving...</> : <><Save size={20} /> Save Configuration</>}</button></div>
         </form>
       </div>
     </div>
