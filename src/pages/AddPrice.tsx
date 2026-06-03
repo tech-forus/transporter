@@ -45,9 +45,9 @@ type PriceRate = {
   appointmentCharges: VariableFixed;
   kFactor: number;
   minCharges: number;
-  greenTax: number;
-  daccCharges: number;
-  miscellanousCharges: number;
+  greenTax: VariableFixed;
+  daccCharges: VariableFixed;
+  miscellanousCharges: VariableFixed;
 };
 
 const DEFAULT_PRICE_RATE: PriceRate = {
@@ -61,7 +61,10 @@ const DEFAULT_PRICE_RATE: PriceRate = {
   handlingCharges: { variable: 0, fixed: 0, thresholdWeight: 0 },
   fmCharges: { variable: 0, fixed: 0 },
   appointmentCharges: { variable: 0, fixed: 0 },
-  kFactor: 1, minCharges: 0, greenTax: 0, daccCharges: 0, miscellanousCharges: 0,
+  kFactor: 5000, minCharges: 0,
+  greenTax: { variable: 0, fixed: 0 },
+  daccCharges: { variable: 0, fixed: 0 },
+  miscellanousCharges: { variable: 0, fixed: 0 },
 };
 
 // --- Styled & Reusable Components ---
@@ -512,6 +515,9 @@ export default function AddPrice() {
                       { key: 'topayCharges', label: 'To-Pay Charges' },
                       { key: 'prepaidCharges', label: 'Prepaid Charges' },
                       { key: 'fmCharges', label: 'FM Charges' },
+                      { key: 'greenTax', label: 'Green Tax / NGT' },
+                      { key: 'daccCharges', label: 'DACC Charges' },
+                      { key: 'miscellanousCharges', label: 'Misc. Charges' },
                     ].map((charge) => (
                       <tr key={charge.key} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-2 border-r border-slate-200 font-medium text-slate-700 pl-6">{charge.label}</td>
@@ -539,9 +545,6 @@ export default function AddPrice() {
                     
                     {[
                       { key: 'minCharges', label: 'Minimum Charges' },
-                      { key: 'greenTax', label: 'Green Tax / NGT' },
-                      { key: 'daccCharges', label: 'DACC Charges' },
-                      { key: 'miscellanousCharges', label: 'Misc. Charges' },
                       { key: 'kFactor', label: 'Divisor Coefficient (K Factor)' },
                     ].map((param) => (
                       <tr key={param.key} className="hover:bg-slate-50/50 transition-colors">
