@@ -283,7 +283,7 @@ export default function AddPrice() {
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_onboarding_current_step');
       localStorage.removeItem('transporter_onboarding_mode');
-      navigate("/compare");
+      navigate("/transporter-signin");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Save failed.");
       console.error(err);
