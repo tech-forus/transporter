@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ChangeEvent, DragEvent, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, useCallback, ChangeEvent, DragEvent, FormEvent } from 'react';
 import guidlines from '../assets/guidlines.jpg';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -8,9 +8,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../config/apiConfig';
 import {
   Truck, Hash, Grid3X3, UploadCloud, FileSpreadsheet, Download, Loader2, ArrowLeft, ArrowRight,
-  CheckCircle, Building, Phone, Mail, KeyRound, MapPin, Map, Calendar, Clock, Ship, Link,
-  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText
+  CheckCircle, CheckCircle2, Building, Phone, Mail, KeyRound, MapPin, Map, Calendar, Clock, Ship, Link,
+  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle
 } from 'lucide-react';
+import { useGSTLookup } from '../hooks/useGSTLookup';
+import { GSTConflictPanel } from '../components/GSTConflictPanel';
 
 // --- Type Definitions for State ---
 interface IFormData {
@@ -350,6 +352,64 @@ export default function SignUpPage() {
   const [aiSummaryData, setAiSummaryData] = useState<AiSummaryData | null>(null);
 
   const navigate = useNavigate();
+
+  // ─── GST Autofill ──────────────────────────────────────────────────────────
+  const gstLookup = useGSTLookup();
+  const [gstFocused, setGstFocused] = useState(false);
+  const appliedGstinRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    gstLookup.lookup(formData.gstNo || '', {
+      companyName: formData.companyName || '',
+      address: formData.address || '',
+      state: formData.stateName || '',
+      city: '',
+      pincode: formData.pincode || '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.gstNo]);
+
+  useEffect(() => {
+    const data = gstLookup.gstData;
+    if (!data) return;
+    if (gstLookup.status !== 'success' && gstLookup.status !== 'partial') return;
+    if (appliedGstinRef.current === data.gstin) return;
+    appliedGstinRef.current = data.gstin;
+
+    if (gstLookup.status === 'partial') {
+      if (data.stateName) setFormData(prev => ({ ...prev, stateName: data.stateName! }));
+      return;
+    }
+
+    const conflictKeys = new Set(gstLookup.conflicts.map(c => c.key));
+    setFormData(prev => {
+      const updated = { ...prev };
+      if (!conflictKeys.has('companyName') && data.legalName) updated.companyName = data.legalName;
+      if (!conflictKeys.has('address') && data.address) updated.address = data.address;
+      if (!conflictKeys.has('state') && data.stateName) updated.stateName = data.stateName;
+      if (!conflictKeys.has('state') && !conflictKeys.has('city') && !conflictKeys.has('pincode') && data.pincode)
+        updated.pincode = data.pincode;
+      return updated;
+    });
+  }, [gstLookup.gstData, gstLookup.status, gstLookup.conflicts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConflictApply = useCallback((selectedKeys: string[]) => {
+    const data = gstLookup.gstData;
+    if (!data) return;
+    setFormData(prev => {
+      const updated = { ...prev };
+      selectedKeys.forEach(key => {
+        switch (key) {
+          case 'companyName': if (data.legalName) updated.companyName = data.legalName; break;
+          case 'address': if (data.address) updated.address = data.address; break;
+          case 'state': if (data.stateName) updated.stateName = data.stateName; break;
+          case 'pincode': if (data.pincode) updated.pincode = data.pincode; break;
+        }
+      });
+      return updated;
+    });
+    gstLookup.dismissConflictPanel();
+  }, [gstLookup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset to a clean empty form when the user explicitly chooses Manual mode.
   // Clears any AI-prefilled data so manual entry starts from scratch.
@@ -1676,7 +1736,73 @@ export default function SignUpPage() {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                                   <InputField id="companyName" label="Company Name" icon={<Building size={16}/>} value={formData.companyName} onChange={handleFormChange} onBlur={handleBlur} error={touched.companyName ? errors.companyName : undefined} required />
-                                  <InputField id="gstNo" label="GST No." icon={<Hash size={16}/>} value={formData.gstNo} onChange={handleFormChange} onBlur={handleBlur} error={touched.gstNo ? errors.gstNo : undefined} required />
+                                  {/* GST No. — with autofill */}
+                                  <div className="w-full">
+                                    <label htmlFor="gstNo" className="block text-sm font-medium text-slate-700 mb-1">
+                                      GST No.<span className="text-red-500 ml-1">*</span>
+                                    </label>
+                                    <div className="relative">
+                                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
+                                        <Hash size={16} />
+                                      </span>
+                                      <input
+                                        id="gstNo"
+                                        value={formData.gstNo}
+                                        onChange={handleFormChange}
+                                        onFocus={() => setGstFocused(true)}
+                                        onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
+                                        maxLength={15}
+                                        required
+                                        className={`w-full pl-11 pr-9 py-2.5 border rounded-lg shadow-sm transition-all duration-300
+                                          bg-slate-50 text-slate-900 placeholder:text-slate-400
+                                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 focus:border-blue-600
+                                          ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300/70'}`}
+                                        aria-invalid={!!(touched.gstNo && errors.gstNo)}
+                                      />
+                                      {/* Status icon */}
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                        {gstLookup.status === 'loading' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+                                        {gstLookup.status === 'success' && !gstLookup.showConflictPanel && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                                        {gstLookup.status === 'failed' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
+                                        {gstLookup.status === 'invalid' && <XCircle className="w-4 h-4 text-red-400" />}
+                                      </span>
+                                    </div>
+
+                                    {/* Validation error */}
+                                    {touched.gstNo && errors.gstNo && (
+                                      <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
+                                    )}
+
+                                    {/* Helper text on focus when empty */}
+                                    {gstFocused && !formData.gstNo && (
+                                      <p className="mt-1 text-[10px] text-slate-400">
+                                        Enter your GSTIN to auto-fill company details
+                                      </p>
+                                    )}
+
+                                    {/* GST lookup messages */}
+                                    {gstLookup.status === 'invalid' && (
+                                      <p className="mt-1 text-[10px] text-red-500">Invalid GSTIN format</p>
+                                    )}
+                                    {gstLookup.status === 'loading' && (
+                                      <p className="mt-1 text-[10px] text-blue-500">Looking up…</p>
+                                    )}
+                                    {gstLookup.successMessage && (
+                                      <p className="mt-1 text-[10px] text-green-600">{gstLookup.successMessage}</p>
+                                    )}
+                                    {gstLookup.errorMessage && (
+                                      <p className="mt-1 text-[10px] text-orange-500">{gstLookup.errorMessage}</p>
+                                    )}
+
+                                    {/* Conflict panel */}
+                                    {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
+                                      <GSTConflictPanel
+                                        conflicts={gstLookup.conflicts}
+                                        onApply={handleConflictApply}
+                                        onKeep={gstLookup.dismissConflictPanel}
+                                      />
+                                    )}
+                                  </div>
                                   <InputField id="websiteLink" label="Website Link" icon={<Link size={16}/>} value={formData.websiteLink} onChange={handleFormChange} onBlur={handleBlur} error={touched.websiteLink ? errors.websiteLink : undefined} />
                                 </div>
                               </div>
