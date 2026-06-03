@@ -1735,8 +1735,7 @@ export default function SignUpPage() {
                                   </button>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
-                                  <InputField id="companyName" label="Company Name" icon={<Building size={16}/>} value={formData.companyName} onChange={handleFormChange} onBlur={handleBlur} error={touched.companyName ? errors.companyName : undefined} required />
-                                  {/* GST No. — with autofill */}
+                                  {/* GST No. — first, drives autofill */}
                                   <div className="w-full">
                                     <label htmlFor="gstNo" className="block text-sm font-medium text-slate-700 mb-1">
                                       GST No.<span className="text-red-500 ml-1">*</span>
@@ -1802,7 +1801,16 @@ export default function SignUpPage() {
                                         onKeep={gstLookup.dismissConflictPanel}
                                       />
                                     )}
+
+                                    {/* Static hint — always visible below the field */}
+                                    {gstLookup.status === 'idle' && !gstLookup.successMessage && !gstLookup.errorMessage && (
+                                      <p className="mt-1 text-[10px] text-slate-400 flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3 text-blue-400 shrink-0" />
+                                        Autofill details from GST
+                                      </p>
+                                    )}
                                   </div>
+                                  <InputField id="companyName" label="Company Name" icon={<Building size={16}/>} value={formData.companyName} onChange={handleFormChange} onBlur={handleBlur} error={touched.companyName ? errors.companyName : undefined} required />
                                   <InputField id="websiteLink" label="Website Link" icon={<Link size={16}/>} value={formData.websiteLink} onChange={handleFormChange} onBlur={handleBlur} error={touched.websiteLink ? errors.websiteLink : undefined} />
                                 </div>
                               </div>
