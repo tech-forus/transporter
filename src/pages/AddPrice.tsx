@@ -367,13 +367,26 @@ export default function AddPrice() {
     );
   }
 
+  // ── UnitSelect Component ───────────────────────────────────────
+  const UnitSelect = ({ defaultValue = "FLAT" }: { defaultValue?: string }) => (
+    <select 
+      defaultValue={defaultValue} 
+      className="w-full bg-transparent text-slate-500 font-semibold text-[11px] border border-transparent hover:border-slate-200 rounded py-1 px-0 text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+      style={{ textAlignLast: 'center' }}
+    >
+      <option value="FLAT">FLAT</option>
+      <option value="% ON BASE">% ON BASE</option>
+      <option value="KG">KG</option>
+    </select>
+  );
+
   // ── Main Charges Configuration Form ───────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 font-sans py-4 sm:py-6">
-      <div className="container mx-auto px-4 max-w-5xl space-y-6">
+    <div className="min-h-screen bg-slate-50 font-sans py-2 sm:py-4">
+      <div className="container mx-auto px-4 max-w-5xl space-y-4">
 
         {/* Header with back button */}
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative flex items-center justify-center mb-2">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative flex items-center justify-center mb-1">
           <button
             type="button"
             onClick={() => {
@@ -389,9 +402,9 @@ export default function AddPrice() {
           >
             <ArrowLeft size={15} /> Back
           </button>
-          <div className="text-center">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Price Configuration</h1>
-            <p className="mt-2 text-lg text-slate-600">
+          <div className="text-center flex flex-row items-center justify-center gap-3">
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Price Configuration</h1>
+            <p className="text-sm text-slate-600 mt-1">
               Set up rates and surcharges for{' '}
               <span className="font-bold text-blue-600">{transporterName || "your new transporter"}</span>.
             </p>
@@ -403,15 +416,15 @@ export default function AddPrice() {
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl overflow-hidden"
+            className="rounded-lg overflow-hidden mx-auto max-w-fit"
             style={{ background: 'linear-gradient(135deg, #0f2027, #1a3a4a)', border: '1px solid #1e4060' }}
           >
-            <div className="flex items-center gap-3 px-5 py-3 flex-wrap">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-              <Sparkles size={15} className="text-blue-400 flex-shrink-0" />
-              <span className="text-sm font-bold text-white">Charges Pre-filled by AI Extraction</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 flex-wrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+              <Sparkles size={12} className="text-blue-400 flex-shrink-0" />
+              <span className="text-xs font-bold text-white">Charges Pre-filled by AI Extraction</span>
               <span
-                className="text-xs px-2 py-0.5 rounded-full font-mono font-semibold"
+                className="text-[10px] px-1.5 py-0.5 rounded-full font-mono font-semibold"
                 style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)' }}
               >
                 Review & edit all values before submitting
@@ -420,22 +433,11 @@ export default function AddPrice() {
           </motion.div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Unified Price Configuration Table */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Card className="p-0 overflow-hidden border-0 shadow-lg">
-              {/* Header */}
-              <div className="bg-slate-50 p-5 sm:p-6 border-b border-slate-200">
-                <div className="flex items-center gap-3 mb-1">
-                  <h2 className="text-xl font-extrabold text-slate-800">Transporter Pricing</h2>
-                </div>
-                <div className="flex items-center">
-                  <span className="text-sm text-slate-500 mr-2">Configuring rates for:</span>
-                  <span className="font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded text-sm">{transporterName || "your new transporter"}</span>
-                </div>
-              </div>
-
               {/* Unified Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left min-w-[700px]">
@@ -455,32 +457,44 @@ export default function AddPrice() {
                     
                     {/* Docket Charges */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 border-r border-slate-200 font-semibold text-slate-700 pl-4 flex items-center gap-2.5"><Package size={15} className="text-blue-500"/> Docket Charges</td>
-                      <td className="p-2 border-r border-slate-200">
-                        <input type="number" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={priceRate.docketCharges || ""} onChange={(e) => handleRateChange("docketCharges", null, e)} />
+                      <td className="p-2 border-r border-slate-200 font-semibold text-slate-700 pl-4 flex items-center gap-2.5"><Package size={15} className="text-blue-500"/> Docket Charges</td>
+                      <td className="p-1 border-r border-slate-200">
+                        <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={priceRate.docketCharges || ""} onChange={(e) => handleRateChange("docketCharges", null, e)} />
                       </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50 text-center text-slate-300">-</td>
-                      <td className="p-2 bg-slate-50 text-center text-slate-400 text-xs font-semibold">FLAT</td>
+                      <td className="p-1 border-r border-slate-200">
+                        <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" />
+                      </td>
+                      <td className="p-1">
+                        <UnitSelect defaultValue="FLAT" />
+                      </td>
                     </tr>
 
                     {/* Fuel Surcharge */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 border-r border-slate-200 font-semibold text-slate-700 pl-4 flex items-center gap-2.5"><Percent size={15} className="text-blue-500"/> Fuel Surcharge</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50 text-center text-slate-300">-</td>
-                      <td className="p-2 border-r border-slate-200">
-                        <input type="number" step="0.01" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={priceRate.fuel || ""} onChange={(e) => handleRateChange("fuel", null, e)} />
+                      <td className="p-2 border-r border-slate-200 font-semibold text-slate-700 pl-4 flex items-center gap-2.5"><Percent size={15} className="text-blue-500"/> Fuel Surcharge</td>
+                      <td className="p-1 border-r border-slate-200">
+                        <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" />
                       </td>
-                      <td className="p-2 bg-slate-50 text-center text-slate-500 font-semibold text-xs">% ON BASE</td>
+                      <td className="p-1 border-r border-slate-200">
+                        <input type="number" step="0.01" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={priceRate.fuel || ""} onChange={(e) => handleRateChange("fuel", null, e)} />
+                      </td>
+                      <td className="p-1">
+                        <UnitSelect defaultValue="% ON BASE" />
+                      </td>
                     </tr>
 
                     {/* Min Chargeable Weight */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 border-r border-slate-200 font-semibold text-slate-700 pl-4 flex items-center gap-2.5"><Weight size={15} className="text-blue-500"/> Min Chargeable Wt</td>
-                      <td className="p-2 border-r border-slate-200">
-                        <input type="number" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e)} />
+                      <td className="p-2 border-r border-slate-200 font-semibold text-slate-700 pl-4 flex items-center gap-2.5"><Weight size={15} className="text-blue-500"/> Min Chargeable Wt</td>
+                      <td className="p-1 border-r border-slate-200">
+                        <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e)} />
                       </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50 text-center text-slate-300">-</td>
-                      <td className="p-2 bg-slate-50 text-center text-slate-500 font-semibold text-xs">KG</td>
+                      <td className="p-1 border-r border-slate-200">
+                        <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" />
+                      </td>
+                      <td className="p-1">
+                        <UnitSelect defaultValue="KG" />
+                      </td>
                     </tr>
 
                     {/* SURCHARGES HEADER */}
@@ -500,20 +514,20 @@ export default function AddPrice() {
                       { key: 'fmCharges', label: 'FM Charges' },
                     ].map((charge) => (
                       <tr key={charge.key} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-3 border-r border-slate-200 font-medium text-slate-700 pl-6">{charge.label}</td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={(priceRate as any)[charge.key]?.fixed || ""} onChange={e => handleRateChange(charge.key as any, "fixed", e)} />
+                        <td className="p-2 border-r border-slate-200 font-medium text-slate-700 pl-6">{charge.label}</td>
+                        <td className="p-1 border-r border-slate-200">
+                          <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={(priceRate as any)[charge.key]?.fixed || ""} onChange={e => handleRateChange(charge.key as any, "fixed", e)} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" step="0.01" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={(priceRate as any)[charge.key]?.variable || ""} onChange={e => handleRateChange(charge.key as any, "variable", e)} />
+                        <td className="p-1 border-r border-slate-200">
+                          <input type="number" step="0.01" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={(priceRate as any)[charge.key]?.variable || ""} onChange={e => handleRateChange(charge.key as any, "variable", e)} />
                         </td>
-                        <td className="p-2">
+                        <td className="p-1">
                           {charge.hasThreshold ? (
-                            <div className="flex items-center gap-2 px-2">
-                              <input type="number" placeholder="Threshold" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={(priceRate.handlingCharges as any)?.thresholdWeight || ""} onChange={e => handleRateChange("handlingCharges", "thresholdWeight", e)} />
-                              <span className="text-xs text-slate-500 font-bold">KG</span>
+                            <div className="flex items-center gap-1 px-1">
+                              <input type="number" placeholder="Threshold" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" value={(priceRate.handlingCharges as any)?.thresholdWeight || ""} onChange={e => handleRateChange("handlingCharges", "thresholdWeight", e)} />
+                              <div className="w-20"><UnitSelect defaultValue="KG" /></div>
                             </div>
-                          ) : <span className="block text-center text-slate-300">-</span>}
+                          ) : <UnitSelect defaultValue="FLAT" />}
                         </td>
                       </tr>
                     ))}
@@ -531,12 +545,16 @@ export default function AddPrice() {
                       { key: 'kFactor', label: 'Divisor Coefficient (K Factor)' },
                     ].map((param) => (
                       <tr key={param.key} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-3 border-r border-slate-200 font-medium text-slate-700 pl-6">{param.label}</td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" className="w-full p-2 text-center border border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium" value={(priceRate as any)[param.key] || ""} onChange={e => handleRateChange(param.key as any, null, e)} />
+                        <td className="p-2 border-r border-slate-200 font-medium text-slate-700 pl-6">{param.label}</td>
+                        <td className="p-1 border-r border-slate-200">
+                          <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={(priceRate as any)[param.key] || ""} onChange={e => handleRateChange(param.key as any, null, e)} />
                         </td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50 text-center text-slate-300">-</td>
-                        <td className="p-2 bg-slate-50 text-center text-slate-300">-</td>
+                        <td className="p-1 border-r border-slate-200">
+                          <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" />
+                        </td>
+                        <td className="p-1">
+                          <UnitSelect defaultValue="FLAT" />
+                        </td>
                       </tr>
                     ))}
 
