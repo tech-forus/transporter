@@ -1377,33 +1377,7 @@ export default function SignUpPage() {
         );
       }
       if (status === 'success') {
-        return (
-          <details className="rounded-xl border border-slate-200 overflow-hidden mb-4 mt-6">
-            <summary className="bg-slate-800 text-slate-300 text-xs font-mono px-4 py-2 cursor-pointer select-none hover:bg-slate-700">
-              Extraction log ({extractionLogs.length} lines) — click to expand
-            </summary>
-            <div className="bg-slate-900 p-3 h-40 overflow-y-auto font-mono text-2xs space-y-0.5">
-              {extractionLogs.map((line, idx) => (
-                <div
-                  key={idx}
-                  className="leading-relaxed py-0.5"
-                  style={{
-                    color: line.startsWith('[ERROR]') ? '#f87171'
-                      : line.startsWith('[DONE]') ? '#34d399'
-                      : line.startsWith('[OK]') ? '#4ade80'
-                      : line.startsWith('[START]') ? '#60a5fa'
-                      : line.startsWith('[AI]') ? '#a78bfa'
-                      : '#86efac',
-                    borderLeft: `2px solid ${line.startsWith('[ERROR]') ? '#f87171' : line.startsWith('[DONE]') || line.startsWith('[OK]') ? '#4ade80' : '#1e3a5f'}`,
-                    paddingLeft: '10px',
-                  }}
-                >
-                  {line}
-                </div>
-              ))}
-            </div>
-          </details>
-        );
+        return null;
       }
     }
 
