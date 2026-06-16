@@ -447,7 +447,7 @@ export default function SignUpPage() {
     const customer = (user as any)?.customer || (user as any);
     const first = (customer?.firstName || '').trim().toLowerCase();
     const last = (customer?.lastName || '').trim().toLowerCase();
-    return first === 'uttam' && last === 'goyal';
+    return (first === 'uttam' && last === 'goyal') || (first === 'abhudaya' && last === 'singh');
   }, [user]);
 
   // State Management
