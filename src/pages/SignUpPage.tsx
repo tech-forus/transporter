@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, ChangeEvent, DragEvent, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, ChangeEvent, DragEvent, FormEvent } from 'react';
 import guidlines from '../assets/guidlines.jpg';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -9,10 +9,158 @@ import { API_BASE_URL } from '../config/apiConfig';
 import {
   Truck, Hash, Grid3X3, UploadCloud, FileSpreadsheet, Download, Loader2, ArrowLeft, ArrowRight,
   CheckCircle, CheckCircle2, Building, Phone, Mail, KeyRound, MapPin, Map, Calendar, Clock, Ship, Link,
-  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle
+  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle, PackageSearch, ScanSearch, Boxes
 } from 'lucide-react';
 import { useGSTLookup } from '../hooks/useGSTLookup';
 import { GSTConflictPanel } from '../components/GSTConflictPanel';
+import { useAuth } from '../hooks/useAuth';
+
+// ============================================================================
+// TRUCK PROGRESS ANIMATION — friendly "extracting vendor data" loader
+// shown to all users except the dev/admin (Uttam Goyal), who sees the raw
+// generation console instead.
+// ============================================================================
+const TRUCK_PROGRESS_STAGES = [
+  { upTo: 20, label: 'Reading your documents…', icon: PackageSearch },
+  { upTo: 45, label: 'Scanning rate cards & charges…', icon: ScanSearch },
+  { upTo: 75, label: 'Mapping zones & pincodes…', icon: Boxes },
+  { upTo: 100, label: 'Putting it all together…', icon: Sparkles },
+];
+
+// Realistic delivery truck SVG (side profile, cab + box body + wheels)
+const TruckSVG: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    {/* cargo box */}
+    <rect x="2" y="6" width="36" height="20" rx="2" fill="#2563eb" />
+    <rect x="5" y="9" width="30" height="6" rx="1" fill="#bfdbfe" opacity="0.9" />
+    {/* cab */}
+    <path d="M38 14 H50 C52 14 53 15 54 17 L58 23 C58.6 24 58 25 57 25 H38 Z" fill="#1d4ed8" />
+    {/* windshield */}
+    <path d="M50 16 L53.5 16 L56.2 21 H50 Z" fill="#dbeafe" />
+    {/* chassis line */}
+    <rect x="2" y="26" width="58" height="2.5" fill="#1e3a8a" />
+    {/* wheels */}
+    <g className="origin-center" style={{ transformOrigin: '13px 32px' }}>
+      <circle cx="13" cy="32" r="5.5" fill="#0f172a" />
+      <circle cx="13" cy="32" r="2.4" fill="#cbd5e1" />
+      <rect x="12.4" y="27" width="1.2" height="2" fill="#cbd5e1" />
+      <rect x="12.4" y="35" width="1.2" height="2" fill="#cbd5e1" />
+    </g>
+    <g style={{ transformOrigin: '48px 32px' }}>
+      <circle cx="48" cy="32" r="5.5" fill="#0f172a" />
+      <circle cx="48" cy="32" r="2.4" fill="#cbd5e1" />
+      <rect x="47.4" y="27" width="1.2" height="2" fill="#cbd5e1" />
+      <rect x="47.4" y="35" width="1.2" height="2" fill="#cbd5e1" />
+    </g>
+  </svg>
+);
+
+const TruckProgressAnimation: React.FC<{ progress: number }> = ({ progress }) => {
+  const stage = TRUCK_PROGRESS_STAGES.find(s => progress <= s.upTo) || TRUCK_PROGRESS_STAGES[TRUCK_PROGRESS_STAGES.length - 1];
+  const StageIcon = stage.icon;
+  const pct = Math.round(progress);
+  // ring math for the circular percentage indicator
+  const RING_R = 26;
+  const RING_C = 2 * Math.PI * RING_R;
+
+  return (
+    <div className="relative rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50 to-white p-6 overflow-hidden shadow-lg shadow-blue-900/5">
+      {/* drifting glow blobs */}
+      <motion.div
+        className="absolute -top-10 -left-10 w-40 h-40 rounded-full bg-blue-200/40 blur-3xl"
+        animate={{ x: [0, 30, 0], y: [0, 20, 0] }}
+        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute -bottom-12 -right-10 w-48 h-48 rounded-full bg-blue-200/35 blur-3xl"
+        animate={{ x: [0, -25, 0], y: [0, -15, 0] }}
+        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* twinkling dots */}
+      {[...Array(10)].map((_, i) => (
+        <motion.span
+          key={i}
+          className="absolute w-1 h-1 rounded-full bg-blue-400/60"
+          style={{ left: `${(i * 9.7) % 100}%`, top: `${(i * 23) % 70 + 5}%` }}
+          animate={{ opacity: [0.15, 0.8, 0.15] }}
+          transition={{ duration: 2 + (i % 4), repeat: Infinity, ease: 'easeInOut', delay: i * 0.3 }}
+        />
+      ))}
+
+      <div className="relative z-10 flex items-center gap-5">
+        {/* Circular progress ring */}
+        <div className="relative w-20 h-20 shrink-0">
+          <svg viewBox="0 0 60 60" className="w-20 h-20 -rotate-90">
+            <circle cx="30" cy="30" r={RING_R} fill="none" stroke="rgba(37,99,235,0.15)" strokeWidth="5" />
+            <motion.circle
+              cx="30" cy="30" r={RING_R} fill="none" stroke="#2563eb" strokeWidth="5" strokeLinecap="round"
+              strokeDasharray={RING_C}
+              animate={{ strokeDashoffset: RING_C - (pct / 100) * RING_C }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-lg font-black text-blue-600 tabular-nums">{pct}%</span>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Status line */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={stage.label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+              className="flex items-center gap-2 text-sm font-bold text-slate-700"
+            >
+              <StageIcon className="w-4 h-4 text-blue-500 shrink-0" />
+              <span className="truncate">{stage.label}</span>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Road with moving truck */}
+          <div className="relative h-9 mt-3">
+            <div className="absolute bottom-2 left-0 right-0 h-2 rounded-full bg-blue-100 overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-blue-400 via-blue-600 to-blue-700 relative"
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+              >
+                {/* shimmer sweep */}
+                <motion.div
+                  className="absolute inset-y-0 w-12 bg-gradient-to-r from-transparent via-white/70 to-transparent"
+                  animate={{ left: ['-20%', '120%'] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+                />
+              </motion.div>
+            </div>
+            {/* dashed lane markings */}
+            <div className="absolute bottom-[11px] left-0 right-0 h-px border-t-2 border-dashed border-blue-200" />
+            <motion.div
+              className="absolute bottom-1"
+              animate={{ left: `calc(${pct}% - 18px)` }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            >
+              <motion.div
+                animate={{ y: [0, -1.5, 0] }}
+                transition={{ duration: 0.5, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <TruckSVG className="w-11 h-7 drop-shadow-lg" />
+              </motion.div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+
+      <p className="relative z-10 mt-4 text-xs text-slate-400">
+        This usually takes around 2 minutes per transporter — feel free to keep this tab open while we get everything ready.
+      </p>
+    </div>
+  );
+};
 
 // --- Type Definitions for State ---
 interface IFormData {
@@ -293,6 +441,15 @@ const getIndianStateByPincode = (pincode: string): { state: string; city: string
 
 // --- Main Page Component ---
 export default function SignUpPage() {
+  const { user } = useAuth();
+  const isUttamGoyal = useMemo(() => {
+    if (!user) return false;
+    const customer = (user as any)?.customer || (user as any);
+    const first = (customer?.firstName || '').trim().toLowerCase();
+    const last = (customer?.lastName || '').trim().toLowerCase();
+    return first === 'uttam' && last === 'goyal';
+  }, [user]);
+
   // State Management
   const [formData, setFormData] = useState<IFormData>(() => {
     // Only restore saved form data when resuming manual mode.
@@ -1182,6 +1339,74 @@ export default function SignUpPage() {
   };
 
   const renderTerminal = (status: 'processing' | 'success' | 'failed') => {
+    if (!isUttamGoyal) {
+      if (status === 'processing') {
+        return (
+          <div className="mt-6">
+            <TruckProgressAnimation progress={aiProgress} />
+          </div>
+        );
+      }
+      if (status === 'failed') {
+        return (
+          <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-sm text-red-600 mt-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-800">Extraction Failed</p>
+                <p className="text-red-700 mt-1">
+                  Something went wrong while reading your files. Please try again — if the problem continues, try uploading a clearer copy.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setOnboardingMode('ai_upload');
+                  setExtractionStatus('idle');
+                  setAiProgress(0);
+                  setExtractionLogs([]);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors"
+              >
+                Back to Upload
+              </button>
+            </div>
+          </div>
+        );
+      }
+      if (status === 'success') {
+        return (
+          <details className="rounded-xl border border-slate-200 overflow-hidden mb-4 mt-6">
+            <summary className="bg-slate-800 text-slate-300 text-xs font-mono px-4 py-2 cursor-pointer select-none hover:bg-slate-700">
+              Extraction log ({extractionLogs.length} lines) — click to expand
+            </summary>
+            <div className="bg-slate-900 p-3 h-40 overflow-y-auto font-mono text-2xs space-y-0.5">
+              {extractionLogs.map((line, idx) => (
+                <div
+                  key={idx}
+                  className="leading-relaxed py-0.5"
+                  style={{
+                    color: line.startsWith('[ERROR]') ? '#f87171'
+                      : line.startsWith('[DONE]') ? '#34d399'
+                      : line.startsWith('[OK]') ? '#4ade80'
+                      : line.startsWith('[START]') ? '#60a5fa'
+                      : line.startsWith('[AI]') ? '#a78bfa'
+                      : '#86efac',
+                    borderLeft: `2px solid ${line.startsWith('[ERROR]') ? '#f87171' : line.startsWith('[DONE]') || line.startsWith('[OK]') ? '#4ade80' : '#1e3a5f'}`,
+                    paddingLeft: '10px',
+                  }}
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      }
+    }
+
     let headerBg = 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)';
     let headerBorder = '#1e293b';
     let statusLabel = 'Processing';
