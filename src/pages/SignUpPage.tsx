@@ -2279,7 +2279,7 @@ export default function SignUpPage() {
         </AnimatePresence>
 
         {/* ── Global Terminal View (Never disappears if logs exist) ── */}
-        {isUttamGoyal && extractionLogs.length > 0 && onboardingMode !== 'ai_upload' && onboardingMode !== 'selection' && (
+        {extractionLogs.length > 0 && onboardingMode !== 'ai_upload' && onboardingMode !== 'selection' && (
           <div className="max-w-4xl mx-auto pb-8">
             {renderTerminal(extractionStatus === 'idle' ? 'processing' : extractionStatus)}
           </div>
