@@ -568,34 +568,21 @@ export default function AddPrice() {
           </motion.div>
 
           {/* Zone-to-Zone Rates */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <Card>
-              <div className="flex items-center gap-3">
-                <SlidersHorizontal size={22} className="text-blue-600" />
-                <h2 className="text-xl font-bold text-slate-800">Zone-to-Zone Rates</h2>
-              </div>
-              <p className="text-sm text-slate-500 mt-1 mb-6">
-                Enter the per-kilogram rate for shipping between each zone. Use <strong>Bulk Paste</strong> to quickly import data from Excel or spreadsheets.
-              </p>
-              
-              {!showZoneGrid && wasAiPrefilled && zoneRates.length > 0 ? (
-                <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle size={24} className="text-green-600" />
-                    <div>
-                      <p className="font-semibold text-green-800">Already extracted</p>
-                      <p className="text-sm text-green-700">No need to fill. ({zoneLabels.length} zones found).</p>
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => setShowZoneGrid(true)} className="px-4 py-2 bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-100 font-medium transition-colors text-sm shadow-sm">
-                    Review / Edit
-                  </button>
+          {!(wasAiPrefilled && zoneRates.length > 0) && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+              <Card>
+                <div className="flex items-center gap-3">
+                  <SlidersHorizontal size={22} className="text-blue-600" />
+                  <h2 className="text-xl font-bold text-slate-800">Zone-to-Zone Rates</h2>
                 </div>
-              ) : (
+                <p className="text-sm text-slate-500 mt-1 mb-6">
+                  Enter the per-kilogram rate for shipping between each zone. Use <strong>Bulk Paste</strong> to quickly import data from Excel or spreadsheets.
+                </p>
+                
                 <ZoneRateMatrix zoneLabels={zoneLabels} zoneRates={zoneRates} onRatesChange={setZoneRates} onZoneLabelsChange={setZoneLabels} />
-              )}
-            </Card>
-          </motion.div>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Footer: back + submit */}
           <div className="flex items-center justify-between pt-4 gap-4">
