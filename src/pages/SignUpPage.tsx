@@ -1555,7 +1555,13 @@ export default function SignUpPage() {
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-1">
                   <button
                     type="button"
-                    onClick={() => navigate('/transporter-signin')}
+                    onClick={() => {
+                      if (window !== window.parent) {
+                        window.parent.postMessage({ type: 'navigate_to_signin' }, '*');
+                      } else {
+                        navigate('/transporter-signin');
+                      }
+                    }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors"
                   >
                     <ArrowLeft size={13} /> Back to Sign In
@@ -1593,7 +1599,7 @@ export default function SignUpPage() {
                       ✨ AI Document Extraction
                     </h3>
                     <p className="text-slate-500 text-xs leading-relaxed">
-                      Have rate cards, zone pricing matrices, or company profile PDFs/Excels? Drop them here and let our AI parser build your account details automatically!
+                      Drop your servicability (ODA if any), zone prices, company info, and charges here. Let our AI build your account automatically!
                     </p>
                     <span className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                       Start AI Upload <ArrowRight size={12} />
@@ -1613,7 +1619,7 @@ export default function SignUpPage() {
                       ✍️ Step-by-Step Manual Form
                     </h3>
                     <p className="text-slate-500 text-xs leading-relaxed">
-                      No documents on hand? No problem! Key in your details, credentials, and business service parameters manually in our clean forms.
+                      Key in your details in our clean forms.
                     </p>
                     <span className="mt-4 text-xs font-bold text-slate-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                       Fill Manually <ArrowRight size={12} />

@@ -79,9 +79,20 @@ export default function SignInPage() {
           <h1 className="text-3xl font-bold mb-2">Transporter Login</h1>
           <p className="text-gray-600 mb-8">
             Don't have an account?{' '}
-            <Link to="/transporter-signup" className="text-blue-600 font-semibold hover:underline">
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                if (window !== window.parent) {
+                  window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
+                } else {
+                  navigate('/transporter-signup');
+                }
+              }}
+              className="text-blue-600 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0 inline"
+            >
               Sign up
-            </Link>
+            </button>
           </p>
 
           <form onSubmit={handleSubmit} noValidate>
