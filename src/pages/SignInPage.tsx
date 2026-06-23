@@ -9,7 +9,7 @@ import { Mail, Lock, LayoutPanelLeft, Loader2 } from 'lucide-react';
 // You can swap this with a relevant illustration from undraw.co, etc.
 const LoginIllustration = () => (
   <div className="w-full h-full flex items-center justify-center">
-    <LayoutPanelLeft className="w-48 h-48 text-indigo-500" strokeWidth={1} />
+    <LayoutPanelLeft className="w-48 h-48 text-amber-500" strokeWidth={1} />
   </div>
 );
 
@@ -27,7 +27,7 @@ const InputWithIcon = ({
     </span>
     <input
       {...props}
-      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
     />
   </div>
 );
@@ -66,7 +66,7 @@ export default function SignInPage() {
       <div className="flex w-full max-w-4xl bg-white rounded-lg shadow-2xl overflow-hidden mx-auto">
         
         {/* Left Side: Illustration & Branding */}
-        <div className="hidden md:flex flex-col justify-center items-center w-1/2 bg-indigo-50 text-center p-8">
+        <div className="hidden md:flex flex-col justify-center items-center w-1/2 bg-amber-50 text-center p-8">
           <LoginIllustration />
           <h2 className="text-3xl font-bold mt-4 text-gray-800">Welcome Back!</h2>
           <p className="mt-2 text-gray-600">
@@ -76,24 +76,7 @@ export default function SignInPage() {
 
         {/* Right Side: Login Form */}
         <div className="w-full md:w-1/2 p-8">
-          <h1 className="text-3xl font-bold mb-2">Transporter Login</h1>
-          <p className="text-gray-600 mb-8">
-            Don't have an account?{' '}
-            <button 
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                if (window !== window.parent) {
-                  window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
-                } else {
-                  navigate('/transporter-signup');
-                }
-              }}
-              className="text-blue-600 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0 inline"
-            >
-              Sign up
-            </button>
-          </p>
+          <h1 className="text-3xl font-bold mb-8">Transporter Login</h1>
 
           <form onSubmit={handleSubmit} noValidate>
             <div className="mb-4">
@@ -132,22 +115,22 @@ export default function SignInPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="form-checkbox h-4 w-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
                 />
                 <span className="ml-2 text-gray-700">Remember me</span>
               </label>
-              <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+              <Link to="/forgot-password" className="text-sm text-amber-600 hover:underline">
                 Forgot Password?
               </Link>
             </div>
-            
+
             <button
               type="submit"
               disabled={isLoading}
               className={`
                 w-full flex items-center justify-center gap-2
-                bg-blue-600 text-white font-bold py-3 px-4 rounded-md
-                hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                bg-amber-500 text-white font-bold py-3 px-4 rounded-md
+                hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500
                 transition-all duration-300
                 ${isLoading ? 'cursor-not-allowed opacity-70' : ''}
               `}
@@ -155,6 +138,24 @@ export default function SignInPage() {
               {isLoading && <Loader2 className="h-5 w-5 animate-spin" />}
               {isLoading ? 'Signing In…' : 'Login'}
             </button>
+
+            <p className="text-center text-sm text-gray-600 mt-6">
+              Don't have an account?{' '}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (window !== window.parent) {
+                    window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
+                  } else {
+                    navigate('/transporter-signup');
+                  }
+                }}
+                className="text-amber-600 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0 inline"
+              >
+                Sign up
+              </button>
+            </p>
           </form>
         </div>
       </div>

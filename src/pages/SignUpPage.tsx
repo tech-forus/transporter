@@ -1604,10 +1604,26 @@ export default function SignUpPage() {
                 </div>
 
                 <div className="col-span-1 lg:col-span-3 p-5 sm:p-6 flex flex-col">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">Create Your Account</h2>
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-xl font-bold text-slate-800">Create Your Account</h2>
 
-                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window !== window.parent) {
+                            window.parent.postMessage({ type: 'navigate_to_signin' }, '*');
+                          } else {
+                            navigate('/transporter-signin');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <ArrowLeft size={13} /> Sign In
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-1 mt-2">
                       <div className="flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
                         <span className="w-3 h-3 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px]">1</span>
                         Basic Details
@@ -1623,20 +1639,6 @@ export default function SignUpPage() {
                         Verified
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window !== window.parent) {
-                          window.parent.postMessage({ type: 'navigate_to_signin' }, '*');
-                        } else {
-                          navigate('/transporter-signin');
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <ArrowLeft size={13} /> Sign In
-                    </button>
                   </div>
 
                 <form className="space-y-3" onSubmit={handleNextStep} noValidate>
@@ -1675,9 +1677,6 @@ export default function SignUpPage() {
                       </div>
                       {touched.gstNo && errors.gstNo && (
                         <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
-                      )}
-                      {gstFocused && !formData.gstNo && (
-                        <p className="mt-1 text-[10px] text-slate-400">Enter your GSTIN to auto-fill company details</p>
                       )}
                       {gstLookup.status === 'invalid' && (
                         <p className="mt-1 text-[10px] text-red-500">Invalid GSTIN format</p>
