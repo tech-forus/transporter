@@ -1157,6 +1157,15 @@ export default function SignUpPage() {
     }
   };
 
+  // type="number" inputs natively accept -, +, e (scientific notation) as
+  // keystrokes even though they never resolve to a usable value — block them
+  // at the key level so they can't be typed at all.
+  const blockInvalidNumberKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  };
+
   // --- Step 1 Validation ---
   const validateData = (data: IFormData) => {
     const newErrors: FormErrors = {};
@@ -1256,6 +1265,11 @@ export default function SignUpPage() {
     }
     const newErrors = validateData(formData);
 
+    // companyName/address/stateName aren't collected on this page — they're
+    // auto-filled by the GST/pincode lookups, with a missing-fields safety net
+    // right before final submit. Don't block Page 1 on them.
+    const { companyName, address, stateName, ...page1Errors } = newErrors;
+
     // Mark ALL fields as touched to display errors visually
     const allTouched: Record<string, boolean> = {};
     Object.keys(formData).forEach(k => {
@@ -1263,10 +1277,10 @@ export default function SignUpPage() {
     });
     setTouched(allTouched);
 
-    if (Object.keys(newErrors).length === 0) {
+    if (Object.keys(page1Errors).length === 0) {
       setCurrentStep(1);
     } else {
-      toast.error('Please fill all required fields correctly to continue.');
+      toast.error(Object.values(page1Errors)[0] || 'Please fill all required fields correctly to continue.');
     }
   };
 
@@ -1739,7 +1753,7 @@ export default function SignUpPage() {
                       <option value="10000-20000">10,000 - 20,000</option>
                       <option value="20000+">20,000+</option>
                     </SelectField>
-                    <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('password')} error={touched.numTrucks ? errors.numTrucks : undefined} required />
+                    <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { blockInvalidNumberKeys(e); handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
                     <InputField id="password" label="Set Password" icon={<KeyRound size={16}/>} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
                   </div>
 
