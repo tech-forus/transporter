@@ -13,18 +13,16 @@ import {
   Package,
   Cog,
   BotMessageSquare,
-  Save,
   Loader2,
   Scale,
   ArrowLeft,
   FileText,
-  CheckCircle,
   Sparkles,
-  ShieldCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
 import ZoneRateMatrix from "../components/ZoneRateMatrix";
+import { TermsModal } from "../components/TermsModal";
 
 // --- Type Definitions ---
 interface VariableFixed { variable: number; fixed: number; }
@@ -45,9 +43,9 @@ type PriceRate = {
   appointmentCharges: VariableFixed;
   kFactor: number;
   minCharges: number;
-  greenTax: VariableFixed;
-  daccCharges: VariableFixed;
-  miscellanousCharges: VariableFixed;
+  greenTax: number;
+  daccCharges: number;
+  miscellanousCharges: number;
 };
 
 const DEFAULT_PRICE_RATE: PriceRate = {
@@ -62,9 +60,9 @@ const DEFAULT_PRICE_RATE: PriceRate = {
   fmCharges: { variable: 0, fixed: 0 },
   appointmentCharges: { variable: 0, fixed: 0 },
   kFactor: 5000, minCharges: 0,
-  greenTax: { variable: 0, fixed: 0 },
-  daccCharges: { variable: 0, fixed: 0 },
-  miscellanousCharges: { variable: 0, fixed: 0 },
+  greenTax: 0,
+  daccCharges: 0,
+  miscellanousCharges: 0,
 };
 
 // --- Styled & Reusable Components ---
@@ -82,42 +80,6 @@ const InputField = ({ icon, ...props }: React.InputHTMLAttributes<HTMLInputEleme
   </div>
 );
 
-
-// T&C content sections
-const TNC_SECTIONS = [
-  {
-    title: "1. Data Accuracy",
-    body: "All pricing, serviceability, and company information provided is accurate and current. You accept responsibility for maintaining up-to-date rate data on the platform at all times.",
-  },
-  {
-    title: "2. Service Obligations",
-    body: "You commit to honoring the quoted rates for all confirmed bookings made through FreightCompare during the validity period of your registered rate card. Last-minute rate revisions on active bookings are not permitted.",
-  },
-  {
-    title: "3. Regulatory Compliance",
-    body: "You confirm your organization holds all required permits, licenses, and insurance coverage mandated for freight transportation operations under Indian law, including the Motor Vehicles Act, Goods and Services Tax (GST) registration, and applicable state transport regulations.",
-  },
-  {
-    title: "4. Rate Update Policy",
-    body: "You will notify FreightCompare of any rate revisions with a minimum of 7 working days' advance notice to ensure customers receive accurate and timely pricing. Emergency surcharges (e.g., fuel crisis, regulatory levy) may be raised with 48-hour notice with documented justification.",
-  },
-  {
-    title: "5. Platform Usage & Data Sharing",
-    body: "Your rate card data, service zones, and operational capabilities will be used to match shippers with appropriate transport services. FreightCompare may display your rates and zone coverage to registered verified customers on the platform.",
-  },
-  {
-    title: "6. Data Privacy",
-    body: "Your business information will be handled in accordance with our Privacy Policy. Personal contact data is protected and not shared with third parties outside the platform's core matching function. Rate data is visible only to verified registered customers.",
-  },
-  {
-    title: "7. Dispute Resolution",
-    body: "Any disputes regarding bookings, rates, or service quality will first be addressed through FreightCompare's internal resolution process (target resolution: 5 working days). Both parties agree to good-faith participation before pursuing external legal recourse.",
-  },
-  {
-    title: "8. Account Security & Integrity",
-    body: "You are solely responsible for maintaining the confidentiality of your account credentials. All activity performed under your account is your responsibility. Misuse, fraudulent rate listings, or platform abuse may result in immediate suspension or permanent termination of your account.",
-  },
-];
 
 export default function AddPrice() {
   const navigate = useNavigate();
@@ -142,8 +104,10 @@ export default function AddPrice() {
   const [zoneLabels, setZoneLabels] = useState<string[]>([]);
   const [zoneRates, setZoneRates] = useState<number[][]>([]);
   const [loading, setLoading] = useState(false);
-  const [showTnC, setShowTnC] = useState(false);
-  const [tcAccepted, setTcAccepted] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  // Pre-checked by default — unticking blocks submission. Replaces the old
+  // full-page T&C gate; clicking "Terms & Conditions" opens TermsModal.
+  const [tcAccepted, setTcAccepted] = useState(true);
   const [showZoneGrid, setShowZoneGrid] = useState(() => {
     return !localStorage.getItem('transporter_extracted_price_rate');
   });
@@ -252,16 +216,9 @@ export default function AddPrice() {
     );
   };
 
-  // Step 1: validate and show T&C
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!transporterName.trim()) { toast.error("Transporter name is missing."); return; }
-    setShowTnC(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Step 2: final API submission after T&C acceptance
-  const handleFinalSubmit = async () => {
     if (!tcAccepted) { toast.error("Please accept the Terms & Conditions to proceed."); return; }
     const zr: Record<string, Record<string, number>> = {};
     zoneLabels.forEach((from, i) => {
@@ -283,7 +240,15 @@ export default function AddPrice() {
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_onboarding_current_step');
       localStorage.removeItem('transporter_onboarding_mode');
-      navigate("/transporter-signin");
+
+      const email = sessionStorage.getItem('transporter_signup_email');
+      if (email) {
+        await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, { email });
+        navigate("/transporter-verify-otp");
+      } else {
+        // No email on hand (e.g. AddPrice opened directly) — fall back to manual sign-in.
+        navigate("/transporter-signin");
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Save failed.");
       console.error(err);
@@ -291,84 +256,6 @@ export default function AddPrice() {
       setLoading(false);
     }
   };
-
-  // ── Terms & Conditions Screen ──────────────────────────────────────────────
-  if (showTnC) {
-    return (
-      <div className="min-h-screen bg-slate-50 font-sans py-12">
-        <div className="container mx-auto px-4 max-w-3xl">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-50 rounded-2xl mb-4">
-                <ShieldCheck className="text-blue-600" size={28} />
-              </div>
-              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Terms & Conditions</h1>
-              <p className="mt-2 text-slate-500 text-lg">Please read and accept before submitting your configuration.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                <FileText className="text-blue-600 flex-shrink-0" size={20} />
-                <h2 className="text-lg font-bold text-slate-800">FreightCompare Transporter Service Agreement</h2>
-              </div>
-
-              <div
-                className="space-y-5 text-sm text-slate-700 max-h-[420px] overflow-y-auto pr-2 scroll-smooth"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                {TNC_SECTIONS.map(s => (
-                  <section key={s.title}>
-                    <h3 className="font-bold text-slate-900 mb-1">{s.title}</h3>
-                    <p className="leading-relaxed text-slate-600">{s.body}</p>
-                  </section>
-                ))}
-              </div>
-
-              {/* Acceptance checkbox */}
-              <label className="flex items-start gap-3 cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 transition-colors group">
-                <div className="relative mt-0.5 flex-shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={tcAccepted}
-                    onChange={e => setTcAccepted(e.target.checked)}
-                    className="peer sr-only"
-                  />
-                  <div className={`w-5 h-5 border-2 rounded transition-colors flex items-center justify-center
-                    ${tcAccepted ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white group-hover:border-blue-400'}`}>
-                    {tcAccepted && <CheckCircle size={13} className="text-white" />}
-                  </div>
-                </div>
-                <span className="text-sm text-slate-700 font-medium leading-relaxed">
-                  I have read and agree to the FreightCompare Transporter Service Agreement, including all data usage policies, rate commitment obligations, and regulatory compliance requirements stated above.
-                </span>
-              </label>
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setShowTnC(false)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors"
-                >
-                  <ArrowLeft size={16} /> Back to Charges
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFinalSubmit}
-                  disabled={!tcAccepted || loading}
-                  className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all"
-                >
-                  {loading
-                    ? <><Loader2 className="animate-spin" size={18} />Saving...</>
-                    : <><Save size={18} /> Accept & Submit Configuration</>
-                  }
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
 
   // ── UnitSelect Component ───────────────────────────────────────
   const UnitSelect = ({ defaultValue = "FLAT" }: { defaultValue?: string }) => (
@@ -515,9 +402,6 @@ export default function AddPrice() {
                       { key: 'topayCharges', label: 'To-Pay Charges' },
                       { key: 'prepaidCharges', label: 'Prepaid Charges' },
                       { key: 'fmCharges', label: 'FM Charges' },
-                      { key: 'greenTax', label: 'Green Tax / NGT' },
-                      { key: 'daccCharges', label: 'DACC Charges' },
-                      { key: 'miscellanousCharges', label: 'Misc. Charges' },
                     ].map((charge) => (
                       <tr key={charge.key} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-2 border-r border-slate-200 font-medium text-slate-700 pl-6">{charge.label}</td>
@@ -534,6 +418,26 @@ export default function AddPrice() {
                               <div className="w-20"><UnitSelect defaultValue="KG" /></div>
                             </div>
                           ) : <UnitSelect defaultValue="FLAT" />}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Simple flat-amount surcharges — single number, not variable/fixed */}
+                    {[
+                      { key: 'greenTax', label: 'Green Tax / NGT' },
+                      { key: 'daccCharges', label: 'DACC Charges' },
+                      { key: 'miscellanousCharges', label: 'Misc. Charges' },
+                    ].map((charge) => (
+                      <tr key={charge.key} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-2 border-r border-slate-200 font-medium text-slate-700 pl-6">{charge.label}</td>
+                        <td className="p-1 border-r border-slate-200">
+                          <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" value={(priceRate as any)[charge.key] || ""} onChange={e => handleRateChange(charge.key as any, null, e)} />
+                        </td>
+                        <td className="p-1 border-r border-slate-200">
+                          <input type="number" className="w-full p-1.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300" placeholder="-" disabled />
+                        </td>
+                        <td className="p-1">
+                          <UnitSelect defaultValue="FLAT" />
                         </td>
                       </tr>
                     ))}
@@ -584,8 +488,32 @@ export default function AddPrice() {
             </motion.div>
           )}
 
+          {/* T&C acceptance */}
+          <div className="flex items-start gap-2 pt-2">
+            <input
+              type="checkbox"
+              id="tcAccepted"
+              checked={tcAccepted}
+              onChange={e => setTcAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+            <label htmlFor="tcAccepted" className="text-sm text-slate-600 cursor-pointer leading-snug">
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={() => setTermsModalOpen(true)}
+                className="text-blue-600 hover:underline font-medium"
+              >
+                Terms &amp; Conditions
+              </button>
+            </label>
+          </div>
+          {!tcAccepted && (
+            <p className="text-xs text-red-500">You must accept the Terms &amp; Conditions to proceed.</p>
+          )}
+
           {/* Footer: back + submit */}
-          <div className="flex items-center justify-between pt-4 gap-4">
+          <div className="flex items-center justify-between pt-2 gap-4">
             <button
               type="button"
               onClick={() => navigate('/transporter-signup')}
@@ -595,18 +523,20 @@ export default function AddPrice() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !tcAccepted}
               className="flex-1 max-w-xs inline-flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white text-base font-semibold rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 disabled:opacity-50 transition-all"
             >
               {loading
                 ? <><Loader2 className="animate-spin" size={20} />Saving...</>
-                : <><FileText size={20} /> Review & Submit</>
+                : <><FileText size={20} /> Save & Continue</>
               }
             </button>
           </div>
 
         </form>
       </div>
+
+      <TermsModal open={termsModalOpen} onClose={() => setTermsModalOpen(false)} />
     </div>
   );
 }

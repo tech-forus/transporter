@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import BiddingDetails from './pages/BiddingDetails';
 import ProfilePage from './pages/ProfilePage';
 import AddPrice from './pages/AddPrice';
+import VerifyOtpPage from './pages/VerifyOtpPage';
 
 
 
@@ -46,6 +47,7 @@ function App() {
           <Route path="/bidding/details/:id" element={<PrivateRoute><MainLayout><BiddingDetails /></MainLayout></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><MainLayout><ProfilePage /></MainLayout></PrivateRoute>} />
           <Route path="/addprice" element={<MainLayout><AddPrice /></MainLayout>} />
+          <Route path="/transporter-verify-otp" element={<MainLayout><VerifyOtpPage /></MainLayout>} />
         </Routes>
       </Router>
     </AuthProvider>

@@ -48,6 +48,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: AuthUser | null;
   login: (email: string, pass: string) => Promise<{ success: boolean;  error?: string }>;
+  loginWithToken: (token: string) => void;
   logout: () => void;
   loading: boolean;
 }
@@ -77,13 +78,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false); // Auth state is now determined
   }, []);
 
+  // Decodes a JWT already issued by the backend (signin, or OTP verify) and
+  // commits it as the active session — cookie + localStorage + context state.
+  const loginWithToken = (token: string) => {
+    const decodedToken = jwtDecode<JwtPayload>(token) as unknown as AuthUser;
+    setIsAuthenticated(true);
+    setUser(decodedToken);
+    Cookies.set('authToken', token, { expires: 7 });
+    localStorage.setItem('authUser', JSON.stringify(decodedToken));
+  };
+
   const login = async (
     email: string,
     pass: string
   ): Promise<{ success: boolean; error?: string }> => {
     const lowerEmail = email.toLowerCase();
-
-
 
     // ACTUAL API LOGIN
     try {
@@ -93,16 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (response.data && response.data.token) {
-        const token = response.data.token;
-        const decodedToken: JwtPayload = jwtDecode(token);
-        //const loggedInUser: AuthUser = decodedToken;
-        //console.log(loggedInUser);
-
-        setIsAuthenticated(true);
-        setUser(decodedToken);
-        Cookies.set('authToken', token, { expires: 7 });
-        localStorage.setItem('authUser', JSON.stringify(decodedToken));
-
+        loginWithToken(response.data.token);
         return { success: true };
       } else {
         return {
@@ -130,7 +130,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, loginWithToken, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

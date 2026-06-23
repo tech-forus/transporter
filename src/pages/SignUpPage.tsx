@@ -14,6 +14,7 @@ import {
 import { useGSTLookup } from '../hooks/useGSTLookup';
 import { GSTConflictPanel } from '../components/GSTConflictPanel';
 import { useAuth } from '../hooks/useAuth';
+import { TermsModal } from '../components/TermsModal';
 
 // ============================================================================
 // TRUCK PROGRESS ANIMATION — friendly "extracting vendor data" loader
@@ -165,7 +166,10 @@ const TruckProgressAnimation: React.FC<{ progress: number }> = ({ progress }) =>
 // --- Type Definitions for State ---
 interface IFormData {
   companyName: string;
+  firstName: string;
+  lastName: string;
   phone: string;
+  whatsapp: string;
   email: string;
   password: string;
   gstNo: string;
@@ -183,6 +187,7 @@ interface IFormData {
   numTrucks: string;
   turnover: string;
   customerNetwork: string;
+  pincodesServedRange: string;
 }
 
 type FormErrors = Partial<Record<keyof IFormData | 'zones', string>>;
@@ -214,7 +219,7 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
 
   return (
     <div className="w-full">
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1">
+      <label htmlFor={id} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <div className="relative">
@@ -225,12 +230,12 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           id={id}
           {...props}
           type={inputType}
-          placeholder=""
+          placeholder={props.placeholder ?? ""}
           required={required}
-          className={`w-full pl-11 ${isPassword ? 'pr-11' : 'pr-3'} py-2.5 border rounded-lg shadow-sm transition-all duration-300
+          className={`w-full pl-11 ${isPassword ? 'pr-11' : 'pr-3'} py-2.5 border rounded-md shadow-sm transition-all duration-300
             bg-slate-50 text-slate-900 placeholder:text-slate-400
-            focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 focus:border-blue-600
-            ${error ? 'border-red-500 ring-red-500/50' : 'border-slate-300/70'}
+            focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
+            ${error ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}
             disabled:bg-slate-200/70`}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
@@ -274,7 +279,7 @@ interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement>
 }
 const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, required = false, children, ...props }) => (
   <div className="w-full">
-    <label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1">
+    <label htmlFor={id} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
       {label}{required && <span className="text-red-500 ml-1">*</span>}
     </label>
     <div className="relative">
@@ -285,10 +290,10 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
         id={id}
         {...props}
         required={required}
-        className={`w-full pl-11 pr-10 py-2.5 border rounded-lg shadow-sm transition-all duration-300
+        className={`w-full pl-11 pr-10 py-2.5 border rounded-md shadow-sm transition-all duration-300
           bg-slate-50 text-slate-900 appearance-none
-          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 focus:border-blue-600
-          ${error ? 'border-red-500 ring-red-500/50' : 'border-slate-300/70'}
+          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
+          ${error ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}
           disabled:bg-slate-200/70`}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-error` : undefined}
@@ -464,10 +469,10 @@ export default function SignUpPage() {
       }
     }
     return {
-      companyName: '', phone: '', email: '', password: '', gstNo: '', address: '',
+      companyName: '', firstName: '', lastName: '', phone: '', whatsapp: '', email: '', password: '', gstNo: '', address: '',
       stateName: '', pincode: '', experience: '', officeStart: '09:00',
       officeEnd: '18:00', deliveryMode: 'Road', zoneCount: 0,
-      trackingLink: '', websiteLink: '', maxLoading: '', numTrucks: '', turnover: '', customerNetwork: '',
+      trackingLink: '', websiteLink: '', maxLoading: '', numTrucks: '', turnover: '', customerNetwork: '', pincodesServedRange: '',
     };
   });
 
@@ -507,6 +512,41 @@ export default function SignUpPage() {
     hasPricingData: boolean;
   }
   const [aiSummaryData, setAiSummaryData] = useState<AiSummaryData | null>(null);
+
+  // Pre-checked by default — unticking blocks "Next". Clicking "Terms & Conditions"
+  // opens TermsModal; never a forced full-page gate.
+  const [termsAccepted, setTermsAccepted] = useState(true);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+
+  // Critical-fields safety net: companyName/address are backend-required but
+  // never shown on Page 1 (GST autofill covers them in the common case, and
+  // AI extraction on Page 2 gets a second chance). Only if BOTH come up empty
+  // right before the addtransporter POST do we ask — once, right here.
+  const [missingFieldsModal, setMissingFieldsModal] = useState<{
+    open: boolean;
+    companyName: string;
+    address: string;
+  }>({ open: false, companyName: '', address: '' });
+
+  // WhatsApp mirrors Mobile until the user edits WhatsApp directly (see its
+  // onChange below) — same pattern as the shipper signup form. If both fields
+  // are cleared back to empty, mirroring re-engages so a freshly-typed Mobile
+  // number starts copying into WhatsApp again.
+  const [sameAsPhone, setSameAsPhone] = useState(true);
+
+  useEffect(() => {
+    if (sameAsPhone) {
+      setFormData(prev => (prev.whatsapp === prev.phone ? prev : { ...prev, whatsapp: prev.phone }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameAsPhone, formData.phone]);
+
+  useEffect(() => {
+    if (!sameAsPhone && !formData.phone && !formData.whatsapp) {
+      setSameAsPhone(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.phone, formData.whatsapp, sameAsPhone]);
 
   const navigate = useNavigate();
 
@@ -568,20 +608,15 @@ export default function SignUpPage() {
     gstLookup.dismissConflictPanel();
   }, [gstLookup]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset to a clean empty form when the user explicitly chooses Manual mode.
-  // Clears any AI-prefilled data so manual entry starts from scratch.
+  // Switch to Manual mode from the Page 2 route-selection screen. Page 1's
+  // details (formData) are already filled in and confirmed by this point —
+  // unlike the old flow, this must NOT reset them or drop back to currentStep 0
+  // (that's Page 1 itself now). Only clears validation cruft from any AI route
+  // detour and ensures we're parked on the Page 2 step.
   const resetToManual = () => {
-    const empty: IFormData = {
-      companyName: '', phone: '', email: '', password: '', gstNo: '', address: '',
-      stateName: '', pincode: '', experience: '', officeStart: '09:00',
-      officeEnd: '18:00', deliveryMode: 'Road', zoneCount: 0,
-      trackingLink: '', websiteLink: '', maxLoading: '', numTrucks: '', turnover: '', customerNetwork: '',
-    };
-    setFormData(empty);
     setErrors({});
     setTouched({});
-    setCurrentStep(0);
-    localStorage.removeItem('transporter_onboarding_form_data');
+    setCurrentStep(1);
     setOnboardingMode('manual');
   };
 
@@ -988,10 +1023,13 @@ export default function SignUpPage() {
       }
     }
 
-    if (id === 'phone') {
+    if (id === 'phone' || id === 'whatsapp') {
       value = value.replace(/\D/g, '');
       if (value.length > 10) {
         value = value.slice(0, 10);
+      }
+      if (value.length === 10) {
+        setTimeout(() => focusField(id === 'phone' ? 'whatsapp' : 'email'), 0);
       }
     }
 
@@ -1069,39 +1107,13 @@ export default function SignUpPage() {
       }
     }
 
-    if (id === 'experience') {
-      if (Number(value) > 50) {
-        setErrors(prev => ({ ...prev, experience: "Experience cannot exceed 50 years" }));
-        value = '50';
-      } else {
-        setErrors(prev => ({ ...prev, experience: undefined }));
-      }
-    }
-
     if (id === 'numTrucks') {
+      value = value.replace(/\D/g, '');
       if (Number(value) > 10000) {
         setErrors(prev => ({ ...prev, numTrucks: "Total Fleet Size cannot exceed 10000" }));
         value = '10000';
       } else {
         setErrors(prev => ({ ...prev, numTrucks: undefined }));
-      }
-    }
-
-    if (id === 'maxLoading') {
-      if (Number(value) > 150) {
-        setErrors(prev => ({ ...prev, maxLoading: "Max Loading Capacity cannot exceed 150 tons" }));
-        value = '150';
-      } else {
-        setErrors(prev => ({ ...prev, maxLoading: undefined }));
-      }
-    }
-
-    if (id === 'turnover') {
-      if (Number(value) > 1000000000) {
-        setErrors(prev => ({ ...prev, turnover: "Annual Turnover cannot exceed ₹100,00,00,000" }));
-        value = '1000000000';
-      } else {
-        setErrors(prev => ({ ...prev, turnover: undefined }));
       }
     }
 
@@ -1112,13 +1124,10 @@ export default function SignUpPage() {
     });
 
     if (
-      id !== 'address' && 
-      id !== 'companyName' && 
-      id !== 'email' && 
-      id !== 'experience' && 
-      id !== 'numTrucks' && 
-      id !== 'maxLoading' && 
-      id !== 'turnover' && 
+      id !== 'address' &&
+      id !== 'companyName' &&
+      id !== 'email' &&
+      id !== 'numTrucks' &&
       errors[id as keyof FormErrors]
     ) {
       setErrors(prev => ({ ...prev, [id]: undefined }));
@@ -1129,6 +1138,23 @@ export default function SignUpPage() {
     const { id } = e.target;
     setTouched(prev => ({ ...prev, [id]: true }));
     validateData(formData);
+  };
+
+  // Page 1 Enter-to-advance, matching the shipper signup form: Enter moves to
+  // the next field instead of doing nothing (or, with multiple fields in one
+  // <form>, occasionally triggering an early submit).
+  const focusField = (id: string) => {
+    document.getElementById(id)?.focus();
+  };
+
+  const handleEnterToNext = (nextId?: string) => (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (nextId) {
+      focusField(nextId);
+    } else {
+      (e.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
+    }
   };
 
   // --- Step 1 Validation ---
@@ -1195,27 +1221,15 @@ export default function SignUpPage() {
 
     if (!data.stateName) newErrors.stateName = "State is required";
     if (!/^\d{6}$/.test(data.pincode)) newErrors.pincode = "Enter a valid 6-digit pincode";
-    
-    // Experience validation
-    const expNum = Number(data.experience);
-    if (!data.experience) {
-      newErrors.experience = "Experience is required";
-    } else if (expNum <= 0) {
-      newErrors.experience = "Experience must be greater than 0";
-    } else if (expNum > 50) {
-      newErrors.experience = "Experience cannot exceed 50 years";
-    }
 
-    // trackingLink and websiteLink are now optional/removed, no validation required
-    
-    // Max loading validation
-    const maxLoadNum = Number(data.maxLoading);
-    if (!data.maxLoading) {
-      newErrors.maxLoading = "Max loading capacity is required";
-    } else if (maxLoadNum <= 0) {
-      newErrors.maxLoading = "Max loading must be greater than 0";
-    } else if (maxLoadNum > 150) {
-      newErrors.maxLoading = "Max loading capacity cannot exceed 150 tons";
+    if (!data.firstName) newErrors.firstName = "First name is required";
+
+    // WhatsApp validation
+    const whatsappClean = data.whatsapp.replace(/\D/g, '');
+    if (!data.whatsapp) {
+      newErrors.whatsapp = "WhatsApp number is required";
+    } else if (whatsappClean.length !== 10) {
+      newErrors.whatsapp = "WhatsApp number must be exactly 10 digits";
     }
 
     // Trucks validation
@@ -1228,17 +1242,7 @@ export default function SignUpPage() {
       newErrors.numTrucks = "Total Fleet Size cannot exceed 10000";
     }
 
-    // Annual turnover validation
-    const turnoverNum = Number(data.turnover);
-    if (!data.turnover) {
-      newErrors.turnover = "Annual turnover is required";
-    } else if (turnoverNum <= 0) {
-      newErrors.turnover = "Annual turnover must be greater than 0";
-    } else if (turnoverNum > 1000000000) {
-      newErrors.turnover = "Annual turnover cannot exceed ₹100,00,00,000 (100 Crores)";
-    }
-
-    if (!data.customerNetwork) newErrors.customerNetwork = "Select customer network type";
+    if (!data.pincodesServedRange) newErrors.pincodesServedRange = "Select number of pincodes served";
 
     setErrors(newErrors);
     return newErrors;
@@ -1246,6 +1250,10 @@ export default function SignUpPage() {
 
   const handleNextStep = (e: FormEvent) => {
     e.preventDefault();
+    if (!termsAccepted) {
+      toast.error('Please accept the Terms & Conditions to continue.');
+      return;
+    }
     const newErrors = validateData(formData);
 
     // Mark ALL fields as touched to display errors visually
@@ -1280,43 +1288,73 @@ export default function SignUpPage() {
   };
 
   // --- Final Submission ---
+  // Gate: companyName/address are backend-required but never shown on Page 1.
+  // GST autofill covers them in the common case, AI extraction on Page 2 gets
+  // a second chance — only ask here, once, if both still came up empty.
   const handleSubmit = async () => {
     const extractedService = localStorage.getItem('transporter_extracted_service');
     if (!file && !extractedService) return toast.error('Please select the service zone sheet.');
-    
+
+    if (!formData.companyName.trim() || !formData.address.trim()) {
+      setMissingFieldsModal({
+        open: true,
+        companyName: formData.companyName,
+        address: formData.address,
+      });
+      return;
+    }
+
+    await submitTransporterData();
+  };
+
+  const handleMissingFieldsConfirm = async () => {
+    if (!missingFieldsModal.companyName.trim() || !missingFieldsModal.address.trim()) {
+      toast.error('Both fields are required.');
+      return;
+    }
+    const companyName = missingFieldsModal.companyName.trim();
+    const address = missingFieldsModal.address.trim();
+    setFormData(prev => ({ ...prev, companyName, address }));
+    setMissingFieldsModal(prev => ({ ...prev, open: false }));
+    await submitTransporterData({ companyName, address });
+  };
+
+  const submitTransporterData = async (overrides?: { companyName?: string; address?: string }) => {
+    const extractedService = localStorage.getItem('transporter_extracted_service');
     setIsLoading(true);
     const toastId = toast.loading('Uploading data...');
 
     const dataToSubmit = new FormData();
     // FIX: Cleanly handle key renaming and avoid duplicate data
     const { stateName, ...restOfData } = formData;
-    const finalData = { ...restOfData, state: stateName };
+    const finalData = { ...restOfData, ...overrides, state: stateName };
 
     Object.entries(finalData).forEach(([key, value]) => {
       dataToSubmit.append(key, String(value));
     });
-    
+
     dataToSubmit.append('zones', JSON.stringify(zones.filter(z => z.trim()))); // Send non-empty zones
-    
+
     if (file) {
       dataToSubmit.append('sheet', file);
     } else if (extractedService) {
       dataToSubmit.append('service', extractedService);
     }
-    
+
     try {
       const token = Cookies.get('authToken');
       await axios.post(`${API_BASE_URL}/api/transporter/auth/addtransporter`, dataToSubmit, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       toast.success('Transporter added successfully!', { id: toastId });
-      sessionStorage.setItem("companyName", formData.companyName);
+      sessionStorage.setItem("companyName", finalData.companyName);
       sessionStorage.setItem("zones", JSON.stringify(zones));
-      
+      sessionStorage.setItem("transporter_signup_email", formData.email);
+
       // Clear draft localStorage items upon success
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_onboarding_current_step');
-      
+
       navigate('/addprice');
     } catch (e: any) {
       const message = e.response?.data?.message || e.message || "An unknown error occurred.";
@@ -1543,7 +1581,199 @@ export default function SignUpPage() {
         </motion.div>
 
         <AnimatePresence mode="wait">
-          {onboardingMode === 'selection' ? (
+          {currentStep === 0 ? (
+            <motion.div
+              key="page1"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="max-w-6xl mx-auto"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-5 bg-white shadow-2xl rounded-2xl overflow-hidden">
+                {/* Branding panel */}
+                <div className="hidden lg:flex lg:col-span-2 flex-col justify-center p-8 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                  <h1 className="text-4xl font-extrabold tracking-tight">Partner With FreightCompare</h1>
+                  <p className="mt-4 text-amber-100">
+                    Join our verified transporter network, get matched with shippers, and bid on freight that fits your fleet.
+                  </p>
+                  <div className="mt-8 flex space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-amber-300"></span>
+                    <span className="w-3 h-3 rounded-full bg-amber-200"></span>
+                    <span className="w-3 h-3 rounded-full bg-amber-100"></span>
+                  </div>
+                </div>
+
+                <div className="col-span-1 lg:col-span-3 p-5 sm:p-6 flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-800">Create Your Account</h2>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                          <span className="w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">1</span>
+                          Basic Details
+                        </div>
+                        <div className="h-px w-3 bg-slate-200" />
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                          <span className="w-4 h-4 rounded-full bg-slate-300 text-white flex items-center justify-center text-[10px]">2</span>
+                          Upload Your Files
+                        </div>
+                        <div className="h-px w-3 bg-slate-200" />
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                          <CheckCircle size={12} />
+                          Get Verified
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window !== window.parent) {
+                          window.parent.postMessage({ type: 'navigate_to_signin' }, '*');
+                        } else {
+                          navigate('/transporter-signin');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <ArrowLeft size={13} /> Sign In
+                    </button>
+                  </div>
+
+                <form className="space-y-3" onSubmit={handleNextStep} noValidate>
+                  {/* Row 1: GST + Office Pincode + First Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                    <div className="w-full">
+                      <label htmlFor="gstNo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        GST Number<span className="text-red-500 ml-1">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
+                          <Hash size={16} />
+                        </span>
+                        <input
+                          id="gstNo"
+                          value={formData.gstNo}
+                          onChange={handleFormChange}
+                          onFocus={() => setGstFocused(true)}
+                          onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
+                          onKeyDown={handleEnterToNext('pincode')}
+                          maxLength={15}
+                          required
+                          placeholder="GST Number"
+                          className={`w-full pl-11 pr-9 py-2.5 border rounded-md shadow-sm transition-all duration-300
+                            bg-slate-50 text-slate-900 placeholder:text-slate-400
+                            focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
+                            ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}`}
+                          aria-invalid={!!(touched.gstNo && errors.gstNo)}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                          {gstLookup.status === 'loading' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
+                          {gstLookup.status === 'success' && !gstLookup.showConflictPanel && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                          {gstLookup.status === 'failed' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
+                          {gstLookup.status === 'invalid' && <XCircle className="w-4 h-4 text-red-400" />}
+                        </span>
+                      </div>
+                      {touched.gstNo && errors.gstNo && (
+                        <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
+                      )}
+                      {gstFocused && !formData.gstNo && (
+                        <p className="mt-1 text-[10px] text-slate-400">Enter your GSTIN to auto-fill company details</p>
+                      )}
+                      {gstLookup.status === 'invalid' && (
+                        <p className="mt-1 text-[10px] text-red-500">Invalid GSTIN format</p>
+                      )}
+                      {gstLookup.status === 'loading' && (
+                        <p className="mt-1 text-[10px] text-amber-600">Looking up…</p>
+                      )}
+                      {gstLookup.successMessage && (
+                        <p className="mt-1 text-[10px] text-green-600">{gstLookup.successMessage}</p>
+                      )}
+                      {gstLookup.errorMessage && (
+                        <p className="mt-1 text-[10px] text-orange-500">{gstLookup.errorMessage}</p>
+                      )}
+                      {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
+                        <GSTConflictPanel
+                          conflicts={gstLookup.conflicts}
+                          onApply={handleConflictApply}
+                          onKeep={gstLookup.dismissConflictPanel}
+                        />
+                      )}
+                    </div>
+
+                    <InputField id="pincode" label="Office Pincode" icon={<MapPin size={16}/>} type="text" maxLength={6} placeholder="Enter 6-digit pincode" value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('firstName')} error={touched.pincode ? errors.pincode : undefined} required />
+                    <InputField id="firstName" label="First Name" icon={<Building size={16}/>} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
+                  </div>
+
+                  {/* Row 2: Last Name + Mobile + WhatsApp */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                    <InputField id="lastName" label="Last Name (optional)" icon={<Building size={16}/>} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
+                    <InputField id="phone" label="Mobile Number" icon={<Phone size={16}/>} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('whatsapp')} error={touched.phone ? errors.phone : undefined} required />
+                    <InputField
+                      id="whatsapp"
+                      label="WhatsApp Number"
+                      icon={<Phone size={16}/>}
+                      type="tel"
+                      maxLength={10}
+                      placeholder="Same as mobile number"
+                      value={formData.whatsapp}
+                      onChange={(e) => {
+                        // Typing here directly stops auto-mirroring Mobile from this point on.
+                        if (sameAsPhone) setSameAsPhone(false);
+                        handleFormChange(e);
+                      }}
+                      onBlur={handleBlur}
+                      onKeyDown={handleEnterToNext('email')}
+                      error={touched.whatsapp ? errors.whatsapp : undefined}
+                      required
+                    />
+                  </div>
+
+                  <InputField id="email" label="Email Address" icon={<Mail size={16}/>} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('pincodesServedRange')} error={touched.email ? errors.email : undefined} required />
+
+                  {/* Row 3: Pincodes Served + Fleet Size + Password */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                    <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16}/>} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
+                      <option value="">Select Range</option>
+                      <option value="500-1000">500 - 1,000</option>
+                      <option value="1000-5000">1,000 - 5,000</option>
+                      <option value="5000-10000">5,000 - 10,000</option>
+                      <option value="10000-20000">10,000 - 20,000</option>
+                      <option value="20000+">20,000+</option>
+                    </SelectField>
+                    <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('password')} error={touched.numTrucks ? errors.numTrucks : undefined} required />
+                    <InputField id="password" label="Set Password" icon={<KeyRound size={16}/>} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
+                  </div>
+
+                  {/* T&C */}
+                  <div className="flex items-start gap-2 py-1">
+                    <input
+                      type="checkbox"
+                      id="termsAccepted"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                    />
+                    <label htmlFor="termsAccepted" className="text-xs text-slate-500 cursor-pointer leading-snug py-1">
+                      I agree to the{' '}
+                      <button type="button" onClick={() => setTermsModalOpen(true)} className="text-amber-600 hover:underline font-medium">
+                        Terms &amp; Conditions
+                      </button>
+                    </label>
+                  </div>
+                  {!termsAccepted && (
+                    <p className="-mt-2 text-xs text-red-500">You must accept the Terms &amp; Conditions to continue.</p>
+                  )}
+
+                  <div className="pt-2">
+                    <button type="submit" disabled={!termsAccepted} className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                      Continue <ArrowRight size={18}/>
+                    </button>
+                  </div>
+                </form>
+                </div>
+              </div>
+            </motion.div>
+          ) : onboardingMode === 'selection' ? (
             <motion.div
               key="selection"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1959,7 +2189,7 @@ export default function SignUpPage() {
                                         required
                                         className={`w-full pl-11 pr-9 py-2.5 border rounded-lg shadow-sm transition-all duration-300
                                           bg-slate-50 text-slate-900 placeholder:text-slate-400
-                                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 focus:border-blue-600
+                                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
                                           ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300/70'}`}
                                         aria-invalid={!!(touched.gstNo && errors.gstNo)}
                                       />
@@ -2091,7 +2321,7 @@ export default function SignUpPage() {
                                     <option value="Air" disabled>Air (Coming Soon)</option>
                                     <option value="Rail" disabled>Rail (Coming Soon)</option>
                                   </SelectField>
-                                  <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} error={touched.numTrucks ? errors.numTrucks : undefined} required />
+                                  <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} error={touched.numTrucks ? errors.numTrucks : undefined} required />
                                   <InputField id="maxLoading" label="Max Loading Cap (tons)" icon={<Truck size={16}/>} type="number" value={formData.maxLoading} onChange={handleFormChange} onBlur={handleBlur} error={touched.maxLoading ? errors.maxLoading : undefined} required />
 
                                   <InputField id="experience" label="Experience (years)" icon={<Calendar size={16}/>} type="number" value={formData.experience} onChange={handleFormChange} onBlur={handleBlur} error={touched.experience ? errors.experience : undefined} required />
@@ -2291,6 +2521,81 @@ export default function SignUpPage() {
           </div>
         )}
       </div>
+
+      <TermsModal open={termsModalOpen} onClose={() => setTermsModalOpen(false)} />
+
+      <AnimatePresence>
+        {missingFieldsModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            >
+              <h3 className="text-lg font-bold text-slate-800">A couple more details</h3>
+              <p className="text-sm text-slate-500 mt-1 mb-4">
+                We couldn't pull these from your GST number or documents — mind filling them in?
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Company Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={missingFieldsModal.companyName}
+                    onChange={(e) => setMissingFieldsModal(prev => ({ ...prev, companyName: e.target.value }))}
+                    maxLength={60}
+                    placeholder="Your registered company name"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-md bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Office Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={missingFieldsModal.address}
+                    onChange={(e) => setMissingFieldsModal(prev => ({ ...prev, address: e.target.value }))}
+                    maxLength={150}
+                    placeholder="Company office address"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-md bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMissingFieldsModal(prev => ({ ...prev, open: false }))}
+                  className="px-4 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMissingFieldsConfirm}
+                  disabled={isLoading}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
+                >
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                  {isLoading ? "Submitting..." : "Confirm & Continue"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
