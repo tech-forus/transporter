@@ -1604,26 +1604,26 @@ export default function SignUpPage() {
                 </div>
 
                 <div className="col-span-1 lg:col-span-3 p-5 sm:p-6 flex flex-col">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h2 className="text-2xl font-bold text-slate-800">Create Your Account</h2>
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-                          <span className="w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">1</span>
-                          Basic Details
-                        </div>
-                        <div className="h-px w-3 bg-slate-200" />
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
-                          <span className="w-4 h-4 rounded-full bg-slate-300 text-white flex items-center justify-center text-[10px]">2</span>
-                          Upload Your Files
-                        </div>
-                        <div className="h-px w-3 bg-slate-200" />
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
-                          <CheckCircle size={12} />
-                          Get Verified
-                        </div>
+                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                    <h2 className="text-2xl font-bold text-slate-800 flex-shrink-0">Create Your Account</h2>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                        <span className="w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">1</span>
+                        Basic Details
+                      </div>
+                      <div className="h-px w-3 bg-slate-200" />
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                        <span className="w-4 h-4 rounded-full bg-slate-300 text-white flex items-center justify-center text-[10px]">2</span>
+                        Upload Your Files
+                      </div>
+                      <div className="h-px w-3 bg-slate-200" />
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                        <CheckCircle size={12} />
+                        Get Verified
                       </div>
                     </div>
+
                     <button
                       type="button"
                       onClick={() => {
