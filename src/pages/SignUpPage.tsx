@@ -518,15 +518,22 @@ export default function SignUpPage() {
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
 
-  // Critical-fields safety net: companyName/address are backend-required but
-  // never shown on Page 1 (GST autofill covers them in the common case, and
-  // AI extraction on Page 2 gets a second chance). Only if BOTH come up empty
-  // right before the addtransporter POST do we ask — once, right here.
+  // Critical-fields safety net: companyName/address/stateName are backend-required
+  // but never shown on Page 1 (GST + pincode autofill cover them in the common
+  // case, and AI extraction on Page 2 gets a second chance). Checked fresh right
+  // before every addtransporter POST, so there's no stale pass-through if the
+  // user navigates back and forth without actually fixing anything.
+  interface MissingField {
+    id: 'companyName' | 'address' | 'stateName';
+    label: string;
+    placeholder: string;
+    maxLength: number;
+  }
   const [missingFieldsModal, setMissingFieldsModal] = useState<{
     open: boolean;
-    companyName: string;
-    address: string;
-  }>({ open: false, companyName: '', address: '' });
+    fields: MissingField[];
+    values: Record<string, string>;
+  }>({ open: false, fields: [], values: {} });
 
   // WhatsApp mirrors Mobile until the user edits WhatsApp directly (see its
   // onChange below) — same pattern as the shipper signup form. If both fields
@@ -824,8 +831,8 @@ export default function SignUpPage() {
       const meta = utsf.meta || {};
       const basics = utsf.basics || {};  // legacy fallback
       const companyName = meta.companyName || utsf.companyName || basics.companyName || formData.companyName || '';
-      const email = meta.contactEmail || meta.email || basics.email || basics.primaryContactEmail || utsf.primaryContactEmail || '';
-      const phone = meta.contactPhone || meta.phone || basics.phone || basics.primaryContactPhone || utsf.primaryContactPhone || '';
+      const email = meta.contactEmail || meta.email || basics.email || basics.primaryContactEmail || utsf.primaryContactEmail || formData.email || '';
+      const phone = meta.contactPhone || meta.phone || basics.phone || basics.primaryContactPhone || utsf.primaryContactPhone || formData.phone || '';
       const gstNo = meta.gstNo || basics.gstNo || utsf.gstNo || '';
       const address = meta.address || basics.address || '';
       const stateName = meta.state || meta.stateName || basics.state || basics.stateName || '';
@@ -1310,18 +1317,34 @@ export default function SignUpPage() {
   };
 
   // --- Final Submission ---
-  // Gate: companyName/address are backend-required but never shown on Page 1.
-  // GST autofill covers them in the common case, AI extraction on Page 2 gets
-  // a second chance — only ask here, once, if both still came up empty.
+  // Gate: companyName/address/stateName are backend-required but never shown
+  // on Page 1. GST + pincode autofill cover them in the common case, and AI
+  // extraction on Page 2 gets a second chance — checked fresh every time
+  // Submit is clicked, so there's nothing to bypass by navigating back and forth.
   const handleSubmit = async () => {
     const extractedService = localStorage.getItem('transporter_extracted_service');
     if (!file && !extractedService) return toast.error('Please select the service zone sheet.');
 
-    if (!formData.companyName.trim() || !formData.address.trim()) {
+    const missing: MissingField[] = [];
+    if (!formData.companyName.trim()) {
+      missing.push({ id: 'companyName', label: 'Company Name', placeholder: 'Your registered company name', maxLength: 60 });
+    }
+    if (!formData.address.trim()) {
+      missing.push({ id: 'address', label: 'Office Address', placeholder: 'Company office address', maxLength: 150 });
+    }
+    if (!formData.stateName.trim()) {
+      missing.push({ id: 'stateName', label: 'State', placeholder: 'e.g. Maharashtra', maxLength: 40 });
+    }
+
+    if (missing.length > 0) {
       setMissingFieldsModal({
         open: true,
-        companyName: formData.companyName,
-        address: formData.address,
+        fields: missing,
+        values: {
+          companyName: formData.companyName,
+          address: formData.address,
+          stateName: formData.stateName,
+        },
       });
       return;
     }
@@ -1330,18 +1353,21 @@ export default function SignUpPage() {
   };
 
   const handleMissingFieldsConfirm = async () => {
-    if (!missingFieldsModal.companyName.trim() || !missingFieldsModal.address.trim()) {
-      toast.error('Both fields are required.');
+    const emptyField = missingFieldsModal.fields.find(f => !missingFieldsModal.values[f.id]?.trim());
+    if (emptyField) {
+      toast.error(`${emptyField.label} is required.`);
       return;
     }
-    const companyName = missingFieldsModal.companyName.trim();
-    const address = missingFieldsModal.address.trim();
-    setFormData(prev => ({ ...prev, companyName, address }));
+    const overrides: { companyName?: string; address?: string; stateName?: string } = {};
+    missingFieldsModal.fields.forEach(f => {
+      overrides[f.id] = missingFieldsModal.values[f.id].trim();
+    });
+    setFormData(prev => ({ ...prev, ...overrides }));
     setMissingFieldsModal(prev => ({ ...prev, open: false }));
-    await submitTransporterData({ companyName, address });
+    await submitTransporterData(overrides);
   };
 
-  const submitTransporterData = async (overrides?: { companyName?: string; address?: string }) => {
+  const submitTransporterData = async (overrides?: { companyName?: string; address?: string; stateName?: string }) => {
     const extractedService = localStorage.getItem('transporter_extracted_service');
     setIsLoading(true);
     const toastId = toast.loading('Uploading data...');
@@ -1349,7 +1375,8 @@ export default function SignUpPage() {
     const dataToSubmit = new FormData();
     // FIX: Cleanly handle key renaming and avoid duplicate data
     const { stateName, ...restOfData } = formData;
-    const finalData = { ...restOfData, ...overrides, state: stateName };
+    const { stateName: stateNameOverride, ...otherOverrides } = overrides || {};
+    const finalData = { ...restOfData, ...otherOverrides, state: stateNameOverride || stateName };
 
     Object.entries(finalData).forEach(([key, value]) => {
       dataToSubmit.append(key, String(value));
@@ -2560,39 +2587,33 @@ export default function SignUpPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
             >
-              <h3 className="text-lg font-bold text-slate-800">A couple more details</h3>
+              <h3 className="text-lg font-bold text-slate-800">
+                {missingFieldsModal.fields.length} more detail{missingFieldsModal.fields.length === 1 ? '' : 's'} needed
+              </h3>
               <p className="text-sm text-slate-500 mt-1 mb-4">
                 We couldn't pull these from your GST number or documents — mind filling them in?
               </p>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Company Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={missingFieldsModal.companyName}
-                    onChange={(e) => setMissingFieldsModal(prev => ({ ...prev, companyName: e.target.value }))}
-                    maxLength={60}
-                    placeholder="Your registered company name"
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-md bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Office Address <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={missingFieldsModal.address}
-                    onChange={(e) => setMissingFieldsModal(prev => ({ ...prev, address: e.target.value }))}
-                    maxLength={150}
-                    placeholder="Company office address"
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-md bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                {missingFieldsModal.fields.map((field, idx) => (
+                  <div key={field.id}>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      {field.label} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      autoFocus={idx === 0}
+                      value={missingFieldsModal.values[field.id] || ''}
+                      onChange={(e) => setMissingFieldsModal(prev => ({
+                        ...prev,
+                        values: { ...prev.values, [field.id]: e.target.value },
+                      }))}
+                      maxLength={field.maxLength}
+                      placeholder={field.placeholder}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-md bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
               </div>
 
               <div className="mt-6 flex items-center gap-3">
