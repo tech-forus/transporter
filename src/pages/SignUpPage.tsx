@@ -1660,7 +1660,25 @@ export default function SignUpPage() {
                 <div className="col-span-1 lg:col-span-3 p-5 sm:p-6 flex flex-col">
                   <div className="mb-3">
                     <div className="flex items-center justify-between gap-2">
-                      <h2 className="text-xl font-bold text-slate-800">Create Your Account</h2>
+                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">Create Your Account</h2>
+
+                      {/* Bubbles sit inline between the heading and Sign In on screens with room for them */}
+                      <div className="hidden sm:flex items-center gap-1">
+                        <div className="flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                          <span className="w-3 h-3 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px]">1</span>
+                          Basic Details
+                        </div>
+                        <div className="h-px w-1.5 bg-slate-200" />
+                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                          <span className="w-3 h-3 rounded-full bg-slate-300 text-white flex items-center justify-center text-[8px]">2</span>
+                          Upload Files
+                        </div>
+                        <div className="h-px w-1.5 bg-slate-200" />
+                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                          <CheckCircle size={9} />
+                          Verified
+                        </div>
+                      </div>
 
                       <button
                         type="button"
@@ -1677,7 +1695,8 @@ export default function SignUpPage() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-center gap-1 mt-2">
+                    {/* Same bubbles, dropped to their own centered row when there isn't room above */}
+                    <div className="flex sm:hidden items-center justify-center gap-1 mt-2">
                       <div className="flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
                         <span className="w-3 h-3 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px]">1</span>
                         Basic Details
