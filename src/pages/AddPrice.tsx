@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
 import ZoneRateMatrix from "../components/ZoneRateMatrix";
+import ZoneSummaryPanel, { type ZonePincodeEntry } from "../components/ZoneSummaryPanel";
 import { TermsModal } from "../components/TermsModal";
 
 // --- Type Definitions ---
@@ -102,6 +103,7 @@ export default function AddPrice() {
 
   const [transporterName, setTransporterName] = useState("");
   const [zoneLabels, setZoneLabels] = useState<string[]>([]);
+  const [zonePincodeData, setZonePincodeData] = useState<ZonePincodeEntry[]>([]);
   const [zoneRates, setZoneRates] = useState<number[][]>([]);
   const [loading, setLoading] = useState(false);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
@@ -181,25 +183,49 @@ export default function AddPrice() {
   useEffect(() => {
     const savedName = sessionStorage.getItem("companyName");
     const savedZones = sessionStorage.getItem("zones");
+    const savedPincodeData = sessionStorage.getItem("transporter_zone_pincode_data");
+
+    if (savedPincodeData) {
+      try {
+        const parsed = JSON.parse(savedPincodeData);
+        if (Array.isArray(parsed)) setZonePincodeData(parsed);
+      } catch (_) {}
+    }
+
     if (savedName) setTransporterName(savedName);
+
+    // Prefer the explicit zone label list, but fall back to deriving names
+    // straight from the pincode-level data if that's missing/stale — the
+    // pincode data is the actual source of truth for what was uploaded.
+    let arr: string[] | null = null;
     if (savedZones) {
       try {
-        const arr = JSON.parse(savedZones);
-        if (Array.isArray(arr)) {
-          setZoneLabels(arr);
-          const savedRates = localStorage.getItem('transporter_zone_rates');
-          if (savedRates) {
-            const parsed = JSON.parse(savedRates);
-            if (Array.isArray(parsed) && parsed.length === arr.length) {
-              setZoneRates(parsed);
-            } else {
-              setZoneRates(arr.map(() => arr.map(() => 0)));
-            }
-          } else {
-            setZoneRates(arr.map(() => arr.map(() => 0)));
-          }
+        const parsedZones = JSON.parse(savedZones);
+        if (Array.isArray(parsedZones) && parsedZones.length > 0) arr = parsedZones;
+      } catch (_) {}
+    }
+    if (!arr && savedPincodeData) {
+      try {
+        const parsedData = JSON.parse(savedPincodeData);
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          arr = Array.from(new Set(parsedData.map((e: any) => e.zone).filter(Boolean)));
         }
       } catch (_) {}
+    }
+
+    if (arr) {
+      setZoneLabels(arr);
+      const savedRates = localStorage.getItem('transporter_zone_rates');
+      if (savedRates) {
+        const parsedRates = JSON.parse(savedRates);
+        if (Array.isArray(parsedRates) && parsedRates.length === arr.length) {
+          setZoneRates(parsedRates);
+        } else {
+          setZoneRates(arr.map(() => arr!.map(() => 0)));
+        }
+      } else {
+        setZoneRates(arr.map(() => arr!.map(() => 0)));
+      }
     }
   }, []);
 
@@ -482,7 +508,9 @@ export default function AddPrice() {
                 <p className="text-sm text-slate-500 mt-1 mb-6">
                   Enter the per-kilogram rate for shipping between each zone. Use <strong>Bulk Paste</strong> to quickly import data from Excel or spreadsheets.
                 </p>
-                
+
+                <ZoneSummaryPanel pincodeData={zonePincodeData} />
+
                 <ZoneRateMatrix zoneLabels={zoneLabels} zoneRates={zoneRates} onRatesChange={setZoneRates} onZoneLabelsChange={setZoneLabels} />
               </Card>
             </motion.div>

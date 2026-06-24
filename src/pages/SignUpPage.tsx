@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../config/apiConfig';
 import {
@@ -479,6 +480,8 @@ export default function SignUpPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [file, setFile] = useState<File | null>(null);
+  const [uploadedService, setUploadedService] = useState<{ pincode: number; isOda: boolean; zone: string }[]>([]);
+  const [isParsingFile, setIsParsingFile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(() => {
@@ -658,8 +661,64 @@ export default function SignUpPage() {
     }
   }, [navigate]);
 
-  // Local constant for zones compatibility
-  const zones: string[] = [];
+  // Zone names actually present in the uploaded/extracted service data — never
+  // hardcode this empty, or AddPrice's Zone-to-Zone Rates step has nothing to show.
+  const zones = useMemo(
+    () => Array.from(new Set(uploadedService.map(s => s.zone).filter(Boolean))),
+    [uploadedService]
+  );
+
+  // Parse the uploaded .xlsx ourselves so we can show a zone summary
+  // (pincode counts, coverage) immediately, instead of waiting on the backend.
+  useEffect(() => {
+    if (!file) {
+      setUploadedService([]);
+      return;
+    }
+    let cancelled = false;
+    setIsParsingFile(true);
+    (async () => {
+      try {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
+
+        const getVal = (row: Record<string, any>, ...keys: string[]) => {
+          for (const k of keys) {
+            if (row[k] !== undefined) return row[k];
+            const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
+            if (found && row[found] !== undefined) return row[found];
+          }
+          return undefined;
+        };
+
+        const parsed = rows
+          .map(row => {
+            const pincode = Number(getVal(row, 'pincode', 'Pincode', 'PINCODE')) || 0;
+            const odaRaw = String(getVal(row, 'isOda', 'ODA', 'oda', 'IsOda') || 'false').toLowerCase();
+            const isOda = odaRaw === 'true' || odaRaw === 'yes';
+            const zone = String(getVal(row, 'zone', 'Zone', 'ZONE') || '').trim();
+            return { pincode, isOda, zone };
+          })
+          .filter(e => e.pincode > 0 && e.zone);
+
+        if (cancelled) return;
+        setUploadedService(parsed);
+        if (parsed.length > 0) {
+          sessionStorage.setItem('transporter_zone_pincode_data', JSON.stringify(parsed));
+        } else {
+          toast.error('No valid pincode/zone rows found in that file.');
+        }
+      } catch (err) {
+        console.error('Failed to parse uploaded service sheet', err);
+        if (!cancelled) toast.error('Could not read zones from the uploaded file.');
+      } finally {
+        if (!cancelled) setIsParsingFile(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [file]);
 
   // --- AI Document Extraction Functions ---
   const appendLog = (line: string) => {
@@ -957,6 +1016,12 @@ export default function SignUpPage() {
       }
       if (serviceArray.length > 0) {
         localStorage.setItem('transporter_extracted_service', JSON.stringify(serviceArray));
+        // Same shared key the manual-upload path writes — AddPrice's zone
+        // summary reads from here regardless of which onboarding route was used.
+        sessionStorage.setItem('transporter_zone_pincode_data', JSON.stringify(serviceArray));
+        // Keep the `zones` derivation (used at final submit) in sync too —
+        // otherwise the AI path hits the exact same "zones wiped at submit" bug.
+        setUploadedService(serviceArray);
       }
 
       // Store zone labels in sessionStorage so AddPrice can pre-populate
@@ -2528,8 +2593,15 @@ export default function SignUpPage() {
                         
                         {file && !localStorage.getItem('transporter_extracted_service') && (
                           <div className="flex items-center gap-2.5 p-2.5 bg-green-50 text-green-800 rounded-lg border border-green-200 text-sm">
-                            <FileSpreadsheet className="flex-shrink-0" size={18}/> 
+                            <FileSpreadsheet className="flex-shrink-0" size={18}/>
                             <span className="font-medium truncate">{file.name}</span>
+                            {isParsingFile ? (
+                              <Loader2 className="ml-auto flex-shrink-0 animate-spin" size={16} />
+                            ) : zones.length > 0 ? (
+                              <span className="ml-auto flex-shrink-0 text-xs font-semibold text-green-700 whitespace-nowrap">
+                                {zones.length} zone{zones.length === 1 ? '' : 's'} · {uploadedService.length} pincodes detected
+                              </span>
+                            ) : null}
                           </div>
                         )}
                         
