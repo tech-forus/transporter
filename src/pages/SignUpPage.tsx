@@ -830,13 +830,18 @@ export default function SignUpPage() {
       // UTSF v2 stores profile fields under meta, not basics
       const meta = utsf.meta || {};
       const basics = utsf.basics || {};  // legacy fallback
+      // Every field below falls back to whatever Page 1 already collected/resolved
+      // (GST lookup, pincode lookup, or direct user input) before falling back to
+      // empty — AI extraction should only ever *add* data, never erase fields the
+      // user already correctly filled in just because the uploaded document
+      // (usually just a pricing sheet) doesn't happen to restate them.
       const companyName = meta.companyName || utsf.companyName || basics.companyName || formData.companyName || '';
       const email = meta.contactEmail || meta.email || basics.email || basics.primaryContactEmail || utsf.primaryContactEmail || formData.email || '';
       const phone = meta.contactPhone || meta.phone || basics.phone || basics.primaryContactPhone || utsf.primaryContactPhone || formData.phone || '';
-      const gstNo = meta.gstNo || basics.gstNo || utsf.gstNo || '';
-      const address = meta.address || basics.address || '';
-      const stateName = meta.state || meta.stateName || basics.state || basics.stateName || '';
-      const pincode = String(meta.pincode || basics.pincode || '');
+      const gstNo = meta.gstNo || basics.gstNo || utsf.gstNo || formData.gstNo || '';
+      const address = meta.address || basics.address || formData.address || '';
+      const stateName = meta.state || meta.stateName || basics.state || basics.stateName || formData.stateName || '';
+      const pincode = String(meta.pincode || basics.pincode || formData.pincode || '');
       const experience = meta.experience || basics.experience || '';
       const officeStart = meta.officeStart || basics.officeStart || '09:00';
       const officeEnd = meta.officeEnd || basics.officeEnd || '18:00';
