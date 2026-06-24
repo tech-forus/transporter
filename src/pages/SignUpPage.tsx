@@ -1028,9 +1028,6 @@ export default function SignUpPage() {
       if (value.length > 10) {
         value = value.slice(0, 10);
       }
-      if (value.length === 10) {
-        setTimeout(() => focusField(id === 'phone' ? 'whatsapp' : 'email'), 0);
-      }
     }
 
     if (id === 'password') {
@@ -1163,6 +1160,17 @@ export default function SignUpPage() {
   const blockInvalidNumberKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
       e.preventDefault();
+    }
+  };
+
+  // Backspace on an empty field steps back to the previous field, mirroring
+  // the Enter-to-advance chain instead of leaving the user stuck.
+  const handleBackspaceToPrev = (prevId?: string) => (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key === 'Backspace' && prevId && (e.currentTarget as HTMLInputElement).value === '') {
+      // Without this, the same keystroke's default delete fires on whatever
+      // gets focused next, eating a character there too.
+      e.preventDefault();
+      focusField(prevId);
     }
   };
 
@@ -1720,7 +1728,7 @@ export default function SignUpPage() {
                   {/* Row 2: Last Name + Mobile + WhatsApp */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                     <InputField id="lastName" label="Last Name (optional)" icon={<Building size={16}/>} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
-                    <InputField id="phone" label="Mobile Number" icon={<Phone size={16}/>} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('whatsapp')} error={touched.phone ? errors.phone : undefined} required />
+                    <InputField id="phone" label="Mobile Number" icon={<Phone size={16}/>} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('lastName')(e); }} error={touched.phone ? errors.phone : undefined} required />
                     <InputField
                       id="whatsapp"
                       label="WhatsApp Number"
@@ -1735,13 +1743,13 @@ export default function SignUpPage() {
                         handleFormChange(e);
                       }}
                       onBlur={handleBlur}
-                      onKeyDown={handleEnterToNext('email')}
+                      onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
                       error={touched.whatsapp ? errors.whatsapp : undefined}
                       required
                     />
                   </div>
 
-                  <InputField id="email" label="Email Address" icon={<Mail size={16}/>} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('pincodesServedRange')} error={touched.email ? errors.email : undefined} required />
+                  <InputField id="email" label="Email Address" icon={<Mail size={16}/>} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
 
                   {/* Row 3: Pincodes Served + Fleet Size + Password */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
