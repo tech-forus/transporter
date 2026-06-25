@@ -1231,15 +1231,6 @@ export default function SignUpPage() {
     }
   };
 
-  // type="number" inputs natively accept -, +, e (scientific notation) as
-  // keystrokes even though they never resolve to a usable value — block them
-  // at the key level so they can't be typed at all.
-  const blockInvalidNumberKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
-      e.preventDefault();
-    }
-  };
-
   // Backspace on an empty field steps back to the previous field, mirroring
   // the Enter-to-advance chain instead of leaving the user stuck.
   const handleBackspaceToPrev = (prevId?: string) => (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -1780,8 +1771,8 @@ export default function SignUpPage() {
                   </div>
 
                 <form className="space-y-3" onSubmit={handleNextStep} noValidate>
-                  {/* Row 1: GST + Office Pincode + First Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                  {/* Row 1: GST + Office Pincode */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                     <div className="w-full">
                       <label htmlFor="gstNo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                         GST Number<span className="text-red-500 ml-1">*</span>
@@ -1838,12 +1829,16 @@ export default function SignUpPage() {
                     </div>
 
                     <InputField id="pincode" label="Office Pincode" icon={<MapPin size={16}/>} type="text" maxLength={6} placeholder="Enter 6-digit pincode" value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('firstName')} error={touched.pincode ? errors.pincode : undefined} required />
-                    <InputField id="firstName" label="First Name" icon={<Building size={16}/>} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
                   </div>
 
-                  {/* Row 2: Last Name + Mobile + WhatsApp */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                  {/* Row 2: First Name + Last Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <InputField id="firstName" label="First Name" icon={<Building size={16}/>} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
                     <InputField id="lastName" label="Last Name (optional)" icon={<Building size={16}/>} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
+                  </div>
+
+                  {/* Row 3: Mobile + WhatsApp */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                     <InputField id="phone" label="Mobile Number" icon={<Phone size={16}/>} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('lastName')(e); }} error={touched.phone ? errors.phone : undefined} required />
                     <InputField
                       id="whatsapp"
@@ -1865,10 +1860,11 @@ export default function SignUpPage() {
                     />
                   </div>
 
+                  {/* Row 4: Email Address */}
                   <InputField id="email" label="Email Address" icon={<Mail size={16}/>} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
 
-                  {/* Row 3: Pincodes Served + Fleet Size + Password */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                  {/* Row 5: Pincodes Served + Fleet Size */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                     <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16}/>} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
                       <option value="">Select Range</option>
                       <option value="500-1000">500 - 1,000</option>
@@ -1877,9 +1873,16 @@ export default function SignUpPage() {
                       <option value="10000-20000">10,000 - 20,000</option>
                       <option value="20000+">20,000+</option>
                     </SelectField>
-                    <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { blockInvalidNumberKeys(e); handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
-                    <InputField id="password" label="Set Password" icon={<KeyRound size={16}/>} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
+                    {/* type="text" + inputMode="numeric" instead of type="number" — number
+                        inputs let the up/down arrow keys (and scroll-wheel-while-focused)
+                        silently increment/decrement the value, which a fleet-size field
+                        has no business supporting. Digits-only filtering already happens
+                        in handleFormChange. */}
+                    <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
                   </div>
+
+                  {/* Row 6: Password */}
+                  <InputField id="password" label="Set Password" icon={<KeyRound size={16}/>} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
 
                   {/* T&C */}
                   <div className="flex items-start gap-2 py-1">
