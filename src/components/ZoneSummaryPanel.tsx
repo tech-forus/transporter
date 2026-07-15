@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, X, AlertCircle, Loader2 } from "lucide-react";
+import { MapPin, X, AlertCircle, Loader2, ChevronDown } from "lucide-react";
 
 export interface ZonePincodeEntry {
   pincode: number;
@@ -35,6 +35,18 @@ export default function ZoneSummaryPanel({ pincodeData }: { pincodeData: ZonePin
   const [master, setMaster] = useState<MasterPincodeEntry[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [activeZone, setActiveZone] = useState<ZoneRow | null>(null);
+  // Closed by default — the zone grid is only relevant when the user wants to
+  // double-check coverage, not something they need staring at every visit.
+  const [expanded, setExpanded] = useState(false);
+
+  // Lock page scroll while the detail modal is open so scrolling over it
+  // can't also scroll the page underneath.
+  useEffect(() => {
+    if (!activeZone) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, [activeZone]);
 
   useEffect(() => {
     if (pincodeData.length === 0) return;
@@ -110,12 +122,17 @@ export default function ZoneSummaryPanel({ pincodeData }: { pincodeData: ZonePin
   if (pincodeData.length === 0) return null;
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-          <MapPin size={15} className="text-blue-600" />
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => setExpanded(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-1 py-1 -mx-1 rounded-lg hover:bg-slate-50 transition-colors"
+      >
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+          <ChevronDown size={13} className={`transition-transform ${expanded ? '' : '-rotate-90'}`} />
+          <MapPin size={13} className="text-slate-400" />
           Zones Added ({zoneRows.length})
-        </h3>
+        </span>
         {!master && !loadError && (
           <span className="text-xs text-slate-400 flex items-center gap-1">
             <Loader2 size={12} className="animate-spin" /> Comparing coverage…
@@ -126,9 +143,10 @@ export default function ZoneSummaryPanel({ pincodeData }: { pincodeData: ZonePin
             <AlertCircle size={12} /> Coverage comparison unavailable
           </span>
         )}
-      </div>
+      </button>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {expanded && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
         {zoneRows.map(zone => {
           const colors = coverageColor(zone.coveragePct);
           return (
@@ -160,10 +178,13 @@ export default function ZoneSummaryPanel({ pincodeData }: { pincodeData: ZonePin
           );
         })}
       </div>
+      )}
 
-      {/* Zone pincode/state detail modal */}
+      {/* Zone pincode/state detail modal — anchored near the top of the viewport
+          (not vertically centered) and capped to what the screen can show, with
+          its own internal scroll so it never grows the page's scroll area. */}
       {activeZone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setActiveZone(null)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setActiveZone(null)}>
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}

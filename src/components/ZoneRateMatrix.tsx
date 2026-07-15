@@ -1,46 +1,80 @@
-import { useState, useCallback, useRef, KeyboardEvent } from "react";
-import { Upload, Copy, Trash2, AlertCircle, CheckCircle2, X, Plus } from "lucide-react";
+import { useState, useCallback, useEffect, useMemo, useRef, KeyboardEvent } from "react";
+import { SlidersHorizontal, Upload, Copy, Trash2, AlertCircle, CheckCircle2, X, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface ZoneRateMatrixProps {
   zoneLabels: string[];
   zoneRates: number[][];
   onRatesChange: (rates: number[][]) => void;
-  onZoneLabelsChange?: (labels: string[]) => void;
+  title?: string;
+  subtitle?: React.ReactNode;
+  // When true, origin rows with no real (non-zero) rate anywhere are hidden by
+  // default — e.g. a rate card only covered one origin zone, so 15 empty rows
+  // would otherwise just be visual noise. A toggle lets the user reveal the
+  // rest to add rates manually; it's never permanent — nothing is deleted.
+  hideEmptyRowsByDefault?: boolean;
 }
 
-export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, onZoneLabelsChange }: ZoneRateMatrixProps) {
+export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, title, subtitle, hideEmptyRowsByDefault }: ZoneRateMatrixProps) {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [pasteData, setPasteData] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [pastePreview, setPastePreview] = useState<number[][] | null>(null);
-  const [newZoneName, setNewZoneName] = useState("");
+  const [showAllRows, setShowAllRows] = useState(!hideEmptyRowsByDefault);
 
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
+  // Matches the Add Vendor charges page's per-cell rate cap.
+  const CELL_MAX = 999;
+
+  // Lock page scroll while the Bulk Paste popup is open so scrolling inside it
+  // can't also scroll the page underneath.
+  useEffect(() => {
+    if (!showBulkPaste) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, [showBulkPaste]);
+
   const handleCellChange = (i: number, j: number, val: number) => {
+    const clamped = Math.min(Math.max(val, 0), CELL_MAX);
     const next = zoneRates.map(r => [...r]);
-    next[i][j] = val;
+    next[i][j] = clamped;
     onRatesChange(next);
   };
 
+  // Rows with no real rate anywhere are hidden by default when
+  // hideEmptyRowsByDefault is set (only makes sense for a partial AI
+  // extraction — a fully-manual, all-zero grid falls back to showing
+  // everything so there's always at least one row to type into).
+  const visibleRowIndices = useMemo(() => {
+    if (showAllRows) return zoneLabels.map((_, i) => i);
+    const withData = zoneRates
+      .map((_, i) => i)
+      .filter(i => (zoneRates[i] || []).some(v => v > 0));
+    return withData.length > 0 ? withData : zoneLabels.map((_, i) => i);
+  }, [showAllRows, zoneRates, zoneLabels]);
+
   const handleKeyDown = (i: number, j: number, e: KeyboardEvent<HTMLInputElement>) => {
-    const rows = zoneLabels.length;
     const cols = zoneLabels.length;
 
     let nextI = i;
     let nextJ = j;
 
     switch (e.key) {
-      case 'ArrowUp':
-        nextI = Math.max(0, i - 1);
+      case 'ArrowUp': {
+        const pos = visibleRowIndices.indexOf(i);
+        nextI = visibleRowIndices[Math.max(0, pos - 1)] ?? i;
         e.preventDefault();
         break;
+      }
       case 'ArrowDown':
-      case 'Enter':
-        nextI = Math.min(rows - 1, i + 1);
+      case 'Enter': {
+        const pos = visibleRowIndices.indexOf(i);
+        nextI = visibleRowIndices[Math.min(visibleRowIndices.length - 1, pos + 1)] ?? i;
         e.preventDefault();
         break;
+      }
       case 'ArrowLeft':
         if ((e.target as HTMLInputElement).selectionStart === 0) {
           nextJ = Math.max(0, j - 1);
@@ -95,7 +129,7 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
         if (isNaN(val)) {
           row.push(0);
         } else {
-          row.push(val);
+          row.push(Math.min(Math.max(val, 0), CELL_MAX));
         }
       }
 
@@ -162,47 +196,11 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
     toast.success("Rates copied to clipboard");
   };
 
-  const handleAddZone = () => {
-    if (!newZoneName.trim() || !onZoneLabelsChange) return;
-    if (zoneLabels.includes(newZoneName.trim())) {
-      toast.error("Zone already exists");
-      return;
-    }
-    const newLabels = [...zoneLabels, newZoneName.trim()];
-    const newRates = zoneRates.map(row => [...row, 0]);
-    newRates.push(new Array(newLabels.length).fill(0));
-    
-    onZoneLabelsChange(newLabels);
-    onRatesChange(newRates);
-    setNewZoneName("");
-    toast.success(`Zone ${newZoneName.trim()} added`);
-  };
-
   if (zoneLabels.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500">
         <AlertCircle className="mx-auto mb-2" size={24} />
         <p>No zones configured. Please set up zones first.</p>
-        {onZoneLabelsChange && (
-          <div className="mt-4 flex justify-center items-center gap-2 max-w-sm mx-auto">
-            <input
-              type="text"
-              value={newZoneName}
-              onChange={e => setNewZoneName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddZone())}
-              placeholder="E.g., North Zone"
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-            />
-            <button
-              type="button"
-              onClick={handleAddZone}
-              disabled={!newZoneName.trim()}
-              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-        )}
       </div>
     );
   }
@@ -213,183 +211,202 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
   }
 
   return (
-    <div className="space-y-4">
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-2">
+      {/* Heading + action buttons share one row */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {title && (
+          <div className="flex items-center gap-2 min-w-0">
+            <SlidersHorizontal size={18} className="text-blue-600 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-slate-800 flex-shrink-0">{title}</h2>
+            {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1.5 flex-shrink-0 ml-auto">
+          {hideEmptyRowsByDefault && visibleRowIndices.length < zoneLabels.length && (
+            <button
+              type="button"
+              onClick={() => setShowAllRows(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-50 text-amber-700 rounded-lg font-medium hover:bg-amber-100 transition"
+            >
+              <Eye size={14} />
+              Show all {zoneLabels.length} zones
+            </button>
+          )}
+          {hideEmptyRowsByDefault && showAllRows && (
+            <button
+              type="button"
+              onClick={() => setShowAllRows(false)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-50 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition"
+            >
+              <EyeOff size={14} />
+              Hide empty zones
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowBulkPaste(!showBulkPaste)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg font-medium transition ${
               showBulkPaste
                 ? 'bg-blue-600 text-white'
                 : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
             }`}
           >
-            <Upload size={16} />
+            <Upload size={14} />
             Bulk Paste
           </button>
           <button
             type="button"
             onClick={copyRatesToClipboard}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-50 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition"
           >
-            <Copy size={16} />
+            <Copy size={14} />
             Copy All
           </button>
           <button
             type="button"
             onClick={clearAllRates}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg font-medium hover:bg-red-100 transition"
           >
-            <Trash2 size={16} />
+            <Trash2 size={14} />
             Clear All
           </button>
         </div>
-        {onZoneLabelsChange && (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newZoneName}
-              onChange={e => setNewZoneName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddZone())}
-              placeholder="Add New Zone..."
-              className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
-            />
-            <button
-              type="button"
-              onClick={handleAddZone}
-              disabled={!newZoneName.trim()}
-              className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Plus size={18} />
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Bulk Paste Panel */}
+      {/* Bulk Paste popup — anchored near the top of the viewport, capped to
+          what the screen can show, with its own scroll so it never grows the
+          page's scroll area. */}
       {showBulkPaste && (
-        <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50/50 space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-800">Bulk Paste Data</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                Paste your rate matrix directly from Excel or any spreadsheet.
-                Supports tab-separated or comma-separated values.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowBulkPaste(false)}
-              className="p-1 hover:bg-slate-200 rounded"
-            >
-              <X size={18} className="text-slate-500" />
-            </button>
-          </div>
-
-          <div className="bg-slate-100 rounded-lg p-3 text-sm">
-            <p className="font-medium text-slate-700 mb-2">Expected format ({zoneLabels.length}x{zoneLabels.length} matrix):</p>
-            <div className="overflow-x-auto">
-              <table className="text-xs font-mono">
-                <thead>
-                  <tr>
-                    <td className="px-2 py-1 text-slate-400">From\To</td>
-                    {zoneLabels.map(z => (
-                      <td key={z} className="px-2 py-1 text-slate-500 font-semibold">{z}</td>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {zoneLabels.slice(0, 3).map((from, i) => (
-                    <tr key={from}>
-                      <td className="px-2 py-1 text-slate-500 font-semibold">{from}</td>
-                      {zoneLabels.map((_, j) => (
-                        <td key={j} className="px-2 py-1 text-slate-400">XX.XX</td>
-                      ))}
-                    </tr>
-                  ))}
-                  {zoneLabels.length > 3 && (
-                    <tr>
-                      <td className="px-2 py-1 text-slate-400">...</td>
-                      {zoneLabels.map((_, j) => (
-                        <td key={j} className="px-2 py-1 text-slate-400">...</td>
-                      ))}
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-2 text-slate-500">
-              Headers (zone names) are optional - just paste the numbers if your data doesn't have them.
-            </p>
-          </div>
-
-          <textarea
-            value={pasteData}
-            onChange={(e) => handlePasteChange(e.target.value)}
-            placeholder="Paste your data here...&#10;&#10;Example (tab-separated):&#10;7.80	9.10	9.50&#10;9.10	9.74	9.40&#10;9.50	9.40	10.79"
-            className="w-full h-40 p-3 border border-slate-300 rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-
-          {pasteError && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700">
-              <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 bg-black/50 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setShowBulkPaste(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between p-4 border-b border-slate-100 flex-shrink-0">
               <div>
-                <p className="font-medium">Warning</p>
-                <p className="text-sm">{pasteError}</p>
-              </div>
-            </div>
-          )}
-
-          {pastePreview && !pasteError && (
-            <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700">
-              <CheckCircle2 size={18} className="flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium">Preview looks good!</p>
-                <p className="text-sm">
-                  {pastePreview.length} rows × {pastePreview[0]?.length || 0} columns detected
+                <h3 className="font-semibold text-slate-800">Bulk Paste Data</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Paste your rate matrix directly from Excel or any spreadsheet.
+                  Supports tab-separated or comma-separated values.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkPaste(false)}
+                className="p-1 hover:bg-slate-100 rounded flex-shrink-0"
+              >
+                <X size={18} className="text-slate-500" />
+              </button>
             </div>
-          )}
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={applyBulkPaste}
-              disabled={!pastePreview || !!pasteError}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              Apply Data
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPasteData("");
-                setPastePreview(null);
-                setPasteError(null);
-              }}
-              className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300 transition"
-            >
-              Clear
-            </button>
+            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+              <div className="bg-slate-100 rounded-lg p-3 text-sm">
+                <p className="font-medium text-slate-700 mb-2">Expected format ({zoneLabels.length}x{zoneLabels.length} matrix):</p>
+                <div className="overflow-x-auto">
+                  <table className="text-xs font-mono">
+                    <thead>
+                      <tr>
+                        <td className="px-2 py-1 text-slate-400">From\To</td>
+                        {zoneLabels.map(z => (
+                          <td key={z} className="px-2 py-1 text-slate-500 font-semibold">{z}</td>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {zoneLabels.slice(0, 3).map((from, i) => (
+                        <tr key={from}>
+                          <td className="px-2 py-1 text-slate-500 font-semibold">{from}</td>
+                          {zoneLabels.map((_, j) => (
+                            <td key={j} className="px-2 py-1 text-slate-400">XX.XX</td>
+                          ))}
+                        </tr>
+                      ))}
+                      {zoneLabels.length > 3 && (
+                        <tr>
+                          <td className="px-2 py-1 text-slate-400">...</td>
+                          {zoneLabels.map((_, j) => (
+                            <td key={j} className="px-2 py-1 text-slate-400">...</td>
+                          ))}
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-slate-500">
+                  Headers (zone names) are optional - just paste the numbers if your data doesn't have them.
+                </p>
+              </div>
+
+              <textarea
+                value={pasteData}
+                onChange={(e) => handlePasteChange(e.target.value)}
+                placeholder="Paste your data here...&#10;&#10;Example (tab-separated):&#10;7.80	9.10	9.50&#10;9.10	9.74	9.40&#10;9.50	9.40	10.79"
+                className="w-full h-40 p-3 border border-slate-300 rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {pasteError && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700">
+                  <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Warning</p>
+                    <p className="text-sm">{pasteError}</p>
+                  </div>
+                </div>
+              )}
+
+              {pastePreview && !pasteError && (
+                <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700">
+                  <CheckCircle2 size={18} className="flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Preview looks good!</p>
+                    <p className="text-sm">
+                      {pastePreview.length} rows × {pastePreview[0]?.length || 0} columns detected
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 p-4 border-t border-slate-100 flex-shrink-0">
+              <button
+                type="button"
+                onClick={applyBulkPaste}
+                disabled={!pastePreview || !!pasteError}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                Apply Data
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPasteData("");
+                  setPastePreview(null);
+                  setPasteError(null);
+                }}
+                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300 transition"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Matrix Table */}
       <div className="overflow-x-auto border border-slate-200 rounded-lg">
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-xs border-collapse table-fixed">
           <thead className="bg-slate-100">
             <tr>
-              <th className="p-2 sm:p-3 font-semibold text-slate-600 text-left border-r border-slate-200 sticky left-0 bg-slate-100 z-10 min-w-[60px]">
-                From \ To
+              <th className="p-1 font-semibold text-slate-600 text-left border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-11">
+                From\To
               </th>
               {zoneLabels.map(label => (
                 <th
                   key={label}
-                  className="p-2 sm:p-3 text-center font-semibold text-slate-600 min-w-[70px] border-r border-slate-200 last:border-r-0"
+                  className="p-1 text-center font-semibold text-slate-600 border-r border-slate-200 last:border-r-0"
                 >
                   {label}
                 </th>
@@ -397,15 +414,17 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
             </tr>
           </thead>
           <tbody className="bg-white">
-            {zoneRates.map((row, i) => (
+            {visibleRowIndices.map(i => {
+              const row = zoneRates[i];
+              return (
               <tr key={i} className="border-t border-slate-200">
-                <td className="p-2 sm:p-3 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-10 border-r border-slate-200">
+                <td className="p-1 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-10 border-r border-slate-200 truncate">
                   {zoneLabels[i]}
                 </td>
                 {row.map((val, j) => (
                   <td
                     key={j}
-                    className={`p-1 border-r border-slate-100 last:border-r-0 ${
+                    className={`p-0.5 border-r border-slate-100 last:border-r-0 ${
                       i === j ? 'bg-slate-50' : ''
                     }`}
                   >
@@ -416,33 +435,25 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
                       }}
                       type="number"
                       step="0.01"
+                      min={0}
+                      max={CELL_MAX}
                       value={val || ''}
                       onChange={(e) => handleCellChange(i, j, e.target.valueAsNumber || 0)}
                       onKeyDown={(e) => handleKeyDown(i, j, e)}
                       onFocus={(e) => e.target.select()}
-                      className={`w-full p-2 text-center rounded-md border transition-colors
+                      className={`w-full p-1 text-center text-xs rounded border transition-colors
                         ${val ? 'bg-white border-slate-200' : 'bg-slate-50 border-transparent'}
                         hover:border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none
                         ${i === j ? 'bg-slate-100' : ''}
                       `}
-                      style={{ minWidth: '60px' }}
                     />
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
-      </div>
-
-      {/* Summary */}
-      <div className="text-sm text-slate-500 flex items-center justify-between">
-        <span>
-          {zoneLabels.length} zones × {zoneLabels.length} zones = {zoneLabels.length * zoneLabels.length} rate cells
-        </span>
-        <span>
-          {zoneRates.flat().filter(v => v > 0).length} rates configured
-        </span>
       </div>
     </div>
   );

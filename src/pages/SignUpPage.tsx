@@ -10,159 +10,13 @@ import { API_BASE_URL } from '../config/apiConfig';
 import {
   Truck, Hash, Grid3X3, UploadCloud, FileSpreadsheet, Download, Loader2, ArrowLeft, ArrowRight,
   CheckCircle, CheckCircle2, Building, Phone, Mail, KeyRound, MapPin, Map, Calendar, Clock, Ship, Link,
-  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle, PackageSearch, ScanSearch, Boxes
+  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle
 } from 'lucide-react';
 import { useGSTLookup } from '../hooks/useGSTLookup';
+import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { GSTConflictPanel } from '../components/GSTConflictPanel';
 import { useAuth } from '../hooks/useAuth';
 import { TermsModal } from '../components/TermsModal';
-
-// ============================================================================
-// TRUCK PROGRESS ANIMATION — friendly "extracting vendor data" loader
-// shown to all users except the dev/admin (Uttam Goyal), who sees the raw
-// generation console instead.
-// ============================================================================
-const TRUCK_PROGRESS_STAGES = [
-  { upTo: 20, label: 'Reading your documents…', icon: PackageSearch },
-  { upTo: 45, label: 'Scanning rate cards & charges…', icon: ScanSearch },
-  { upTo: 75, label: 'Mapping zones & pincodes…', icon: Boxes },
-  { upTo: 100, label: 'Putting it all together…', icon: Sparkles },
-];
-
-// Realistic delivery truck SVG (side profile, cab + box body + wheels)
-const TruckSVG: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    {/* cargo box */}
-    <rect x="2" y="6" width="36" height="20" rx="2" fill="#2563eb" />
-    <rect x="5" y="9" width="30" height="6" rx="1" fill="#bfdbfe" opacity="0.9" />
-    {/* cab */}
-    <path d="M38 14 H50 C52 14 53 15 54 17 L58 23 C58.6 24 58 25 57 25 H38 Z" fill="#1d4ed8" />
-    {/* windshield */}
-    <path d="M50 16 L53.5 16 L56.2 21 H50 Z" fill="#dbeafe" />
-    {/* chassis line */}
-    <rect x="2" y="26" width="58" height="2.5" fill="#1e3a8a" />
-    {/* wheels */}
-    <g className="origin-center" style={{ transformOrigin: '13px 32px' }}>
-      <circle cx="13" cy="32" r="5.5" fill="#0f172a" />
-      <circle cx="13" cy="32" r="2.4" fill="#cbd5e1" />
-      <rect x="12.4" y="27" width="1.2" height="2" fill="#cbd5e1" />
-      <rect x="12.4" y="35" width="1.2" height="2" fill="#cbd5e1" />
-    </g>
-    <g style={{ transformOrigin: '48px 32px' }}>
-      <circle cx="48" cy="32" r="5.5" fill="#0f172a" />
-      <circle cx="48" cy="32" r="2.4" fill="#cbd5e1" />
-      <rect x="47.4" y="27" width="1.2" height="2" fill="#cbd5e1" />
-      <rect x="47.4" y="35" width="1.2" height="2" fill="#cbd5e1" />
-    </g>
-  </svg>
-);
-
-const TruckProgressAnimation: React.FC<{ progress: number }> = ({ progress }) => {
-  const stage = TRUCK_PROGRESS_STAGES.find(s => progress <= s.upTo) || TRUCK_PROGRESS_STAGES[TRUCK_PROGRESS_STAGES.length - 1];
-  const StageIcon = stage.icon;
-  const pct = Math.round(progress);
-  // ring math for the circular percentage indicator
-  const RING_R = 26;
-  const RING_C = 2 * Math.PI * RING_R;
-
-  return (
-    <div className="relative rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50 to-white p-6 overflow-hidden shadow-lg shadow-blue-900/5">
-      {/* drifting glow blobs */}
-      <motion.div
-        className="absolute -top-10 -left-10 w-40 h-40 rounded-full bg-blue-200/40 blur-3xl"
-        animate={{ x: [0, 30, 0], y: [0, 20, 0] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute -bottom-12 -right-10 w-48 h-48 rounded-full bg-blue-200/35 blur-3xl"
-        animate={{ x: [0, -25, 0], y: [0, -15, 0] }}
-        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-      />
-
-      {/* twinkling dots */}
-      {[...Array(10)].map((_, i) => (
-        <motion.span
-          key={i}
-          className="absolute w-1 h-1 rounded-full bg-blue-400/60"
-          style={{ left: `${(i * 9.7) % 100}%`, top: `${(i * 23) % 70 + 5}%` }}
-          animate={{ opacity: [0.15, 0.8, 0.15] }}
-          transition={{ duration: 2 + (i % 4), repeat: Infinity, ease: 'easeInOut', delay: i * 0.3 }}
-        />
-      ))}
-
-      <div className="relative z-10 flex items-center gap-5">
-        {/* Circular progress ring */}
-        <div className="relative w-20 h-20 shrink-0">
-          <svg viewBox="0 0 60 60" className="w-20 h-20 -rotate-90">
-            <circle cx="30" cy="30" r={RING_R} fill="none" stroke="rgba(37,99,235,0.15)" strokeWidth="5" />
-            <motion.circle
-              cx="30" cy="30" r={RING_R} fill="none" stroke="#2563eb" strokeWidth="5" strokeLinecap="round"
-              strokeDasharray={RING_C}
-              animate={{ strokeDashoffset: RING_C - (pct / 100) * RING_C }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-black text-blue-600 tabular-nums">{pct}%</span>
-          </div>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Status line */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={stage.label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-              className="flex items-center gap-2 text-sm font-bold text-slate-700"
-            >
-              <StageIcon className="w-4 h-4 text-blue-500 shrink-0" />
-              <span className="truncate">{stage.label}</span>
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Road with moving truck */}
-          <div className="relative h-9 mt-3">
-            <div className="absolute bottom-2 left-0 right-0 h-2 rounded-full bg-blue-100 overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-blue-400 via-blue-600 to-blue-700 relative"
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-              >
-                {/* shimmer sweep */}
-                <motion.div
-                  className="absolute inset-y-0 w-12 bg-gradient-to-r from-transparent via-white/70 to-transparent"
-                  animate={{ left: ['-20%', '120%'] }}
-                  transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
-                />
-              </motion.div>
-            </div>
-            {/* dashed lane markings */}
-            <div className="absolute bottom-[11px] left-0 right-0 h-px border-t-2 border-dashed border-blue-200" />
-            <motion.div
-              className="absolute bottom-1"
-              animate={{ left: `calc(${pct}% - 18px)` }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-            >
-              <motion.div
-                animate={{ y: [0, -1.5, 0] }}
-                transition={{ duration: 0.5, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <TruckSVG className="w-11 h-7 drop-shadow-lg" />
-              </motion.div>
-            </motion.div>
-          </div>
-        </div>
-      </div>
-
-      <p className="relative z-10 mt-4 text-xs text-slate-400">
-        This usually takes around 2 minutes per transporter — feel free to keep this tab open while we get everything ready.
-      </p>
-    </div>
-  );
-};
 
 // --- Type Definitions for State ---
 interface IFormData {
@@ -284,7 +138,7 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
       {label}{required && <span className="text-red-500 ml-1">*</span>}
     </label>
     <div className="relative">
-       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none">
+      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none">
         {icon}
       </span>
       <select
@@ -301,12 +155,12 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
       >
         {children}
       </select>
-       <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-          <svg className="w-5 h-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4 4 4-4" /></svg>
+      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+        <svg className="w-5 h-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4 4 4-4" /></svg>
       </div>
     </div>
     <AnimatePresence>
-       {error && <motion.p id={`${id}-error`} className="mt-1.5 text-xs text-red-600" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}>{error}</motion.p>}
+      {error && <motion.p id={`${id}-error`} className="mt-1.5 text-xs text-red-600" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}>{error}</motion.p>}
     </AnimatePresence>
   </div>
 );
@@ -332,9 +186,9 @@ const StepIndicator: React.FC<{ currentStep: number; steps: string[] }> = ({ cur
             }>{step}</p>
           </li>
           {idx < steps.length - 1 && (
-             <div className="flex-1 h-0.5 transition-colors bg-slate-200 relative -ml-2 -mr-2">
-               <div className="h-full bg-blue-600 transition-all duration-500" style={{width: currentStep > idx ? '100%' : '0%'}} />
-             </div>
+            <div className="flex-1 h-0.5 transition-colors bg-slate-200 relative -ml-2 -mr-2">
+              <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: currentStep > idx ? '100%' : '0%' }} />
+            </div>
           )}
         </React.Fragment>
       ))}
@@ -462,11 +316,11 @@ export default function SignUpPage() {
     // Never pre-populate with AI data when the user selects Manual explicitly.
     const mode = localStorage.getItem('transporter_onboarding_mode');
     const isNewSession = new URLSearchParams(window.location.search).get('new_session') === '1';
-    
+
     if (mode === 'manual' && !isNewSession) {
       const saved = localStorage.getItem('transporter_onboarding_form_data');
       if (saved) {
-        try { return JSON.parse(saved); } catch (e) {}
+        try { return JSON.parse(saved); } catch (e) { }
       }
     }
     return {
@@ -495,6 +349,19 @@ export default function SignUpPage() {
       localStorage.removeItem('transporter_onboarding_current_step');
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_extracted_service');
+      // None of these are scoped to a particular transporter/GST — they're
+      // just whatever the last session (possibly a different company) left
+      // behind. AddPrice.tsx falls back to transporter_extracted_price_rate
+      // once transporter_price_rate is gone, and reuses transporter_zone_rates
+      // whenever the new session's zone-label count happens to match the old
+      // matrix's length (likely, since the zone taxonomy is standardized
+      // across all transporters) — so leaving either behind just moves the
+      // same stale-data leak one layer down instead of fixing it. A fresh
+      // upload regenerates both from scratch anyway, so there's no real
+      // "cache" benefit lost by clearing them here.
+      localStorage.removeItem('transporter_price_rate');
+      localStorage.removeItem('transporter_extracted_price_rate');
+      localStorage.removeItem('transporter_zone_rates');
       return 'selection';
     }
     return (localStorage.getItem('transporter_onboarding_mode') as any) || 'selection';
@@ -508,6 +375,7 @@ export default function SignUpPage() {
 
   interface AiSummaryData {
     company: Record<string, string>;
+    companySource: Record<string, 'file' | 'carried'>;
     pricing: Record<string, string>;
     hasZoneData: boolean;
     zoneCount: number;
@@ -564,6 +432,7 @@ export default function SignUpPage() {
   const gstLookup = useGSTLookup();
   const [gstFocused, setGstFocused] = useState(false);
   const appliedGstinRef = useRef<string | null>(null);
+  const aiAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     gstLookup.lookup(formData.gstNo || '', {
@@ -661,6 +530,8 @@ export default function SignUpPage() {
     }
   }, [navigate]);
 
+  useReportIframeHeight([currentStep, onboardingMode]);
+
   // Zone names actually present in the uploaded/extracted service data — never
   // hardcode this empty, or AddPrice's Zone-to-Zone Rates step has nothing to show.
   const zones = useMemo(
@@ -731,27 +602,34 @@ export default function SignUpPage() {
 
   const guessCategory = (filename: string): 'company_details' | 'charges' | 'zone_data' => {
     const n = filename.toLowerCase().replace(/[_\-. ]/g, ' ');
-    const companyKw = ['company','vendor','transporter','profile','info','details','contact','gst','pan','kyc','overview','about'];
-    const chargeKw  = ['rate','rates','charge','charges','price','pricing','tariff','fuel','docket','oda','rov','insurance','surcharge','fee','cost','billing'];
-    const zoneKw    = ['zone','zones','pincode','pincodes','serviceability','service','coverage','matrix','area','delivery','served','network'];
+    const companyKw = ['company', 'vendor', 'transporter', 'profile', 'info', 'details', 'contact', 'gst', 'pan', 'kyc', 'overview', 'about'];
+    const chargeKw = ['rate', 'rates', 'charge', 'charges', 'price', 'pricing', 'tariff', 'fuel', 'docket', 'oda', 'rov', 'insurance', 'surcharge', 'fee', 'cost', 'billing'];
+    const zoneKw = ['zone', 'zones', 'pincode', 'pincodes', 'serviceability', 'service', 'coverage', 'matrix', 'area', 'delivery', 'served', 'network'];
     const score = (kws: string[]) => kws.filter(k => n.includes(k)).length;
     const s = { company_details: score(companyKw), charges: score(chargeKw), zone_data: score(zoneKw) };
     const best = (Object.keys(s) as Array<'company_details' | 'charges' | 'zone_data'>).sort((a, b) => s[b] - s[a]);
     return s[best[0]] > 0 ? best[0] : 'charges';
   };
 
+  const MAX_AI_FILES = 3;
+
   const handleAiFilesAdd = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
-    const ACCEPTED = new Set(['.xlsx','.xls','.csv','.pdf','.png','.jpg','.jpeg','.docx','.doc','.pptx','.ppt','.json','.tiff','.bmp','.webp']);
+    const ACCEPTED = new Set(['.xlsx', '.xls', '.csv', '.pdf', '.png', '.jpg', '.jpeg', '.docx', '.doc', '.pptx', '.ppt', '.json', '.tiff', '.bmp', '.webp']);
     const next: Array<{ file: File; id: string; category: 'company_details' | 'charges' | 'zone_data' }> = [];
+    let remainingSlots = MAX_AI_FILES - aiFiles.length;
     for (const f of arr) {
+      if (remainingSlots <= 0) {
+        toast.error(`You can only upload up to ${MAX_AI_FILES} files. "${f.name}" was skipped.`);
+        continue;
+      }
       const ext = '.' + f.name.split('.').pop()!.toLowerCase();
       if (!ACCEPTED.has(ext)) {
-        toast.error(`${f.name}: unsupported format`);
+        toast.error(`"${f.name}" isn't a supported file type.`);
         continue;
       }
       if (f.size > 10 * 1024 * 1024) {
-        toast.error(`${f.name}: exceeds 10 MB`);
+        toast.error(`"${f.name}" is too big — files must be under 10 MB.`);
         continue;
       }
       next.push({
@@ -759,6 +637,7 @@ export default function SignUpPage() {
         id: Math.random().toString(36).slice(2),
         category: guessCategory(f.name)
       });
+      remainingSlots--;
     }
     setAiFiles(prev => [...prev, ...next]);
   };
@@ -768,16 +647,19 @@ export default function SignUpPage() {
       toast.error('Please upload at least one file first.');
       return;
     }
-    
+
     setOnboardingMode('ai_processing');
     setExtractionStatus('processing');
     setExtractionLogs([]);
     setAiProgress(10);
     appendLog(`[START] Initiating automated onboarding parser...`);
 
+    const controller = new AbortController();
+    aiAbortControllerRef.current = controller;
+
     const rawName = formData.companyName || 'new_transporter_' + Math.random().toString(36).slice(2, 6);
-    const safeName = rawName.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'').slice(0,40) || 'new_transporter';
-    
+    const safeName = rawName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 40) || 'new_transporter';
+
     const authToken = Cookies.get('authToken');
     const authHeaders: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
 
@@ -785,7 +667,7 @@ export default function SignUpPage() {
       appendLog(`[INFO] Setting up temporary workspace for "${rawName}"...`);
       const createRes = await axios.post(`${API_BASE_URL}/api/utsf-generator/transporter`, {
         name: safeName
-      }, { headers: authHeaders });
+      }, { headers: authHeaders, signal: controller.signal });
       if (!createRes.data.success) {
         throw new Error('Failed to allocate remote processing slot.');
       }
@@ -798,7 +680,7 @@ export default function SignUpPage() {
         fd.append('files', item.file);
         fd.append('subfolder', item.category);
 
-        await axios.post(`${API_BASE_URL}/api/utsf-generator/transporter/${safeName}/upload`, fd, { headers: authHeaders });
+        await axios.post(`${API_BASE_URL}/api/utsf-generator/transporter/${safeName}/upload`, fd, { headers: authHeaders, signal: controller.signal });
         appendLog(`[OK] Uploaded "${item.file.name}" as [${item.category.replace('_', ' ')}]`);
       }
       setAiProgress(50);
@@ -807,7 +689,7 @@ export default function SignUpPage() {
       const headers: Record<string, string> = { ...authHeaders };
 
       const streamUrl = `${API_BASE_URL}/api/utsf-generator/transporter/${safeName}/stream`;
-      const response = await fetch(streamUrl, { headers });
+      const response = await fetch(streamUrl, { headers, signal: controller.signal });
       if (!response.ok || !response.body) {
         throw new Error('Could not establish live log streaming connection.');
       }
@@ -881,33 +763,58 @@ export default function SignUpPage() {
       }
 
       appendLog(`[INFO] Fetching extracted profile data...`);
-      const utsfRes = await axios.get(`${API_BASE_URL}/api/utsf-generator/output/file/${downloadToken}`);
+      const utsfRes = await axios.get(`${API_BASE_URL}/api/utsf-generator/output/file/${downloadToken}`, { signal: controller.signal });
       const utsf = utsfRes.data;
-      
+
       appendLog(`[OK] Data retrieved. Syncing profile to form fields...`);
 
       // UTSF v2 stores profile fields under meta, not basics
       const meta = utsf.meta || {};
       const basics = utsf.basics || {};  // legacy fallback
+
       // Every field below falls back to whatever Page 1 already collected/resolved
       // (GST lookup, pincode lookup, or direct user input) before falling back to
       // empty — AI extraction should only ever *add* data, never erase fields the
       // user already correctly filled in just because the uploaded document
-      // (usually just a pricing sheet) doesn't happen to restate them.
-      const companyName = meta.companyName || utsf.companyName || basics.companyName || formData.companyName || '';
-      const email = meta.contactEmail || meta.email || basics.email || basics.primaryContactEmail || utsf.primaryContactEmail || formData.email || '';
-      const phone = meta.contactPhone || meta.phone || basics.phone || basics.primaryContactPhone || utsf.primaryContactPhone || formData.phone || '';
-      const gstNo = meta.gstNo || basics.gstNo || utsf.gstNo || formData.gstNo || '';
-      const address = meta.address || basics.address || formData.address || '';
-      const stateName = meta.state || meta.stateName || basics.state || basics.stateName || formData.stateName || '';
-      const pincode = String(meta.pincode || basics.pincode || formData.pincode || '');
+      // (usually just a pricing sheet) doesn't happen to restate them. `pick`
+      // also records WHERE each value came from, so the summary screen can be
+      // honest about what this specific upload actually contained vs. what's
+      // just carried over from an earlier step/session.
+      const pick = (docVal: unknown, formVal: string): { value: string; source: 'file' | 'carried' } | null => {
+        if (docVal !== undefined && docVal !== null && String(docVal).trim() !== '') {
+          return { value: String(docVal), source: 'file' };
+        }
+        if (formVal) return { value: formVal, source: 'carried' };
+        return null;
+      };
+
+      const companyNameF = pick(meta.companyName || utsf.companyName || basics.companyName, formData.companyName);
+      const emailF = pick(meta.contactEmail || meta.email || basics.email || basics.primaryContactEmail || utsf.primaryContactEmail, formData.email);
+      const phoneF = pick(meta.contactPhone || meta.phone || basics.phone || basics.primaryContactPhone || utsf.primaryContactPhone, formData.phone);
+      const gstNoF = pick(meta.gstNo || basics.gstNo || utsf.gstNo, formData.gstNo);
+      const addressF = pick(meta.address || basics.address, formData.address);
+      const stateNameF = pick(meta.state || meta.stateName || basics.state || basics.stateName, formData.stateName);
+      const pincodeF = pick(meta.pincode || basics.pincode, formData.pincode);
+      const websiteLinkF = pick(meta.website || meta.websiteLink || basics.websiteLink, formData.websiteLink);
+      // meta.transportMode (LTL/FTL/B2C/surface/air) is NOT the same field as
+      // formData.deliveryMode (Road/Air/Rail — the actual selector on Page 1),
+      // and the UTSF schema hardcodes "LTL" as its default for every profile
+      // regardless of what was uploaded (see fc4_schema.py UTSF_EMPTY_TEMPLATE) —
+      // there is no way to tell a genuinely-extracted mode from that baked-in
+      // default. So it's deliberately never surfaced here or merged into
+      // formData.deliveryMode; Page 1's own value (typed by the user) stands.
+
+      const companyName = companyNameF?.value || '';
+      const email = emailF?.value || '';
+      const phone = phoneF?.value || '';
+      const gstNo = gstNoF?.value || '';
+      const address = addressF?.value || '';
+      const stateName = stateNameF?.value || '';
+      const pincode = pincodeF?.value || '';
       const experience = meta.experience || basics.experience || '';
       const officeStart = meta.officeStart || basics.officeStart || '09:00';
       const officeEnd = meta.officeEnd || basics.officeEnd || '18:00';
-      const rawModeVal = meta.transportMode || meta.deliveryMode || basics.deliveryMode || basics.transportMode;
-      const rawMode = typeof rawModeVal === 'string' && rawModeVal ? rawModeVal : 'Road';
-      const deliveryMode = rawMode.charAt(0).toUpperCase() + rawMode.slice(1).toLowerCase();
-      const websiteLink = meta.website || meta.websiteLink || basics.websiteLink || '';
+      const websiteLink = websiteLinkF?.value || '';
 
       const numTrucks = meta.numTrucks || meta.fleetSize || basics.numTrucks || basics.fleetSize || '';
       const maxLoading = meta.maxLoading || meta.maxCap || basics.maxLoading || basics.maxCap || '';
@@ -926,7 +833,6 @@ export default function SignUpPage() {
         experience: String(experience),
         officeStart,
         officeEnd,
-        deliveryMode,
         websiteLink,
         numTrucks: String(numTrucks),
         maxLoading: String(maxLoading),
@@ -936,17 +842,25 @@ export default function SignUpPage() {
 
       setAiProgress(100);
 
-      // Build company preview for the AI summary screen
+      // Build company preview for the AI summary screen — plus a parallel map
+      // recording whether each value actually came from this upload ("file")
+      // or is just carried over from an earlier step ("carried"), so the UI
+      // never implies the AI read something it didn't.
       const preview: Record<string, string> = {};
-      if (companyName) preview['Company'] = companyName;
-      if (email) preview['Email'] = email;
-      if (phone) preview['Phone'] = phone;
-      if (gstNo) preview['GST'] = gstNo;
-      if (stateName) preview['State'] = stateName;
-      if (pincode) preview['Pincode'] = pincode;
-      if (address) preview['Address'] = address;
-      if (deliveryMode) preview['Mode'] = deliveryMode;
-      if (websiteLink) preview['Website'] = websiteLink;
+      const previewSource: Record<string, 'file' | 'carried'> = {};
+      const addPreview = (label: string, field: { value: string; source: 'file' | 'carried' } | null) => {
+        if (!field) return;
+        preview[label] = field.value;
+        previewSource[label] = field.source;
+      };
+      addPreview('Company', companyNameF);
+      addPreview('Email', emailF);
+      addPreview('Phone', phoneF);
+      addPreview('GST', gstNoF);
+      addPreview('State', stateNameF);
+      addPreview('Pincode', pincodeF);
+      addPreview('Address', addressF);
+      addPreview('Website', websiteLinkF);
       setExtractedPreview(Object.keys(preview).length > 0 ? preview : null);
 
       // ── Extract pricing schedule from UTSF output ──
@@ -955,33 +869,52 @@ export default function SignUpPage() {
       // Complex charges use {v, f} format (not {variable, fixed})
       const rawPR = utsf.pricing?.priceRate || utsf.prices?.priceRate || utsf.priceRate || {};
       const cv = (c: any, k: 'v' | 'variable') => Number(c?.[k] ?? c?.[k === 'v' ? 'variable' : 'v'] ?? 0);
-      const cf = (c: any, k: 'f' | 'fixed')    => Number(c?.[k] ?? c?.[k === 'f' ? 'fixed'    : 'f'] ?? 0);
+      const cf = (c: any, k: 'f' | 'fixed') => Number(c?.[k] ?? c?.[k === 'f' ? 'fixed' : 'f'] ?? 0);
+
+      // The generator emits schema-required {v,f}/0 placeholders for every
+      // charge the source document never mentioned (e.g. minWeight defaults to
+      // 0.5, divisor/kFactor to 5000) — those are NOT vendor-quoted data, just
+      // shape filler. `_chargeFieldsFromSource` (fc4_encoder.py) is the
+      // generator's own record of which fields it actually found in your
+      // upload; anything not in it gets zeroed here so it reads as "not
+      // provided" (blank in the price form) instead of a fabricated number.
+      // Note: divisor/kFactor has no source-tracking key at all — it's always
+      // schema filler, so it's always zeroed regardless.
+      const sourcedFields: string[] = Array.isArray(utsf._chargeFieldsFromSource) ? utsf._chargeFieldsFromSource : [];
+      const fromSource = (key: string) => sourcedFields.includes(key);
+
       const extractedPR = {
-        minWeight: Number(rawPR.minWeight || rawPR.minChargableWeight || 0),
-        docketCharges: Number(rawPR.docketCharges || 0),
-        fuel: Number(rawPR.fuel || rawPR.fuelSurcharge || rawPR.fuelCharge || 0),
-        rovCharges:         { variable: cv(rawPR.rovCharges, 'v'),         fixed: cf(rawPR.rovCharges, 'f') },
-        insuranceCharges:   { variable: cv(rawPR.insuranceCharges, 'v'),   fixed: cf(rawPR.insuranceCharges, 'f') },
-        odaCharges:         { variable: cv(rawPR.odaCharges, 'v'),         fixed: cf(rawPR.odaCharges, 'f') },
-        codCharges:         { variable: cv(rawPR.codCharges, 'v'),         fixed: cf(rawPR.codCharges, 'f') },
-        prepaidCharges:     { variable: cv(rawPR.prepaidCharges, 'v'),     fixed: cf(rawPR.prepaidCharges, 'f') },
-        topayCharges:       { variable: cv(rawPR.topayCharges, 'v'),       fixed: cf(rawPR.topayCharges, 'f') },
-        handlingCharges:    { variable: cv(rawPR.handlingCharges, 'v'),    fixed: cf(rawPR.handlingCharges, 'f'), thresholdWeight: Number(rawPR.handlingCharges?.thresholdWeight || 0) },
-        fmCharges:          { variable: cv(rawPR.fmCharges, 'v'),          fixed: cf(rawPR.fmCharges, 'f') },
-        appointmentCharges: { variable: cv(rawPR.appointmentCharges, 'v'), fixed: cf(rawPR.appointmentCharges, 'f') },
-        kFactor: Number(rawPR.kFactor || rawPR.divisor || 1),
-        minCharges: Number(rawPR.minCharges || 0),
-        greenTax: Number(rawPR.greenTax || 0),
-        daccCharges: Number(rawPR.daccCharges || 0),
-        miscellanousCharges: Number(rawPR.miscellanousCharges || rawPR.miscCharges || 0),
+        minWeight: fromSource('minWeight') ? Number(rawPR.minWeight || rawPR.minChargableWeight || 0) : 0,
+        docketCharges: fromSource('docketCharges') ? Number(rawPR.docketCharges || 0) : 0,
+        fuel: fromSource('fuel') ? Number(rawPR.fuel || rawPR.fuelSurcharge || rawPR.fuelCharge || 0) : 0,
+        rovCharges: fromSource('rovCharges') ? { variable: cv(rawPR.rovCharges, 'v'), fixed: cf(rawPR.rovCharges, 'f') } : { variable: 0, fixed: 0 },
+        insuranceCharges: fromSource('insuranceCharges') ? { variable: cv(rawPR.insuranceCharges, 'v'), fixed: cf(rawPR.insuranceCharges, 'f') } : { variable: 0, fixed: 0 },
+        odaCharges: fromSource('odaCharges') ? { variable: cv(rawPR.odaCharges, 'v'), fixed: cf(rawPR.odaCharges, 'f') } : { variable: 0, fixed: 0 },
+        codCharges: fromSource('codCharges') ? { variable: cv(rawPR.codCharges, 'v'), fixed: cf(rawPR.codCharges, 'f') } : { variable: 0, fixed: 0 },
+        prepaidCharges: fromSource('prepaidCharges') ? { variable: cv(rawPR.prepaidCharges, 'v'), fixed: cf(rawPR.prepaidCharges, 'f') } : { variable: 0, fixed: 0 },
+        topayCharges: fromSource('topayCharges') ? { variable: cv(rawPR.topayCharges, 'v'), fixed: cf(rawPR.topayCharges, 'f') } : { variable: 0, fixed: 0 },
+        handlingCharges: fromSource('handlingCharges')
+          ? { variable: cv(rawPR.handlingCharges, 'v'), fixed: cf(rawPR.handlingCharges, 'f'), thresholdWeight: Number(rawPR.handlingCharges?.thresholdWeight || 0) }
+          : { variable: 0, fixed: 0, thresholdWeight: 0 },
+        fmCharges: fromSource('fmCharges') ? { variable: cv(rawPR.fmCharges, 'v'), fixed: cf(rawPR.fmCharges, 'f') } : { variable: 0, fixed: 0 },
+        appointmentCharges: fromSource('appointmentCharges') ? { variable: cv(rawPR.appointmentCharges, 'v'), fixed: cf(rawPR.appointmentCharges, 'f') } : { variable: 0, fixed: 0 },
+        kFactor: 0, // divisor/kFactor is never source-tracked — always schema filler, never real
+        minCharges: fromSource('minCharges') ? Number(rawPR.minCharges || 0) : 0,
+        greenTax: fromSource('greenTax') ? Number(rawPR.greenTax || 0) : 0,
+        daccCharges: fromSource('daccCharges') ? Number(rawPR.daccCharges || 0) : 0,
+        miscellanousCharges: fromSource('miscCharges') ? Number(rawPR.miscellanousCharges || rawPR.miscCharges || 0) : 0,
       };
 
-      const hasPricingData = (
-        extractedPR.docketCharges > 0 || extractedPR.fuel > 0 || extractedPR.minWeight > 0 ||
-        extractedPR.rovCharges.variable > 0 || extractedPR.rovCharges.fixed > 0 ||
-        extractedPR.insuranceCharges.variable > 0 || extractedPR.odaCharges.variable > 0 ||
-        extractedPR.odaCharges.fixed > 0 || extractedPR.codCharges.variable > 0
-      );
+      // Based on what the generator actually found in the source, not on
+      // whether a (possibly-zeroed) value happens to be > 0 — a vendor
+      // genuinely quoting "₹0 docket fee" is still real sourced data.
+      const PRICING_RELEVANT_FIELDS = [
+        'minWeight', 'docketCharges', 'fuel', 'rovCharges', 'insuranceCharges',
+        'odaCharges', 'codCharges', 'prepaidCharges', 'topayCharges',
+        'handlingCharges', 'fmCharges', 'appointmentCharges', 'minCharges',
+        'greenTax', 'daccCharges', 'miscCharges',
+      ];
+      const hasPricingData = sourcedFields.some(f => PRICING_RELEVANT_FIELDS.includes(f));
 
       if (hasPricingData) {
         localStorage.setItem('transporter_extracted_price_rate', JSON.stringify(extractedPR));
@@ -998,64 +931,132 @@ export default function SignUpPage() {
       const totalPincodes = utsf.stats?.totalPincodes
         || utsf.stats?.totalServedPincodes
         || zoneLabelsFromUtsf.reduce((sum, z) => {
-            const entry = serviceability[z];
-            return sum + (entry.servedCount || 0) + (entry.odaCount || 0);
-          }, 0);
+          const entry = serviceability[z];
+          return sum + (entry.servedCount || 0) + (entry.odaCount || 0);
+        }, 0);
 
+      // Range expansion — servedRanges/odaRanges/crossZoneRanges are the UTSF
+      // encoder's compressed form for 3+ CONSECUTIVE pincodes ({s,e}
+      // start/end pairs), which is how most real coverage is stored (postal
+      // codes cluster). Reading only *Singles here silently dropped every
+      // range-compressed pincode — e.g. DB Shenker's 20,226-pincode file only
+      // produced 6,991 singles; the other ~12,400 were sitting in
+      // servedRanges/odaRanges and never made it into the saved transporter.
+      const expandRanges = (ranges: Array<{ s: number; e: number }> | undefined): number[] => {
+        const out: number[] = [];
+        for (const r of ranges || []) {
+          if (r == null || r.s == null || r.e == null) continue;
+          for (let p = r.s; p <= r.e; p++) out.push(p);
+        }
+        return out;
+      };
+
+      // Verified against the raw UTSF output: per zone, servedCount ===
+      // (servedSingles+servedRanges) + (crossZoneSingles+crossZoneRanges) —
+      // crossZone* holds pincodes the vendor serves under this zone label
+      // even though the pincode's canonical/master zone differs, and is a
+      // genuinely separate, ADDITIVE set from served (not overlapping).
+      // odaSingles/odaRanges, however, are a full SUBSET of served+crossZone
+      // (every ODA pincode is also a served pincode, just surcharged) — so
+      // pushing them as their own separate entries, as before, created a
+      // duplicate row for every ODA pincode (once isOda:false, once
+      // isOda:true) instead of one row with isOda correctly set to true.
+      // Building a per-zone pincode->isOda lookup first, instead of pushing
+      // straight into an array, dedupes that overlap by construction. Using a
+      // plain object (not the built-in Map) — this file imports `Map` as the
+      // lucide-react location icon (see the top-of-file import + its uses on
+      // the State/Address fields below), which shadows the global Map
+      // constructor for the whole module; `new Map()` here would try to
+      // construct that icon component instead and throw "Map is not a
+      // constructor". Object keys coerce to strings anyway, so pincodes are
+      // tracked as string keys and converted back to Number on push.
       const serviceArray: { pincode: number, isOda: boolean, zone: string }[] = [];
       for (const zone of zoneLabelsFromUtsf) {
         const entry = serviceability[zone];
         const servedSingles = entry.servedSingles || entry.incl_singles || entry.includedSingles || [];
+        const servedRangePins = expandRanges(entry.servedRanges);
+        const crossZoneSingles = entry.crossZoneSingles || [];
+        const crossZoneRangePins = expandRanges(entry.crossZoneRanges);
         const odaSingles = entry.odaSingles || [];
-        for (const pin of servedSingles) {
-           serviceArray.push({ pincode: Number(pin), isOda: false, zone });
+        const odaRangePins = expandRanges(entry.odaRanges);
+
+        const zonePins: Record<string, boolean> = {}; // pincode (string key) -> isOda
+        for (const pin of [...servedSingles, ...servedRangePins, ...crossZoneSingles, ...crossZoneRangePins]) {
+          zonePins[String(pin)] = false;
         }
-        for (const pin of odaSingles) {
-           serviceArray.push({ pincode: Number(pin), isOda: true, zone });
+        for (const pin of [...odaSingles, ...odaRangePins]) {
+          zonePins[String(pin)] = true; // overwrites the false already set above
+        }
+        for (const pincodeStr of Object.keys(zonePins)) {
+          serviceArray.push({ pincode: Number(pincodeStr), isOda: zonePins[pincodeStr], zone });
         }
       }
+      // Store zone labels + the (small) rate matrix FIRST, before the large
+      // pincode-level serviceArray write below — a big pincode file (tens of
+      // thousands of entries, ~1MB+ JSON) can silently throw
+      // QuotaExceededError against localStorage/sessionStorage's few-MB
+      // per-origin cap, especially after a long testing session's worth of
+      // accumulated leftover keys. None of these writes were try/caught, so
+      // that throw aborted the function before ever reaching whichever write
+      // came after it — zones-added-but-rates-empty is exactly what that
+      // looks like from the UI. Rates are the more critical, much smaller
+      // payload (13×13 numbers vs. 20,000+ pincode objects), so they now go
+      // first and are wrapped so a later quota failure can't take them down
+      // with it.
+      if (zoneLabelsFromUtsf.length > 0) {
+        try {
+          sessionStorage.setItem('zones', JSON.stringify(zoneLabelsFromUtsf));
+          // Build the zone rate matrix skeleton from UTSF zoneRates (if available)
+          const utsfZoneRates = utsf.pricing?.zoneRates || {};
+          if (Object.keys(utsfZoneRates).length > 0) {
+            const matrix = zoneLabelsFromUtsf.map(from =>
+              zoneLabelsFromUtsf.map(to => utsfZoneRates[from]?.[to] || 0)
+            );
+            localStorage.setItem('transporter_zone_rates', JSON.stringify(matrix));
+          }
+        } catch (storageErr) {
+          console.error('[AI extraction] Failed to store zone labels/rates:', storageErr);
+        }
+      }
+
       if (serviceArray.length > 0) {
-        localStorage.setItem('transporter_extracted_service', JSON.stringify(serviceArray));
-        // Same shared key the manual-upload path writes — AddPrice's zone
-        // summary reads from here regardless of which onboarding route was used.
-        sessionStorage.setItem('transporter_zone_pincode_data', JSON.stringify(serviceArray));
+        try {
+          localStorage.setItem('transporter_extracted_service', JSON.stringify(serviceArray));
+          // Same shared key the manual-upload path writes — AddPrice's zone
+          // summary reads from here regardless of which onboarding route was used.
+          sessionStorage.setItem('transporter_zone_pincode_data', JSON.stringify(serviceArray));
+        } catch (storageErr) {
+          // Large files (tens of thousands of pincodes) can exceed the
+          // localStorage/sessionStorage quota — non-fatal: zone labels and
+          // rates above are unaffected, and setUploadedService below still
+          // keeps the data usable in-memory for this page's own zone summary.
+          console.error('[AI extraction] Failed to store pincode-level service data (likely storage quota):', storageErr);
+        }
         // Keep the `zones` derivation (used at final submit) in sync too —
         // otherwise the AI path hits the exact same "zones wiped at submit" bug.
         setUploadedService(serviceArray);
-      }
-
-      // Store zone labels in sessionStorage so AddPrice can pre-populate
-      // its zone matrix without asking the user to re-upload pincodes.
-      if (zoneLabelsFromUtsf.length > 0) {
-        sessionStorage.setItem('zones', JSON.stringify(zoneLabelsFromUtsf));
-        // Build the zone rate matrix skeleton from UTSF zoneRates (if available)
-        const utsfZoneRates = utsf.pricing?.zoneRates || {};
-        if (Object.keys(utsfZoneRates).length > 0) {
-          const matrix = zoneLabelsFromUtsf.map(from =>
-            zoneLabelsFromUtsf.map(to => utsfZoneRates[from]?.[to] || 0)
-          );
-          localStorage.setItem('transporter_zone_rates', JSON.stringify(matrix));
-        }
       }
       // Store company name for AddPrice's transporter display
       if (companyName) sessionStorage.setItem('companyName', companyName);
 
       // Build pricing summary chips for the summary screen
       const pricingSummary: Record<string, string> = {};
-      if (extractedPR.minWeight > 0)           pricingSummary['Min. Chargeable Wt.'] = `${extractedPR.minWeight} kg`;
-      if (extractedPR.docketCharges > 0)        pricingSummary['Docket Charges']       = `₹${extractedPR.docketCharges}`;
-      if (extractedPR.fuel > 0)                 pricingSummary['Fuel Surcharge']        = `${extractedPR.fuel}%`;
-      if (extractedPR.rovCharges.variable > 0)  pricingSummary['ROV (Variable)']        = `${extractedPR.rovCharges.variable}%`;
-      if (extractedPR.rovCharges.fixed > 0)     pricingSummary['ROV (Fixed)']           = `₹${extractedPR.rovCharges.fixed}`;
+      if (extractedPR.minWeight > 0) pricingSummary['Min. Chargeable Wt.'] = `${extractedPR.minWeight} kg`;
+      if (extractedPR.docketCharges > 0) pricingSummary['Docket Charges'] = `₹${extractedPR.docketCharges}`;
+      if (extractedPR.fuel > 0) pricingSummary['Fuel Surcharge'] = `${extractedPR.fuel}%`;
+      if (extractedPR.rovCharges.variable > 0) pricingSummary['ROV (Variable)'] = `${extractedPR.rovCharges.variable}%`;
+      if (extractedPR.rovCharges.fixed > 0) pricingSummary['ROV (Fixed)'] = `₹${extractedPR.rovCharges.fixed}`;
       if (extractedPR.odaCharges.variable > 0 || extractedPR.odaCharges.fixed > 0)
         pricingSummary['ODA Charges'] = `${extractedPR.odaCharges.variable}% + ₹${extractedPR.odaCharges.fixed}`;
       if (extractedPR.insuranceCharges.variable > 0)
         pricingSummary['Insurance (Variable)'] = `${extractedPR.insuranceCharges.variable}%`;
-      if (extractedPR.kFactor && extractedPR.kFactor !== 1)
-        pricingSummary['Divisor (k-factor)'] = String(extractedPR.kFactor);
+      // Divisor/kFactor is never shown — the generator has no way to mark it as
+      // genuinely sourced (see extractedPR.kFactor above), so it's always 0/schema
+      // filler here and would be misleading to display as "extracted".
 
       setAiSummaryData({
         company: preview,
+        companySource: previewSource,
         pricing: pricingSummary,
         hasZoneData: zoneCount > 0,
         zoneCount,
@@ -1063,23 +1064,85 @@ export default function SignUpPage() {
         hasPricingData,
       });
 
-      toast.success('AI extraction complete! Review the summary before proceeding.');
       setExtractionStatus('success');
-      setOnboardingMode('ai_summary');
+
+      // The user is no longer on this page by the time we get here — navigation
+      // to /addprice already happened the instant they clicked "Yes, Read My
+      // Files Now" (see startAiExtractionAndContinue). All that's left to do is
+      // record that extraction finished so AddPrice's polling picks it up; it
+      // reads the same localStorage keys already written above (company/price/
+      // zone data) plus this status flag to know when to stop waiting.
+      localStorage.setItem('transporter_ai_extraction_status', zoneCount > 0 ? 'success' : 'failed');
+      if (zoneCount > 0) {
+        toast.success('Documents read successfully — your details are ready to review.');
+      } else {
+        appendLog('[WARN] No service zones found in the uploaded documents.');
+        toast.error('Could not find any service zones in your documents — you can fill them in manually.');
+      }
     } catch (err: any) {
+      // User clicked Cancel mid-process — cancelAiExtraction() already reset the
+      // screen back to the upload state, so don't surface this as a failure.
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || err?.name === 'AbortError' || axios.isCancel(err)) {
+        localStorage.setItem('transporter_ai_extraction_status', 'failed');
+        return;
+      }
       const serverMsg = err?.response?.data?.message || err?.response?.data?.error;
       const detail = serverMsg || err?.message || String(err);
       appendLog(`[ERROR] ${detail}`);
       toast.error(`Ingestion failed: ${detail}`, { duration: 6000 });
+      localStorage.setItem('transporter_ai_extraction_status', 'failed');
       setAiProgress(0);
       setExtractionStatus('failed');
     }
   };
 
+  // Fires when "Yes, Read My Files Now" is clicked — leaves this page
+  // immediately instead of waiting here for extraction to finish. Vendor
+  // creation itself is deferred all the way to AddPrice's final "Save &
+  // Continue" (see AddPrice.tsx handleSubmit), by which point extraction has
+  // long since completed in the background — so nothing incomplete ever gets
+  // written to the database. startAiExtraction() is intentionally NOT
+  // awaited: it keeps running after this component unmounts (localStorage
+  // writes don't depend on the component being mounted), and AddPrice picks
+  // up its results by polling the same localStorage keys.
+  const startAiExtractionAndContinue = () => {
+    if (aiFiles.length === 0) {
+      toast.error('Please upload at least one file first.');
+      return;
+    }
+    // A NEW extraction is genuinely starting right now — clear any pricing/
+    // zone-rate leftovers from whatever the last extraction (possibly a
+    // different company) wrote, regardless of how the user got to this
+    // screen. Relying only on ?new_session=1 at initial page load (see the
+    // onboardingMode initializer above) isn't reliable for every path back
+    // into this screen — e.g. resuming a session, going Back from /addprice,
+    // or re-uploading without a full fresh navigation — all of which skip
+    // that reset entirely and let stale charges/rates bleed into this run.
+    localStorage.removeItem('transporter_price_rate');
+    localStorage.removeItem('transporter_extracted_price_rate');
+    localStorage.removeItem('transporter_zone_rates');
+    localStorage.setItem('transporter_pending_creation', 'true');
+    localStorage.setItem('transporter_ai_extraction_status', 'processing');
+    startAiExtraction();
+    navigate('/addprice');
+  };
+
+  // Stop an in-flight extraction without leaving the upload page — aborts every
+  // pending request/stream read and puts the screen back to the upload state
+  // (files kept, so the user can just hit "Yes, Read My Files Now" again).
+  const cancelAiExtraction = () => {
+    aiAbortControllerRef.current?.abort();
+    aiAbortControllerRef.current = null;
+    setOnboardingMode('ai_upload');
+    setExtractionStatus('idle');
+    setAiProgress(0);
+    setExtractionLogs([]);
+  };
+
   // --- Handlers ---
   const handleFormChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let { id, value } = e.target;
-    
+
     // Dynamic constraints, space stripping, character length clamping
     if (id === 'companyName') {
       if (value.length > 40) {
@@ -1117,7 +1180,21 @@ export default function SignUpPage() {
     }
 
     if (id === 'gstNo') {
-      value = value.toUpperCase().replace(/\s+/g, '').slice(0, 15);
+      value = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15);
+      // The customer is starting to type a GST number into a previously-empty
+      // field — the clearest possible signal that this is a fresh company,
+      // whether or not the page ever reloaded with ?new_session=1. Clear any
+      // pricing/zone-rate leftovers from a prior session right here instead
+      // of waiting until AI extraction starts, so even the Charges page's
+      // very first paint (before any upload) can't show stale numbers.
+      // Guarded to formData.gstNo === '' so it only fires once per fresh
+      // entry — not on every keystroke while typing/editing a GST already
+      // in progress, and not when a resumed draft restores an existing value.
+      if (formData.gstNo === '' && value !== '') {
+        localStorage.removeItem('transporter_price_rate');
+        localStorage.removeItem('transporter_extracted_price_rate');
+        localStorage.removeItem('transporter_zone_rates');
+      }
     }
 
     if (id === 'pincode') {
@@ -1167,7 +1244,7 @@ export default function SignUpPage() {
               }
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
       return;
     }
@@ -1245,7 +1322,7 @@ export default function SignUpPage() {
   // --- Step 1 Validation ---
   const validateData = (data: IFormData) => {
     const newErrors: FormErrors = {};
-    
+
     if (!data.companyName) {
       newErrors.companyName = "Company name is required";
     } else if (data.companyName.length > 40) {
@@ -1256,7 +1333,7 @@ export default function SignUpPage() {
     const emailLower = data.email.toLowerCase();
     const hasSpace = /\s/.test(data.email);
     const validDomain = /\.(com|co|in|net|org|edu|gov|mil|us|info|biz)(\.[a-z]{2})?$/i.test(emailLower);
-    
+
     if (!data.email) {
       newErrors.email = "Email is required";
     } else if (hasSpace) {
@@ -1274,12 +1351,12 @@ export default function SignUpPage() {
     } else if (data.password.length > 30) {
       newErrors.password = "Password cannot exceed 30 characters";
     }
-    
+
     // Phone validation
     const phoneClean = data.phone.replace(/\D/g, '');
     const isAllZeros = /^0+$/.test(phoneClean);
     const startsWithValid = /^[6-9]/.test(phoneClean);
-    
+
     if (!data.phone) {
       newErrors.phone = "Phone number is required";
     } else if (phoneClean.length !== 10) {
@@ -1364,14 +1441,14 @@ export default function SignUpPage() {
   const handleDrag = (e: DragEvent<HTMLDivElement>, enter: boolean) => {
     e.preventDefault(); e.stopPropagation(); setIsDragging(enter);
   };
-  
+
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     handleDrag(e, false);
     const uploadedFile = e.dataTransfer?.files[0];
     if (uploadedFile?.name.endsWith('.xlsx')) setFile(uploadedFile);
     else toast.error('Invalid file type. Please upload a .xlsx file.');
   };
-  
+
   const handleFileSelect = (f: File | null) => {
     if (f?.name.endsWith('.xlsx')) setFile(f);
     else if (f) toast.error('Invalid file type. Please upload a .xlsx file.');
@@ -1489,9 +1566,22 @@ export default function SignUpPage() {
   const renderTerminal = (status: 'processing' | 'success' | 'failed') => {
     if (!isUttamGoyal) {
       if (status === 'processing') {
+        // Deliberately compact and unobtrusive — this used to be a big
+        // full-width animated card. Extraction now finishes by auto-
+        // continuing straight to Price Configuration (no extra click), so
+        // this only needs to reassure the user something is happening, not
+        // hold their attention for the full ~2 minutes.
         return (
-          <div className="mt-6">
-            <TruckProgressAnimation progress={aiProgress} />
+          <div className="mt-4 flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <Loader2 className="w-5 h-5 text-blue-500 animate-spin shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-blue-800">
+                Reading your documents in the background… <span className="tabular-nums">{Math.round(aiProgress)}%</span>
+              </p>
+              <p className="text-xs text-blue-600">
+                You'll be taken to Price Configuration automatically once it's done.
+              </p>
+            </div>
           </div>
         );
       }
@@ -1639,10 +1729,10 @@ export default function SignUpPage() {
                   style={{
                     color: line.startsWith('[ERROR]') ? '#f87171'
                       : line.startsWith('[DONE]') ? '#34d399'
-                      : line.startsWith('[OK]') ? '#4ade80'
-                      : line.startsWith('[START]') ? '#60a5fa'
-                      : line.startsWith('[AI]') ? '#a78bfa'
-                      : '#86efac',
+                        : line.startsWith('[OK]') ? '#4ade80'
+                          : line.startsWith('[START]') ? '#60a5fa'
+                            : line.startsWith('[AI]') ? '#a78bfa'
+                              : '#86efac',
                     borderLeft: `2px solid ${line.startsWith('[ERROR]') ? '#f87171' : line.startsWith('[DONE]') || line.startsWith('[OK]') ? '#4ade80' : '#1e3a5f'}`,
                     paddingLeft: '10px',
                   }}
@@ -1681,13 +1771,33 @@ export default function SignUpPage() {
   };
 
   const steps = ['Transporter Details', 'Upload Sheet'];
-  
+
+  // Shared 3-stage progress indicator (Create Account -> Choose Route -> Upload/Submit),
+  // sized up for visibility and reused across every screen in the linear part of the
+  // flow (Page 1, route selection, and the manual upload step) so progress stays visible
+  // instead of only appearing on the very first screen.
+  const renderStepper = (activeIdx: number) => (
+    <div className="flex items-center gap-2">
+      {[0, 1, 2].map((idx) => (
+        <React.Fragment key={idx}>
+          {idx > 0 && <div className="h-0.5 w-5 sm:w-6 bg-slate-200 rounded-full" />}
+          <span
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full text-sm sm:text-base font-bold flex items-center justify-center flex-shrink-0 transition-colors
+              ${idx === activeIdx ? 'bg-amber-500 text-white' : idx < activeIdx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}
+          >
+            {idx + 1}
+          </span>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50/70 py-2 sm:py-3">
       <div className="mx-auto px-2 sm:px-4 md:px-6 w-full max-w-[96%] space-y-2">
         <motion.div initial={{ opacity: 0, y: -15 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-center text-slate-900 tracking-tight">Add New Transporter</h1>
-          <p className="mt-0.5 text-center text-xs sm:text-sm text-slate-600">Onboard a new service provider and configure rate matrices.</p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-center text-slate-900 tracking-tight"></h1>
+          <p className="mt-0.5 text-center text-xs sm:text-sm text-slate-600"></p>
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -1716,24 +1826,11 @@ export default function SignUpPage() {
                 <div className="col-span-1 lg:col-span-3 p-5 sm:p-6 flex flex-col">
                   <div className="mb-3">
                     <div className="flex items-center justify-between gap-2">
-                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">Create Your Account</h2>
+                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">Create Your Transporter Account</h2>
 
-                      {/* Bubbles sit inline between the heading and Sign In on screens with room for them */}
-                      <div className="hidden sm:flex items-center gap-1">
-                        <div className="flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                          <span className="w-3 h-3 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px]">1</span>
-                          Basic Details
-                        </div>
-                        <div className="h-px w-1.5 bg-slate-200" />
-                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                          <span className="w-3 h-3 rounded-full bg-slate-300 text-white flex items-center justify-center text-[8px]">2</span>
-                          Upload Files
-                        </div>
-                        <div className="h-px w-1.5 bg-slate-200" />
-                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                          <CheckCircle size={9} />
-                          Verified
-                        </div>
+                      {/* Stepper sits inline between the heading and Log In on screens with room for it */}
+                      <div className="hidden sm:flex items-center">
+                        {renderStepper(0)}
                       </div>
 
                       <button
@@ -1747,169 +1844,155 @@ export default function SignUpPage() {
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
                       >
-                        <ArrowLeft size={13} /> Sign In
+                        <ArrowLeft size={13} /> Log In
                       </button>
                     </div>
 
-                    {/* Same bubbles, dropped to their own centered row when there isn't room above */}
-                    <div className="flex sm:hidden items-center justify-center gap-1 mt-2">
-                      <div className="flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                        <span className="w-3 h-3 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px]">1</span>
-                        Basic Details
-                      </div>
-                      <div className="h-px w-1.5 bg-slate-200" />
-                      <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                        <span className="w-3 h-3 rounded-full bg-slate-300 text-white flex items-center justify-center text-[8px]">2</span>
-                        Upload Files
-                      </div>
-                      <div className="h-px w-1.5 bg-slate-200" />
-                      <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                        <CheckCircle size={9} />
-                        Verified
-                      </div>
+                    {/* Same stepper, dropped to its own centered row when there isn't room above */}
+                    <div className="flex sm:hidden items-center justify-center mt-2">
+                      {renderStepper(0)}
                     </div>
                   </div>
 
-                <form className="space-y-3" onSubmit={handleNextStep} noValidate>
-                  {/* Row 1: GST + Office Pincode */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                    <div className="w-full">
-                      <label htmlFor="gstNo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                        GST Number<span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
-                          <Hash size={16} />
-                        </span>
-                        <input
-                          id="gstNo"
-                          value={formData.gstNo}
-                          onChange={handleFormChange}
-                          onFocus={() => setGstFocused(true)}
-                          onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
-                          onKeyDown={handleEnterToNext('pincode')}
-                          maxLength={15}
-                          required
-                          placeholder="GST Number"
-                          className={`w-full pl-11 pr-9 py-2.5 border rounded-md shadow-sm transition-all duration-300
+                  <form className="space-y-3" onSubmit={handleNextStep} noValidate>
+                    {/* Row 1: GST + Office Pincode */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                      <div className="w-full">
+                        <label htmlFor="gstNo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          GST Number<span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
+                            <Hash size={16} />
+                          </span>
+                          <input
+                            id="gstNo"
+                            value={formData.gstNo}
+                            onChange={handleFormChange}
+                            onFocus={() => setGstFocused(true)}
+                            onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
+                            onKeyDown={handleEnterToNext('pincode')}
+                            required
+                            placeholder="GST Number"
+                            className={`w-full pl-11 pr-9 py-2.5 border rounded-md shadow-sm transition-all duration-300
                             bg-slate-50 text-slate-900 placeholder:text-slate-400
                             focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
                             ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}`}
-                          aria-invalid={!!(touched.gstNo && errors.gstNo)}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                          {gstLookup.status === 'loading' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
-                          {gstLookup.status === 'success' && !gstLookup.showConflictPanel && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                          {gstLookup.status === 'failed' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
-                          {gstLookup.status === 'invalid' && <XCircle className="w-4 h-4 text-red-400" />}
-                        </span>
+                            aria-invalid={!!(touched.gstNo && errors.gstNo)}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            {gstLookup.status === 'loading' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
+                            {gstLookup.status === 'success' && !gstLookup.showConflictPanel && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                            {gstLookup.status === 'failed' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
+                            {gstLookup.status === 'invalid' && <XCircle className="w-4 h-4 text-red-400" />}
+                          </span>
+                        </div>
+                        {touched.gstNo && errors.gstNo && (
+                          <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
+                        )}
+                        {gstLookup.status === 'invalid' && (
+                          <p className="mt-1 text-[10px] text-red-500">Invalid GSTIN format</p>
+                        )}
+                        {gstLookup.status === 'loading' && (
+                          <p className="mt-1 text-[10px] text-amber-600">Looking up…</p>
+                        )}
+                        {gstLookup.successMessage && (
+                          <p className="mt-1 text-[10px] text-green-600">{gstLookup.successMessage}</p>
+                        )}
+                        {gstLookup.errorMessage && (
+                          <p className="mt-1 text-[10px] text-orange-500">{gstLookup.errorMessage}</p>
+                        )}
+                        {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
+                          <GSTConflictPanel
+                            conflicts={gstLookup.conflicts}
+                            onApply={handleConflictApply}
+                            onKeep={gstLookup.dismissConflictPanel}
+                          />
+                        )}
                       </div>
-                      {touched.gstNo && errors.gstNo && (
-                        <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
-                      )}
-                      {gstLookup.status === 'invalid' && (
-                        <p className="mt-1 text-[10px] text-red-500">Invalid GSTIN format</p>
-                      )}
-                      {gstLookup.status === 'loading' && (
-                        <p className="mt-1 text-[10px] text-amber-600">Looking up…</p>
-                      )}
-                      {gstLookup.successMessage && (
-                        <p className="mt-1 text-[10px] text-green-600">{gstLookup.successMessage}</p>
-                      )}
-                      {gstLookup.errorMessage && (
-                        <p className="mt-1 text-[10px] text-orange-500">{gstLookup.errorMessage}</p>
-                      )}
-                      {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
-                        <GSTConflictPanel
-                          conflicts={gstLookup.conflicts}
-                          onApply={handleConflictApply}
-                          onKeep={gstLookup.dismissConflictPanel}
-                        />
-                      )}
+
+                      <InputField id="pincode" label="Office Pincode" icon={<MapPin size={16} />} type="text" maxLength={6} placeholder="Enter 6-digit pincode" value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('firstName')} error={touched.pincode ? errors.pincode : undefined} required />
                     </div>
 
-                    <InputField id="pincode" label="Office Pincode" icon={<MapPin size={16}/>} type="text" maxLength={6} placeholder="Enter 6-digit pincode" value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('firstName')} error={touched.pincode ? errors.pincode : undefined} required />
-                  </div>
+                    {/* Row 2: First Name + Last Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                      <InputField id="firstName" label="First Name" icon={<Building size={16} />} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
+                      <InputField id="lastName" label="Last Name (optional)" icon={<Building size={16} />} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
+                    </div>
 
-                  {/* Row 2: First Name + Last Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                    <InputField id="firstName" label="First Name" icon={<Building size={16}/>} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
-                    <InputField id="lastName" label="Last Name (optional)" icon={<Building size={16}/>} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
-                  </div>
+                    {/* Row 3: Mobile + WhatsApp */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                      <InputField id="phone" label="Mobile Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('lastName')(e); }} error={touched.phone ? errors.phone : undefined} required />
+                      <InputField
+                        id="whatsapp"
+                        label="WhatsApp Number"
+                        icon={<Phone size={16} />}
+                        type="tel"
+                        maxLength={10}
+                        placeholder="Same as mobile number"
+                        value={formData.whatsapp}
+                        onChange={(e) => {
+                          // Typing here directly stops auto-mirroring Mobile from this point on.
+                          if (sameAsPhone) setSameAsPhone(false);
+                          handleFormChange(e);
+                        }}
+                        onBlur={handleBlur}
+                        onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
+                        error={touched.whatsapp ? errors.whatsapp : undefined}
+                        required
+                      />
+                    </div>
 
-                  {/* Row 3: Mobile + WhatsApp */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                    <InputField id="phone" label="Mobile Number" icon={<Phone size={16}/>} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('lastName')(e); }} error={touched.phone ? errors.phone : undefined} required />
-                    <InputField
-                      id="whatsapp"
-                      label="WhatsApp Number"
-                      icon={<Phone size={16}/>}
-                      type="tel"
-                      maxLength={10}
-                      placeholder="Same as mobile number"
-                      value={formData.whatsapp}
-                      onChange={(e) => {
-                        // Typing here directly stops auto-mirroring Mobile from this point on.
-                        if (sameAsPhone) setSameAsPhone(false);
-                        handleFormChange(e);
-                      }}
-                      onBlur={handleBlur}
-                      onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
-                      error={touched.whatsapp ? errors.whatsapp : undefined}
-                      required
-                    />
-                  </div>
+                    {/* Row 4: Email Address */}
+                    <InputField id="email" label="Email Address" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
 
-                  {/* Row 4: Email Address */}
-                  <InputField id="email" label="Email Address" icon={<Mail size={16}/>} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
-
-                  {/* Row 5: Pincodes Served + Fleet Size */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                    <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16}/>} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
-                      <option value="">Select Range</option>
-                      <option value="500-1000">500 - 1,000</option>
-                      <option value="1000-5000">1,000 - 5,000</option>
-                      <option value="5000-10000">5,000 - 10,000</option>
-                      <option value="10000-20000">10,000 - 20,000</option>
-                      <option value="20000+">20,000+</option>
-                    </SelectField>
-                    {/* type="text" + inputMode="numeric" instead of type="number" — number
+                    {/* Row 5: Pincodes Served + Fleet Size */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                      <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16} />} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
+                        <option value="">Select Range</option>
+                        <option value="500-1000">500 - 1,000</option>
+                        <option value="1000-5000">1,000 - 5,000</option>
+                        <option value="5000-10000">5,000 - 10,000</option>
+                        <option value="10000-20000">10,000 - 20,000</option>
+                        <option value="20000+">20,000+</option>
+                      </SelectField>
+                      {/* type="text" + inputMode="numeric" instead of type="number" — number
                         inputs let the up/down arrow keys (and scroll-wheel-while-focused)
                         silently increment/decrement the value, which a fleet-size field
                         has no business supporting. Digits-only filtering already happens
                         in handleFormChange. */}
-                    <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
-                  </div>
+                      <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16} />} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
+                    </div>
 
-                  {/* Row 6: Password */}
-                  <InputField id="password" label="Set Password" icon={<KeyRound size={16}/>} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
+                    {/* Row 6: Password */}
+                    <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
 
-                  {/* T&C */}
-                  <div className="flex items-start gap-2 py-1">
-                    <input
-                      type="checkbox"
-                      id="termsAccepted"
-                      checked={termsAccepted}
-                      onChange={(e) => setTermsAccepted(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
-                    />
-                    <label htmlFor="termsAccepted" className="text-xs text-slate-500 cursor-pointer leading-snug py-1">
-                      I agree to the{' '}
-                      <button type="button" onClick={() => setTermsModalOpen(true)} className="text-amber-600 hover:underline font-medium">
-                        Terms &amp; Conditions
+                    {/* T&C */}
+                    <div className="flex items-start gap-2 py-1">
+                      <input
+                        type="checkbox"
+                        id="termsAccepted"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                      />
+                      <label htmlFor="termsAccepted" className="text-xs text-slate-500 cursor-pointer leading-snug py-1">
+                        I agree to the{' '}
+                        <button type="button" onClick={() => setTermsModalOpen(true)} className="text-amber-600 hover:underline font-medium">
+                          Terms &amp; Conditions
+                        </button>
+                      </label>
+                    </div>
+                    {!termsAccepted && (
+                      <p className="-mt-2 text-xs text-red-500">You must accept the Terms &amp; Conditions to continue.</p>
+                    )}
+
+                    <div className="pt-2">
+                      <button type="submit" disabled={!termsAccepted} className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                        Continue <ArrowRight size={18} />
                       </button>
-                    </label>
-                  </div>
-                  {!termsAccepted && (
-                    <p className="-mt-2 text-xs text-red-500">You must accept the Terms &amp; Conditions to continue.</p>
-                  )}
-
-                  <div className="pt-2">
-                    <button type="submit" disabled={!termsAccepted} className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
-                      Continue <ArrowRight size={18}/>
-                    </button>
-                  </div>
-                </form>
+                    </div>
+                  </form>
                 </div>
               </div>
             </motion.div>
@@ -1922,24 +2005,27 @@ export default function SignUpPage() {
               className="max-w-4xl mx-auto"
             >
               <Card className="p-5 sm:p-6 text-center space-y-4 bg-gradient-to-br from-white to-slate-50/50">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-1">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-1 gap-2">
+                  {/* Returns to the Page 1 form (setCurrentStep(0)), not a real navigation —
+                      formData lives in this same component's state, so nothing entered on
+                      Page 1 is lost by going back to it from here. */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window !== window.parent) {
-                        window.parent.postMessage({ type: 'navigate_to_signin' }, '*');
-                      } else {
-                        navigate('/transporter-signin');
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors"
+                    onClick={() => setCurrentStep(0)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
                   >
-                    <ArrowLeft size={13} /> Back to Sign In
+                    <ArrowLeft size={13} /> Back
                   </button>
-                  <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center">
+                    {renderStepper(1)}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-xs font-semibold text-slate-400">Onboarding Portal</span>
                     <Truck className="text-blue-600" size={18} />
                   </div>
+                </div>
+                <div className="flex sm:hidden items-center justify-center mb-2">
+                  {renderStepper(1)}
                 </div>
 
                 <div className="space-y-1">
@@ -1998,134 +2084,185 @@ export default function SignUpPage() {
                 </div>
               </Card>
             </motion.div>
-          ) : onboardingMode === 'ai_upload' ? (
+          ) : (onboardingMode === 'ai_upload' || onboardingMode === 'ai_processing') ? (
             <motion.div
               key="ai_upload"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="max-w-4xl mx-auto"
+              className="max-w-6xl mx-auto"
             >
-              <Card className="p-5 sm:p-6 space-y-4 bg-white shadow-sm border border-slate-200/80">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                      <Sparkles size={20} />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">AI Document Extraction Vault</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">Upload rate matrices, pincode coverages, or profile PDFs.</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOnboardingMode('selection')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors"
-                  >
-                    <ArrowLeft size={14} /> Change Route
-                  </button>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-                {/* Drag and Drop Zone */}
-                <div
-                  onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(true); }}
-                  onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(false); }}
-                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(true); }}
-                  onDrop={e => {
-                    e.preventDefault(); e.stopPropagation(); setIsAiDragging(false);
-                    if (e.dataTransfer?.files) handleAiFilesAdd(e.dataTransfer.files);
-                  }}
-                  className={`p-8 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all duration-300 ${
-                    isAiDragging
-                      ? 'border-blue-500 bg-blue-50/50 scale-102 shadow-inner'
-                      : 'border-slate-300 bg-slate-50/50 hover:border-blue-400'
-                  }`}
-                >
-                  <input
-                    type="file"
-                    multiple
-                    onChange={e => { if (e.target.files) handleAiFilesAdd(e.target.files); }}
-                    className="hidden"
-                    id="ai-file-picker"
-                    accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.docx,.doc,.pptx,.ppt,.json,.tiff,.bmp,.webp"
-                  />
-                  <label htmlFor="ai-file-picker" className="flex flex-col items-center justify-center space-y-2 cursor-pointer">
-                    <UploadCloud className={`w-12 h-12 mx-auto transition-colors ${isAiDragging ? 'text-blue-600' : 'text-slate-400'}`} strokeWidth={1.5} />
-                    <p className="font-semibold text-sm text-slate-700">Drag & drop all your onboarding files here</p>
-                    <p className="text-xs text-slate-500">or click to browse from system</p>
-                    <p className="text-2xs text-slate-400">PDF, XLSX, CSV, Word, Images, JSON (Max 10MB each)</p>
-                  </label>
-                </div>
-
-                {/* Uploaded Files List */}
-                {aiFiles.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Uploaded Documents ({aiFiles.length})</h3>
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {aiFiles.map((gf) => (
-                        <div key={gf.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-sm">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <FileSpreadsheet className="text-blue-600 flex-shrink-0" size={18} />
-                            <span className="font-medium text-slate-700 truncate" title={gf.file.name}>{gf.file.name}</span>
-                            <span className="text-2xs text-slate-400">({(gf.file.size / 1024 / 1024).toFixed(2)} MB)</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={gf.category}
-                              onChange={e => {
-                                const cat = e.target.value as any;
-                                setAiFiles(prev => prev.map(f => f.id === gf.id ? { ...f, category: cat } : f));
-                              }}
-                              className="text-xs bg-white border border-slate-200/80 text-slate-700 font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            >
-                              <option value="company_details">Company Details</option>
-                              <option value="charges">Charges</option>
-                              <option value="zone_data">Zone Price Matrix</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => setAiFiles(prev => prev.filter(f => f.id !== gf.id))}
-                              className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                {/* LEFT COLUMN: Upload flow — stays put; progress slider appears below it */}
+                <div className="lg:col-span-7 space-y-4">
+                  <Card className="p-4 sm:p-5 space-y-3 bg-white shadow-sm border border-slate-200/80">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                          <Sparkles size={20} />
                         </div>
-                      ))}
+                        <div>
+                          <h2 className="text-xl font-bold text-slate-800">Upload Your Documents</h2>
+                          <p className="text-xs text-slate-500 mt-0.5">We'll read your files and fill in your details for you — no typing needed.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setOnboardingMode('selection')}
+                        disabled={onboardingMode === 'ai_processing'}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ArrowLeft size={14} /> Go Back
+                      </button>
                     </div>
-                  </div>
-                )}
 
-                {/* Action Buttons */}
-                <div className="flex items-center gap-4 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => { setAiFiles([]); setOnboardingMode('selection'); }}
-                    className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={startAiExtraction}
-                    disabled={aiFiles.length === 0}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md shadow-blue-500/10 hover:shadow-blue-500/20 transition-all text-sm"
-                  >
-                    <Sparkles size={16} />
-                    Start AI Extraction Process
-                  </button>
+                    {/* Drag and Drop Zone */}
+                    <div
+                      onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(true); }}
+                      onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(false); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsAiDragging(true); }}
+                      onDrop={e => {
+                        e.preventDefault(); e.stopPropagation(); setIsAiDragging(false);
+                        if (e.dataTransfer?.files) handleAiFilesAdd(e.dataTransfer.files);
+                      }}
+                      className={`p-3 border-2 border-dashed rounded-xl text-center transition-all duration-300 ${(aiFiles.length >= MAX_AI_FILES || onboardingMode === 'ai_processing') ? 'opacity-50 pointer-events-none' : 'cursor-pointer'} ${isAiDragging
+                        ? 'border-blue-500 bg-blue-50/50 scale-102 shadow-inner'
+                        : 'border-slate-300 bg-slate-50/50 hover:border-blue-400'
+                        }`}
+                    >
+                      <input
+                        type="file"
+                        multiple
+                        onChange={e => { if (e.target.files) handleAiFilesAdd(e.target.files); }}
+                        className="hidden"
+                        id="ai-file-picker"
+                        disabled={aiFiles.length >= MAX_AI_FILES || onboardingMode === 'ai_processing'}
+                        accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.docx,.doc,.pptx,.ppt,.json,.tiff,.bmp,.webp"
+                      />
+                      <label htmlFor="ai-file-picker" className="flex items-center justify-center gap-3 cursor-pointer">
+                        <UploadCloud className={`w-6 h-6 shrink-0 transition-colors ${isAiDragging ? 'text-blue-600' : 'text-slate-400'}`} strokeWidth={1.5} />
+                        <span className="text-left">
+                          <p className="font-semibold text-sm text-slate-700 leading-tight">Drop your files here, or click to pick them from your computer</p>
+                          <p className="text-2xs text-slate-400 leading-tight">Up to {MAX_AI_FILES} files &middot; PDF, Excel, Word, Photo, or JSON &middot; 10 MB max per file</p>
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Uploaded Files List */}
+                    {aiFiles.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Your Files ({aiFiles.length} of {MAX_AI_FILES})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {aiFiles.map((gf) => (
+                            <div key={gf.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-sm">
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <FileSpreadsheet className="text-blue-600 flex-shrink-0" size={18} />
+                                <span className="font-medium text-slate-700 truncate" title={gf.file.name}>{gf.file.name}</span>
+                                <span className="text-2xs text-slate-400">({(gf.file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={gf.category}
+                                  disabled={onboardingMode === 'ai_processing'}
+                                  onChange={e => {
+                                    const cat = e.target.value as any;
+                                    setAiFiles(prev => prev.map(f => f.id === gf.id ? { ...f, category: cat } : f));
+                                  }}
+                                  className="text-xs bg-white border border-slate-200/80 text-slate-700 font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <option value="company_details">This is my Company Info</option>
+                                  <option value="charges">This is my Pricing</option>
+                                  <option value="zone_data">This is my Delivery Areas</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  disabled={onboardingMode === 'ai_processing'}
+                                  onClick={() => setAiFiles(prev => prev.filter(f => f.id !== gf.id))}
+                                  className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-4 pt-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onboardingMode === 'ai_processing') {
+                            cancelAiExtraction();
+                          } else {
+                            setAiFiles([]);
+                            setOnboardingMode('selection');
+                          }
+                        }}
+                        className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-sm"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startAiExtractionAndContinue}
+                        disabled={aiFiles.length === 0}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md shadow-blue-500/10 hover:shadow-blue-500/20 transition-all text-sm"
+                      >
+                        <Sparkles size={16} />
+                        Yes, Read My Files Now
+                      </button>
+                    </div>
+                  </Card>
+
+                  {/* Progress slider appears below the upload card, same page, no replacement */}
+                  <AnimatePresence>
+                    {onboardingMode === 'ai_processing' && (
+                      <motion.div
+                        key="processing"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                      >
+                        {renderTerminal(extractionStatus === 'idle' ? 'processing' : extractionStatus)}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </Card>
-            </motion.div>
-          ) : onboardingMode === 'ai_processing' ? (
-            <motion.div
-              key="ai_processing"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="max-w-3xl mx-auto"
-            >
-              {/* Terminal is now rendered globally below */}
+
+                {/* RIGHT COLUMN: Need the Template? */}
+                <div className="lg:col-span-5">
+                  <Card className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                          <Download className="text-green-600" size={20} />
+                          Don't Have a File Ready?
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                          Download this ready-made Excel sheet, fill in your prices and delivery areas, then upload it above.
+                        </p>
+                      </div>
+                      <button
+                        onClick={downloadTemplate}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      >
+                        <Download size={18} /> Download Template
+                      </button>
+                    </div>
+                    <div className="mt-4 border-t border-slate-200/80 pt-4">
+                      <h4 className="font-semibold text-slate-700 text-sm mb-2">Template Guidelines</h4>
+                      <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+                        <img src={guidlines} alt="Excel template guidelines" className="w-full max-h-56 object-cover object-top" />
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+              </div>
             </motion.div>
 
           ) : onboardingMode === 'ai_summary' ? (
@@ -2159,12 +2296,23 @@ export default function SignUpPage() {
                     </h3>
                     {aiSummaryData && Object.keys(aiSummaryData.company).length > 0 ? (
                       <div className="space-y-1.5">
-                        {Object.entries(aiSummaryData.company).map(([k, v]) => (
-                          <div key={k} className="flex items-baseline justify-between gap-2 text-sm">
-                            <span className="text-slate-400 font-medium flex-shrink-0">{k}</span>
-                            <span className="text-slate-800 font-semibold text-right truncate">{v}</span>
-                          </div>
-                        ))}
+                        {Object.entries(aiSummaryData.company).map(([k, v]) => {
+                          const fromFile = aiSummaryData.companySource[k] === 'file';
+                          return (
+                            <div key={k} className="flex items-baseline justify-between gap-2 text-sm">
+                              <span className="text-slate-400 font-medium flex-shrink-0">{k}</span>
+                              <span className="text-right truncate">
+                                <span className="text-slate-800 font-semibold">{v}</span>
+                                <span
+                                  className={`ml-1.5 text-2xs font-bold uppercase tracking-wide ${fromFile ? 'text-emerald-600' : 'text-amber-500'}`}
+                                  title={fromFile ? 'Found in the file(s) you just uploaded' : 'Not found in this upload — carried over from earlier'}
+                                >
+                                  {fromFile ? '(from file)' : '(carried over)'}
+                                </span>
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-sm text-slate-400 italic">No company details extracted from documents.</p>
@@ -2224,17 +2372,26 @@ export default function SignUpPage() {
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-4">
                   <button
                     type="button"
+                    disabled={isLoading}
                     onClick={() => { setOnboardingMode('ai_upload'); setAiProgress(0); setExtractionLogs([]); }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors text-sm"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ArrowLeft size={14} /> Re-upload Files
                   </button>
                   <button
                     type="button"
-                    onClick={() => setOnboardingMode('manual')}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all text-sm"
+                    disabled={isLoading}
+                    // The AI already extracted profile + zones on Page 1 — the
+                    // "Form Information Completed" / "Step 2 Upload" review page
+                    // was just re-showing the same data with an extra click and a
+                    // Back button that dropped users all the way back to route
+                    // selection. Submit straight through to Price Configuration
+                    // instead; handleSubmit() still opens the missing-fields modal
+                    // if something required is genuinely absent.
+                    onClick={handleSubmit}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all text-sm"
                   >
-                    Continue to Fill Details <ArrowRight size={14} />
+                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : <>Continue to Price Configuration <ArrowRight size={14} /></>}
                   </button>
                 </div>
 
@@ -2248,37 +2405,9 @@ export default function SignUpPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* ── AI Extraction Preview Banner ── */}
-              {extractedPreview && (
-                <div className="mb-4 rounded-2xl overflow-hidden shadow-md" style={{ background: 'linear-gradient(135deg, #0f2027, #1a3a4a)', border: '1px solid #1e4060' }}>
-                  <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #1e4060' }}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-sm font-bold text-white">AI Extracted Profile</span>
-                      <span className="ml-2 text-xs px-2 py-0.5 rounded-full font-mono font-semibold" style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)' }}>
-                        Auto-filled below ↓
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setExtractedPreview(null)}
-                      className="text-slate-500 hover:text-slate-300 text-lg leading-none transition-colors"
-                      title="Dismiss"
-                    >×</button>
-                  </div>
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 px-5 py-4">
-                    {Object.entries(extractedPreview).map(([label, value]) => (
-                      <div key={label} className="flex items-baseline gap-1.5 min-w-0">
-                        <span className="text-xs font-semibold uppercase tracking-wider shrink-0" style={{ color: '#64748b' }}>{label}</span>
-                        <span className="text-sm font-medium truncate" style={{ color: '#e2e8f0' }}>{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Two Column Layout Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
+
                 {/* LEFT COLUMN: 60% Width */}
                 <div className="lg:col-span-7 space-y-6">
                   <Card className="p-6">
@@ -2293,7 +2422,7 @@ export default function SignUpPage() {
                         {currentStep === 0 ? (
                           <form className="space-y-6" onSubmit={handleNextStep} noValidate>
                             <div className="space-y-6">
-                              
+
                               {/* Section 1: Company Profile */}
                               <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
@@ -2325,7 +2454,6 @@ export default function SignUpPage() {
                                         onChange={handleFormChange}
                                         onFocus={() => setGstFocused(true)}
                                         onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
-                                        maxLength={15}
                                         required
                                         className={`w-full pl-11 pr-9 py-2.5 border rounded-lg shadow-sm transition-all duration-300
                                           bg-slate-50 text-slate-900 placeholder:text-slate-400
@@ -2385,8 +2513,8 @@ export default function SignUpPage() {
                                       </p>
                                     )}
                                   </div>
-                                  <InputField id="companyName" label="Company Name" icon={<Building size={16}/>} value={formData.companyName} onChange={handleFormChange} onBlur={handleBlur} error={touched.companyName ? errors.companyName : undefined} required />
-                                  <InputField id="websiteLink" label="Website Link" icon={<Link size={16}/>} value={formData.websiteLink} onChange={handleFormChange} onBlur={handleBlur} error={touched.websiteLink ? errors.websiteLink : undefined} />
+                                  <InputField id="companyName" label="Company Name" icon={<Building size={16} />} value={formData.companyName} onChange={handleFormChange} onBlur={handleBlur} error={touched.companyName ? errors.companyName : undefined} required />
+                                  <InputField id="websiteLink" label="Website Link" icon={<Link size={16} />} value={formData.websiteLink} onChange={handleFormChange} onBlur={handleBlur} error={touched.websiteLink ? errors.websiteLink : undefined} />
                                 </div>
                               </div>
 
@@ -2397,9 +2525,9 @@ export default function SignUpPage() {
                                   Portal Access & Account Security
                                 </h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
-                                  <InputField id="email" label="Contact Email" icon={<Mail size={16}/>} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} error={touched.email ? errors.email : undefined} required />
-                                  <InputField id="phone" label="Contact Phone" icon={<Phone size={16}/>} type="tel" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} error={touched.phone ? errors.phone : undefined} required />
-                                  <InputField id="password" label="Set Password" icon={<KeyRound size={16}/>} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} error={touched.password ? errors.password : undefined} required />
+                                  <InputField id="email" label="Contact Email" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} error={touched.email ? errors.email : undefined} required />
+                                  <InputField id="phone" label="Contact Phone" icon={<Phone size={16} />} type="tel" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} error={touched.phone ? errors.phone : undefined} required />
+                                  <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} error={touched.password ? errors.password : undefined} required />
                                 </div>
                               </div>
 
@@ -2411,30 +2539,30 @@ export default function SignUpPage() {
                                 </h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                                   {/* Row 1: Pincode, State, and Compact Office Hours Range */}
-                                  <InputField id="pincode" label="Pincode" icon={<MapPin size={16}/>} type="text" maxLength={6} value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} error={touched.pincode ? errors.pincode : undefined} required />
-                                  <InputField id="stateName" label="State" icon={<Map size={16}/>} value={formData.stateName} onChange={handleFormChange} onBlur={handleBlur} error={touched.stateName ? errors.stateName : undefined} required />
-                                  
+                                  <InputField id="pincode" label="Pincode" icon={<MapPin size={16} />} type="text" maxLength={6} value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} error={touched.pincode ? errors.pincode : undefined} required />
+                                  <InputField id="stateName" label="State" icon={<Map size={16} />} value={formData.stateName} onChange={handleFormChange} onBlur={handleBlur} error={touched.stateName ? errors.stateName : undefined} required />
+
                                   <div className="space-y-1">
                                     <label className="block text-xs font-semibold text-slate-600">Office Timings <span className="text-red-500">*</span></label>
                                     <div className="flex items-center gap-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
-                                      <input 
-                                        id="officeStart" 
-                                        type="time" 
-                                        value={formData.officeStart} 
-                                        onChange={handleFormChange} 
+                                      <input
+                                        id="officeStart"
+                                        type="time"
+                                        value={formData.officeStart}
+                                        onChange={handleFormChange}
                                         onBlur={handleBlur}
                                         className="w-full bg-transparent border-0 p-0 text-slate-800 focus:ring-0 text-sm focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
-                                        required 
+                                        required
                                       />
                                       <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1 shrink-0">to</span>
-                                      <input 
-                                        id="officeEnd" 
-                                        type="time" 
-                                        value={formData.officeEnd} 
-                                        onChange={handleFormChange} 
+                                      <input
+                                        id="officeEnd"
+                                        type="time"
+                                        value={formData.officeEnd}
+                                        onChange={handleFormChange}
                                         onBlur={handleBlur}
                                         className="w-full bg-transparent border-0 p-0 text-slate-800 focus:ring-0 text-sm focus:outline-none cursor-pointer"
-                                        required 
+                                        required
                                       />
                                     </div>
                                     {((touched.officeStart && errors.officeStart) || (touched.officeEnd && errors.officeEnd)) && (
@@ -2444,7 +2572,7 @@ export default function SignUpPage() {
 
                                   {/* Row 2: Full address spanning the entire lower line */}
                                   <div className="sm:col-span-3">
-                                    <InputField id="address" label="Full Office Address" icon={<Map size={16}/>} value={formData.address} onChange={handleFormChange} onBlur={handleBlur} error={touched.address ? errors.address : undefined} required />
+                                    <InputField id="address" label="Full Office Address" icon={<Map size={16} />} value={formData.address} onChange={handleFormChange} onBlur={handleBlur} error={touched.address ? errors.address : undefined} required />
                                   </div>
                                 </div>
                               </div>
@@ -2461,12 +2589,12 @@ export default function SignUpPage() {
                                     <option value="Air" disabled>Air (Coming Soon)</option>
                                     <option value="Rail" disabled>Rail (Coming Soon)</option>
                                   </SelectField>
-                                  <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16}/>} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} error={touched.numTrucks ? errors.numTrucks : undefined} required />
-                                  <InputField id="maxLoading" label="Max Loading Cap (tons)" icon={<Truck size={16}/>} type="number" value={formData.maxLoading} onChange={handleFormChange} onBlur={handleBlur} error={touched.maxLoading ? errors.maxLoading : undefined} required />
+                                  <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16} />} type="number" min={0} value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} error={touched.numTrucks ? errors.numTrucks : undefined} required />
+                                  <InputField id="maxLoading" label="Max Loading Cap (tons)" icon={<Truck size={16} />} type="number" value={formData.maxLoading} onChange={handleFormChange} onBlur={handleBlur} error={touched.maxLoading ? errors.maxLoading : undefined} required />
 
-                                  <InputField id="experience" label="Experience (years)" icon={<Calendar size={16}/>} type="number" value={formData.experience} onChange={handleFormChange} onBlur={handleBlur} error={touched.experience ? errors.experience : undefined} required />
-                                  <InputField id="turnover" label="Annual Turnover (₹)" icon={<Hash size={16}/>} type="number" value={formData.turnover} onChange={handleFormChange} onBlur={handleBlur} error={touched.turnover ? errors.turnover : undefined} required />
-                                  <SelectField id="customerNetwork" label="Customer Network" icon={<Building size={16}/>} value={formData.customerNetwork} onChange={handleFormChange} onBlur={handleBlur} error={touched.customerNetwork ? errors.customerNetwork : undefined} required>
+                                  <InputField id="experience" label="Experience (years)" icon={<Calendar size={16} />} type="number" value={formData.experience} onChange={handleFormChange} onBlur={handleBlur} error={touched.experience ? errors.experience : undefined} required />
+                                  <InputField id="turnover" label="Annual Turnover (₹)" icon={<Hash size={16} />} type="number" value={formData.turnover} onChange={handleFormChange} onBlur={handleBlur} error={touched.turnover ? errors.turnover : undefined} required />
+                                  <SelectField id="customerNetwork" label="Customer Network" icon={<Building size={16} />} value={formData.customerNetwork} onChange={handleFormChange} onBlur={handleBlur} error={touched.customerNetwork ? errors.customerNetwork : undefined} required>
                                     <option value="">Select Network</option>
                                     <option value="Domestic">Domestic</option>
                                     <option value="International">International</option>
@@ -2475,10 +2603,10 @@ export default function SignUpPage() {
                               </div>
 
                             </div>
-                            
+
                             <div className="pt-4 flex justify-end">
                               <button type="submit" className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                Next <ArrowRight size={18}/>
+                                Next <ArrowRight size={18} />
                               </button>
                             </div>
                           </form>
@@ -2541,14 +2669,14 @@ export default function SignUpPage() {
 
                 {/* RIGHT COLUMN: 40% Width */}
                 <div className="lg:col-span-5 space-y-6">
-                  
+
                   {/* Top Card: Upload Sheet */}
                   <Card className="p-6">
                     <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
                       <UploadCloud className="text-blue-600" size={20} />
-                      Step 2: Upload Pricing Sheet
+                      Step 2: Upload Servicability Pincodes
                     </h3>
-                    
+
                     {currentStep === 0 ? (
                       // Locked State during Step 1
                       <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
@@ -2568,35 +2696,34 @@ export default function SignUpPage() {
                             <p className="text-xs text-emerald-600 mt-1">Data from AI upload is ready to submit.</p>
                           </div>
                         ) : (
-                          <div 
-                            onDragEnter={e => handleDrag(e, true)} 
-                            onDragLeave={e => handleDrag(e, false)} 
-                            onDragOver={e => handleDrag(e, true)} 
-                            onDrop={handleDrop} 
-                            className={`p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 ${
-                              isDragging 
-                                ? 'border-blue-500 bg-blue-50/50 scale-102 shadow-inner' 
-                                : 'border-slate-300 bg-slate-50/50 hover:border-blue-400'
-                            }`}
-                          >                      
-                            <input 
-                              type="file" 
-                              accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
-                              onChange={e => handleFileSelect(e.target.files?.[0]||null)} 
-                              className="hidden" 
-                              id="file-upload" 
+                          <div
+                            onDragEnter={e => handleDrag(e, true)}
+                            onDragLeave={e => handleDrag(e, false)}
+                            onDragOver={e => handleDrag(e, true)}
+                            onDrop={handleDrop}
+                            className={`p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 ${isDragging
+                              ? 'border-blue-500 bg-blue-50/50 scale-102 shadow-inner'
+                              : 'border-slate-300 bg-slate-50/50 hover:border-blue-400'
+                              }`}
+                          >
+                            <input
+                              type="file"
+                              accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                              onChange={e => handleFileSelect(e.target.files?.[0] || null)}
+                              className="hidden"
+                              id="file-upload"
                             />
-                            <label htmlFor="file-upload" className="flex flex-col items-center justify-center space-y-2 cursor-pointer">  
+                            <label htmlFor="file-upload" className="flex flex-col items-center justify-center space-y-2 cursor-pointer">
                               <UploadCloud className={`w-10 h-10 mx-auto transition-colors ${isDragging ? 'text-blue-600' : 'text-slate-400'}`} strokeWidth={1.5} />
                               <p className="font-semibold text-sm text-slate-700">Click to upload or drag file here</p>
                               <p className="text-xs text-slate-500">Excel spreadsheet (.xlsx format only)</p>
                             </label>
                           </div>
                         )}
-                        
+
                         {file && !localStorage.getItem('transporter_extracted_service') && (
                           <div className="flex items-center gap-2.5 p-2.5 bg-green-50 text-green-800 rounded-lg border border-green-200 text-sm">
-                            <FileSpreadsheet className="flex-shrink-0" size={18}/>
+                            <FileSpreadsheet className="flex-shrink-0" size={18} />
                             <span className="font-medium truncate">{file.name}</span>
                             {isParsingFile ? (
                               <Loader2 className="ml-auto flex-shrink-0 animate-spin" size={16} />
@@ -2607,62 +2734,46 @@ export default function SignUpPage() {
                             ) : null}
                           </div>
                         )}
-                        
+
                         <div className="flex justify-between items-center gap-4">
-                          <button 
-                            onClick={() => setCurrentStep(0)} 
+                          {/* Logical previous step from here is Route Selection (step 2), not
+                              Page 1 (step 1) — leave currentStep alone so formData/step 1 stay
+                              untouched, and only flip onboardingMode back to 'selection'. */}
+                          <button
+                            onClick={() => setOnboardingMode('selection')}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition-colors focus:outline-none"
                           >
-                            <ArrowLeft size={16}/>Back
+                            <ArrowLeft size={16} />Back
                           </button>
-                          <button 
-                            onClick={handleSubmit} 
-                            disabled={isLoading || (!file && !localStorage.getItem('transporter_extracted_service'))} 
+                          <button
+                            onClick={handleSubmit}
+                            disabled={
+                              isLoading ||
+                              isParsingFile ||
+                              // A file is selected but parsing found no valid pincode/zone rows
+                              // (see the "No valid pincode/zone rows found" toast above) — nothing
+                              // usable would actually be submitted, so keep this disabled until
+                              // either a file with real rows is uploaded or AI extraction ran.
+                              (!localStorage.getItem('transporter_extracted_service') && (!file || uploadedService.length === 0))
+                            }
                             className="inline-flex items-center justify-center gap-2 flex-1 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
                           >
-                            {isLoading ? <Loader2 className="animate-spin" size={16}/> : <><CheckCircle size={16}/> {localStorage.getItem('transporter_extracted_service') ? 'Submit Details' : 'Upload'}</>}
+                            {isLoading ? <Loader2 className="animate-spin" size={16} /> : <><CheckCircle size={16} /> {localStorage.getItem('transporter_extracted_service') ? 'Submit Details' : 'Upload'}</>}
                           </button>
                         </div>
                       </div>
                     )}
                   </Card>
 
-                  {/* Bottom Card: Template Download */}
-                  <Card className="p-6">
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                          <Download className="text-green-600" size={20} />
-                          Need the Template?
-                        </h3>
-                        <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                          Download the required .xlsx template to ensure correct formatting for service zones and pricing.
-                        </p>
-                      </div>
-                      <button 
-                        onClick={downloadTemplate} 
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                      >
-                        <Download size={18}/> Download Template
-                      </button>
-                    </div>
-                    <div className="mt-6 border-t border-slate-200/80 pt-6">
-                      <h4 className="font-semibold text-slate-700 text-sm mb-2">Template Guidelines</h4>
-                      <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm">
-                        <img src={guidlines} alt="Excel template guidelines" className="w-full object-cover" />
-                      </div>
-                    </div>
-                  </Card>
-
                 </div>
-                
+
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* ── Global Terminal View (Never disappears if logs exist) ── */}
-        {extractionLogs.length > 0 && onboardingMode !== 'ai_upload' && onboardingMode !== 'selection' && (
+        {extractionLogs.length > 0 && onboardingMode !== 'ai_upload' && onboardingMode !== 'ai_processing' && onboardingMode !== 'selection' && (
           <div className="max-w-4xl mx-auto pb-8">
             {renderTerminal(extractionStatus === 'idle' ? 'processing' : extractionStatus)}
           </div>
