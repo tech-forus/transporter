@@ -10,8 +10,10 @@ import { API_BASE_URL } from '../config/apiConfig';
 import {
   Truck, Hash, Grid3X3, UploadCloud, FileSpreadsheet, Download, Loader2, ArrowLeft, ArrowRight,
   CheckCircle, CheckCircle2, Building, Phone, Mail, KeyRound, MapPin, Map, Calendar, Clock, Ship, Link,
-  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle
+  Eye, EyeOff, Lock, Sparkles, AlertTriangle, Trash2, Plus, Info, FileText, XCircle,
+  Network, Image as ImageIcon, ChevronDown, Check
 } from 'lucide-react';
+import { NETWORK_OPTIONS } from '../utils/transporterLogo';
 import { useGSTLookup } from '../hooks/useGSTLookup';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { GSTConflictPanel } from '../components/GSTConflictPanel';
@@ -21,6 +23,12 @@ import { TermsModal } from '../components/TermsModal';
 // --- Type Definitions for State ---
 interface IFormData {
   companyName: string;
+  // Single merged "Company Contact Name" field shown on Step 1. firstName/
+  // lastName are still carried separately below because the backend
+  // (transporterAuth controller / transporter model) expects them as two
+  // distinct fields — they're derived from companyContactName at submit
+  // time (split on the first space) rather than being typed directly.
+  companyContactName: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -43,6 +51,17 @@ interface IFormData {
   turnover: string;
   customerNetwork: string;
   pincodesServedRange: string;
+  // Logistics network(s) / franchise umbrella(s) this transporter operates
+  // under — tick-wise multi-select, a transporter can belong to more than
+  // one at once. (display-only badge/logo). ['independent'] = default.
+  // 'other' present anywhere in the list = networkOther applies.
+  networks: string[];
+  networkOther: string;
+  // Employee Details sub-section (Step 1) — the on-ground employee/contact
+  // person for this office, distinct from the company-level contact above.
+  employeeName: string;
+  employeePhone: string;
+  employeeAddress: string;
 }
 
 type FormErrors = Partial<Record<keyof IFormData | 'zones', string>>;
@@ -74,11 +93,11 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
 
   return (
     <div className="w-full">
-      <label htmlFor={id} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+      <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
           {icon}
         </span>
         <input
@@ -87,11 +106,11 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           type={inputType}
           placeholder={props.placeholder ?? ""}
           required={required}
-          className={`w-full pl-11 ${isPassword ? 'pr-11' : 'pr-3'} py-2.5 border rounded-md shadow-sm transition-all duration-300
-            bg-slate-50 text-slate-900 placeholder:text-slate-400
-            focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
-            ${error ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}
-            disabled:bg-slate-200/70`}
+          className={`w-full h-[38px] pl-9 ${isPassword ? 'pr-9' : 'pr-3'} border rounded-lg text-[13px] transition-colors duration-150
+            bg-white text-slate-900 placeholder:text-stone-400
+            focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+            ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
+            disabled:bg-stone-50 disabled:text-stone-400`}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
         />
@@ -99,9 +118,9 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none flex items-center justify-center transition-colors duration-200"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none flex items-center justify-center transition-colors duration-200"
           >
-            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         )}
       </div>
@@ -134,29 +153,29 @@ interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement>
 }
 const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, required = false, children, ...props }) => (
   <div className="w-full">
-    <label htmlFor={id} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+    <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
       {label}{required && <span className="text-red-500 ml-1">*</span>}
     </label>
     <div className="relative">
-      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none">
         {icon}
       </span>
       <select
         id={id}
         {...props}
         required={required}
-        className={`w-full pl-11 pr-10 py-2.5 border rounded-md shadow-sm transition-all duration-300
-          bg-slate-50 text-slate-900 appearance-none
-          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
-          ${error ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}
-          disabled:bg-slate-200/70`}
+        className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
+          bg-white text-slate-900 appearance-none
+          focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+          ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
+          disabled:bg-stone-50 disabled:text-stone-400`}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-error` : undefined}
       >
         {children}
       </select>
-      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-        <svg className="w-5 h-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4 4 4-4" /></svg>
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+        <svg className="w-4 h-4 text-stone-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4 4 4-4" /></svg>
       </div>
     </div>
     <AnimatePresence>
@@ -165,6 +184,114 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
   </div>
 );
 
+
+/**
+ * Tick-wise multi-select for logistics networks — a transporter can be a
+ * franchise partner of more than one network at once, so this replaces the
+ * old single-pick dropdown with a checkbox list in the same dropdown shell.
+ */
+interface NetworkMultiSelectProps {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  options: { value: string; label: string }[];
+  value: string[];
+  onChange: (next: string[]) => void;
+  error?: string;
+}
+const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon, options, value, onChange, error }) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const toggle = (optValue: string) => {
+    if (optValue === 'independent') {
+      // "Independent" is mutually exclusive with actual network picks.
+      onChange(['independent']);
+      return;
+    }
+    const withoutIndependent = value.filter(v => v !== 'independent');
+    const wasChecked = withoutIndependent.includes(optValue);
+    const next = wasChecked
+      ? withoutIndependent.filter(v => v !== optValue)
+      : [...withoutIndependent, optValue];
+    onChange(next.length > 0 ? next : ['independent']);
+    // Selecting "Other (specify)" closes the dropdown immediately so the
+    // Network Name text field beneath it is revealed right away, instead of
+    // requiring a separate click-outside to dismiss the list first.
+    if (optValue === 'other' && !wasChecked) setOpen(false);
+  };
+
+  const summary = value.length === 0 || (value.length === 1 && value[0] === 'independent')
+    ? 'Independent / Not part of a network'
+    : `${value.length} network${value.length > 1 ? 's' : ''} selected`;
+
+  return (
+    <div className="w-full relative" ref={rootRef}>
+      <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+        {label}
+      </label>
+      <button
+        type="button"
+        id={id}
+        onClick={() => setOpen(o => !o)}
+        className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] text-left transition-colors duration-150
+          bg-white text-slate-900 relative
+          focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+          ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
+      >
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none">
+          {icon}
+        </span>
+        <span className="truncate block">{summary}</span>
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <ChevronDown size={16} className="text-stone-400" />
+        </span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-stone-200 rounded-lg shadow-lg py-1"
+          >
+            {options.map(opt => {
+              const checked = value.includes(opt.value);
+              return (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-amber-50 cursor-pointer"
+                >
+                  <span className={`w-4 h-4 flex items-center justify-center rounded border ${checked ? 'bg-amber-500 border-amber-500' : 'border-stone-300'}`}>
+                    {checked && <Check size={12} className="text-white" />}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    onChange={() => toggle(opt.value)}
+                  />
+                  {opt.label}
+                </label>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {error && <motion.p className="mt-1.5 text-xs text-red-600" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}>{error}</motion.p>}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 /**
  * A multi-step progress indicator.
@@ -320,20 +447,38 @@ export default function SignUpPage() {
     if (mode === 'manual' && !isNewSession) {
       const saved = localStorage.getItem('transporter_onboarding_form_data');
       if (saved) {
-        try { return JSON.parse(saved); } catch (e) { }
+        try {
+          const parsedSaved = JSON.parse(saved);
+          // Migrate a draft persisted before `network` (single string) became
+          // `networks` (string[]) — otherwise a resumed draft loses its
+          // network pick and the multi-select renders empty.
+          if (typeof (parsedSaved as any).network === 'string' && !Array.isArray(parsedSaved.networks)) {
+            parsedSaved.networks = [(parsedSaved as any).network || 'independent'];
+            delete (parsedSaved as any).network;
+          }
+          return parsedSaved;
+        } catch (e) { }
       }
     }
     return {
-      companyName: '', firstName: '', lastName: '', phone: '', whatsapp: '', email: '', password: '', gstNo: '', address: '',
+      companyName: '', companyContactName: '', firstName: '', lastName: '', phone: '', whatsapp: '', email: '', password: '', gstNo: '', address: '',
       stateName: '', pincode: '', experience: '', officeStart: '09:00',
       officeEnd: '18:00', deliveryMode: 'Road', zoneCount: 0,
       trackingLink: '', websiteLink: '', maxLoading: '', numTrucks: '', turnover: '', customerNetwork: '', pincodesServedRange: '',
+      networks: ['independent'], networkOther: '',
+      employeeName: '', employeePhone: '', employeeAddress: '',
     };
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [file, setFile] = useState<File | null>(null);
+  // Optional company logo (display-only). Uploaded to GridFS at submit time;
+  // the returned relative path is sent as the `logoUrl` field.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  // Logo upload stays collapsed until the transporter opts in by clicking.
+  const [showLogoUpload, setShowLogoUpload] = useState(false);
   const [uploadedService, setUploadedService] = useState<{ pincode: number; isOda: boolean; zone: string }[]>([]);
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -395,7 +540,7 @@ export default function SignUpPage() {
   // before every addtransporter POST, so there's no stale pass-through if the
   // user navigates back and forth without actually fixing anything.
   interface MissingField {
-    id: 'companyName' | 'address' | 'stateName';
+    id: 'companyName' | 'address' | 'stateName' | 'pincode';
     label: string;
     placeholder: string;
     maxLength: number;
@@ -411,6 +556,79 @@ export default function SignUpPage() {
   // are cleared back to empty, mirroring re-engages so a freshly-typed Mobile
   // number starts copying into WhatsApp again.
   const [sameAsPhone, setSameAsPhone] = useState(true);
+
+  // Employee Details — pre-ticked "same as company details" by default: while
+  // checked, Employee Name / Phone / Address all mirror the Company Contact
+  // Name / Company Phone Number / Company Address fields (including once GST
+  // lookup fills those in later), until the user explicitly unticks it — at
+  // which point the three employee fields are cleared to blank so the user
+  // types employee-specific details from scratch instead of editing a
+  // pre-filled copy of the company's.
+  const [employeeSameAsCompany, setEmployeeSameAsCompany] = useState(true);
+  const [isLocatingEmployee, setIsLocatingEmployee] = useState(false);
+  const wasEmployeeSameAsCompanyRef = useRef(employeeSameAsCompany);
+
+  useEffect(() => {
+    if (employeeSameAsCompany) {
+      setFormData(prev => (
+        prev.employeeName === prev.companyContactName &&
+        prev.employeePhone === prev.phone &&
+        prev.employeeAddress === prev.address
+          ? prev
+          : {
+              ...prev,
+              employeeName: prev.companyContactName,
+              employeePhone: prev.phone,
+              employeeAddress: prev.address,
+            }
+      ));
+    } else if (wasEmployeeSameAsCompanyRef.current) {
+      // Just unticked — clear once, don't keep wiping user input on every
+      // later company-field change while it stays unticked.
+      setFormData(prev => ({ ...prev, employeeName: '', employeePhone: '', employeeAddress: '' }));
+    }
+    wasEmployeeSameAsCompanyRef.current = employeeSameAsCompany;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeSameAsCompany, formData.companyContactName, formData.phone, formData.address]);
+
+  const handleUseCurrentLocationForEmployee = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by this browser.');
+      return;
+    }
+    setIsLocatingEmployee(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const res = await axios.get(`${API_BASE_URL}/api/transporter/reverse-geocode`, {
+            params: { lat: latitude, lng: longitude },
+          });
+          const address = res.data?.address;
+          if (address) {
+            setFormData(prev => ({ ...prev, employeeAddress: address }));
+            toast.success('Location detected and address filled in.');
+          } else {
+            toast.error('Could not resolve an address for your location.');
+          }
+        } catch (err) {
+          console.error('[reverse-geocode] failed', err);
+          toast.error('Could not fetch address for your location. Please enter it manually.');
+        } finally {
+          setIsLocatingEmployee(false);
+        }
+      },
+      (err) => {
+        setIsLocatingEmployee(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error('Location permission denied. Please enter the address manually.');
+        } else {
+          toast.error('Could not detect your location. Please enter the address manually.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   useEffect(() => {
     if (sameAsPhone) {
@@ -469,6 +687,26 @@ export default function SignUpPage() {
     });
   }, [gstLookup.gstData, gstLookup.status, gstLookup.conflicts]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Office Pincode is no longer a visible input on Page 1 (removed per request —
+  // "pincode will show in address"). The backend still hard-requires a clean
+  // 6-digit pincode though: transporterAuth.js rejects addtransporter with
+  // `!pincode`, and transporterModel.js stores it as Number(pincode) — so it
+  // can't just go undefined. The GST-verify effect above already sets
+  // formData.pincode from data.pincode on a clean (non-conflicting) match; this
+  // is the fallback for every other path (GST conflict panel resolved without a
+  // pincode key, partial GST status, or AI-extracted address with no separate
+  // pincode field) — extract the trailing/embedded 6-digit sequence out of the
+  // fetched Company Address text. Indian pincodes are always exactly 6 digits.
+  useEffect(() => {
+    if (/^\d{6}$/.test(formData.pincode)) return; // already have a valid one, don't clobber it
+    if (!formData.address) return;
+    const match = formData.address.match(/\b\d{6}\b/);
+    if (match) {
+      setFormData(prev => (/^\d{6}$/.test(prev.pincode) ? prev : { ...prev, pincode: match[0] }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.address, formData.pincode]);
+
   const handleConflictApply = useCallback((selectedKeys: string[]) => {
     const data = gstLookup.gstData;
     if (!data) return;
@@ -497,6 +735,11 @@ export default function SignUpPage() {
     setTouched({});
     setCurrentStep(1);
     setOnboardingMode('manual');
+    // A prior AI-extraction attempt in this browser may have set this and
+    // never cleared it (e.g. the user bailed out before reaching AddPrice) —
+    // the manual flow creates the transporter itself and must not leave
+    // AddPrice thinking an AI-deferred creation is still pending.
+    localStorage.removeItem('transporter_pending_creation');
   };
 
   // Save to localStorage when state changes
@@ -553,26 +796,63 @@ export default function SignUpPage() {
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
 
-        const getVal = (row: Record<string, any>, ...keys: string[]) => {
-          for (const k of keys) {
-            if (row[k] !== undefined) return row[k];
-            const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
-            if (found && row[found] !== undefined) return row[found];
+        // Read as a raw grid (not header-keyed objects) — rate-card sheets like
+        // DB Shenker's commonly repeat the header "Zone" for two unrelated
+        // tables on the same sheet (one column mapping Pincode -> its own
+        // zone, another further right mapping Zone -> Price per Kg for a
+        // separate zone-rate list). sheet_to_json's header-object mode
+        // collapses duplicate header names into a single key, silently
+        // clobbering the pincode table's real zone with the rate table's zone
+        // code on whichever rows the two tables overlap. Reading positionally
+        // and resolving each "Zone" header to its own column index avoids that.
+        const grid: any[][] = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, blankrows: false });
+        if (grid.length < 2) throw new Error('Sheet has no data rows');
+        // Blank spacer columns between the two tables (common in rate-card
+        // sheets like this one) leave holes in the raw row array — Array.prototype.map
+        // skips holes and would leave them in `header` too, and header.findIndex()
+        // (which does NOT skip holes) then calls .toLowerCase() on `undefined`
+        // for those slots and throws. Array.from always walks every index.
+        const headerRow = grid[0] || [];
+        const header = Array.from({ length: headerRow.length }, (_, i) => String(headerRow[i] ?? '').trim());
+        const dataRows = grid.slice(1);
+
+        const findCol = (pred: (h: string) => boolean) => header.findIndex(h => pred(h.toLowerCase()));
+        const pincodeCol = findCol(h => h === 'pincode');
+        const odaCol = findCol(h => h === 'oda');
+        const zoneColIndices = header.reduce<number[]>((acc, h, i) => {
+          if (h.toLowerCase() === 'zone') acc.push(i);
+          return acc;
+        }, []);
+        const priceCol = findCol(h => h.includes('price') || h.includes('rate'));
+        // Leftmost "Zone" column = the pincode's own zone; the rate table's
+        // "Zone" column sits immediately alongside its Price column.
+        const pincodeZoneCol = zoneColIndices[0] ?? -1;
+        const rateZoneCol = zoneColIndices
+          .filter(i => i !== pincodeZoneCol && (priceCol === -1 || i < priceCol))
+          .pop() ?? -1;
+
+        const parsed: { pincode: number; isOda: boolean; zone: string }[] = [];
+        const zonePriceMap: Record<string, number> = {};
+        const zoneFrequency: Record<string, number> = {};
+
+        for (const row of dataRows) {
+          if (pincodeCol !== -1 && pincodeZoneCol !== -1) {
+            const pincode = Number(row[pincodeCol]) || 0;
+            const zone = String(row[pincodeZoneCol] ?? '').trim();
+            if (pincode > 0 && zone) {
+              const odaRaw = String(row[odaCol] ?? 'false').toLowerCase();
+              const isOda = odaRaw === 'true' || odaRaw === 'yes';
+              parsed.push({ pincode, isOda, zone });
+              zoneFrequency[zone] = (zoneFrequency[zone] || 0) + 1;
+            }
           }
-          return undefined;
-        };
-
-        const parsed = rows
-          .map(row => {
-            const pincode = Number(getVal(row, 'pincode', 'Pincode', 'PINCODE')) || 0;
-            const odaRaw = String(getVal(row, 'isOda', 'ODA', 'oda', 'IsOda') || 'false').toLowerCase();
-            const isOda = odaRaw === 'true' || odaRaw === 'yes';
-            const zone = String(getVal(row, 'zone', 'Zone', 'ZONE') || '').trim();
-            return { pincode, isOda, zone };
-          })
-          .filter(e => e.pincode > 0 && e.zone);
+          if (rateZoneCol !== -1 && priceCol !== -1) {
+            const rz = String(row[rateZoneCol] ?? '').trim();
+            const price = Number(row[priceCol]);
+            if (rz && price > 0) zonePriceMap[rz] = price;
+          }
+        }
 
         if (cancelled) return;
         setUploadedService(parsed);
@@ -580,6 +860,32 @@ export default function SignUpPage() {
           sessionStorage.setItem('transporter_zone_pincode_data', JSON.stringify(parsed));
         } else {
           toast.error('No valid pincode/zone rows found in that file.');
+        }
+
+        // Zone-to-zone rate matrix: this sheet only has a flat Zone -> Price
+        // per Kg list (one rate per destination zone), not a full
+        // origin/destination matrix — same shape the AI-extraction pipeline
+        // encounters. Fill just the transporter's own hub-zone row (the most
+        // frequent zone among its own pincodes) from that list; the rest is
+        // left for the user to complete, same as the AI path, and AddPrice's
+        // "partially populated" banner will prompt them to fill in the rest.
+        if (Object.keys(zonePriceMap).length > 0 && parsed.length > 0) {
+          // Same zone set/order as the `zones` memo below (derived from the
+          // pincode table alone) — the matrix must line up 1:1 with whatever
+          // zoneLabels AddPrice ends up rendering, or rates land under the
+          // wrong column. A zone the rate table mentions but that has no
+          // pincodes in this file isn't selectable anyway, so it's dropped.
+          const allZones = Array.from(new Set(parsed.map(e => e.zone)));
+          const hubZone = Object.keys(zoneFrequency).sort((a, b) => zoneFrequency[b] - zoneFrequency[a])[0]
+            || allZones[0];
+          const matrix = allZones.map(from =>
+            from === hubZone ? allZones.map(to => zonePriceMap[to] || 0) : allZones.map(() => 0)
+          );
+          try {
+            localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: allZones, matrix }));
+          } catch (storageErr) {
+            console.error('[Fill Manually] Failed to store zone rates:', storageErr);
+          }
         }
       } catch (err) {
         console.error('Failed to parse uploaded service sheet', err);
@@ -657,8 +963,23 @@ export default function SignUpPage() {
     const controller = new AbortController();
     aiAbortControllerRef.current = controller;
 
-    const rawName = formData.companyName || 'new_transporter_' + Math.random().toString(36).slice(2, 6);
-    const safeName = rawName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 40) || 'new_transporter';
+    // Extraction workspaces are keyed by folder name on the UTSF service, so a
+    // name derived purely from the company name collides when multiple employees
+    // of the SAME company sign up — a fresh signup would reuse a prior signup's
+    // staging folder / cached UTSF output. Each signup is its own thing, so mint
+    // a real durable unique id for this attempt and use it as the workspace
+    // suffix. Accounts (customers + transporters) rely on MongoDB's `_id` as
+    // their sole unique identifier, but that doesn't exist yet at extraction
+    // time (the account is created later, at addprice), so we generate a proper
+    // UUID here rather than reuse a weak random slug. Hyphens are stripped so it
+    // survives both this slug and the service-side _safe_name() unchanged.
+    const signupId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+    const workspaceIdSuffix = signupId.replace(/-/g, '');
+    const rawName = formData.companyName || 'New Transporter';
+    const baseName = rawName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 32) || 'transporter';
+    const safeName = `${baseName}_${workspaceIdSuffix}`;
 
     const authToken = Cookies.get('authToken');
     const authHeaders: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
@@ -781,10 +1102,14 @@ export default function SignUpPage() {
       // honest about what this specific upload actually contained vs. what's
       // just carried over from an earlier step/session.
       const pick = (docVal: unknown, formVal: string): { value: string; source: 'file' | 'carried' } | null => {
+        // Page 1's already-resolved value (GST lookup, pincode lookup, or direct
+        // user input) always wins over the uploaded document — a rate-card PDF
+        // is not the source of truth for who the transporter is. The document
+        // only fills in fields Page 1 left blank.
+        if (formVal) return { value: formVal, source: 'carried' };
         if (docVal !== undefined && docVal !== null && String(docVal).trim() !== '') {
           return { value: String(docVal), source: 'file' };
         }
-        if (formVal) return { value: formVal, source: 'carried' };
         return null;
       };
 
@@ -1012,7 +1337,7 @@ export default function SignUpPage() {
             const matrix = zoneLabelsFromUtsf.map(from =>
               zoneLabelsFromUtsf.map(to => utsfZoneRates[from]?.[to] || 0)
             );
-            localStorage.setItem('transporter_zone_rates', JSON.stringify(matrix));
+            localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabelsFromUtsf, matrix }));
           }
         } catch (storageErr) {
           console.error('[AI extraction] Failed to store zone labels/rates:', storageErr);
@@ -1153,8 +1478,31 @@ export default function SignUpPage() {
       }
     }
 
+    if (id === 'networkOther') {
+      if (value.length > 40) {
+        setErrors(prev => ({ ...prev, networkOther: "Network name cannot exceed 40 characters" }));
+        value = value.slice(0, 40);
+      } else {
+        setErrors(prev => ({ ...prev, networkOther: undefined }));
+      }
+    }
+
+    if (id === 'companyContactName' || id === 'employeeName') {
+      value = value.replace(/[^a-zA-Z\s]/g, '');
+    }
+
+    if (id === 'employeeAddress') {
+      value = value.replace(/[^a-zA-Z0-9\s,.\-/]/g, '');
+      if (value.length > 200) {
+        value = value.slice(0, 200);
+      }
+    }
+
     if (id === 'email') {
-      value = value.replace(/\s+/g, '');
+      // "@" is the only special character permitted in the local/domain text —
+      // dots are kept too since a valid domain suffix (.com, .in, etc.) is
+      // structurally impossible without one.
+      value = value.replace(/[^a-zA-Z0-9@.]/g, '');
       if (value.length > 30) {
         setErrors(prev => ({ ...prev, email: "Email cannot exceed 30 characters" }));
         value = value.slice(0, 30);
@@ -1163,7 +1511,7 @@ export default function SignUpPage() {
       }
     }
 
-    if (id === 'phone' || id === 'whatsapp') {
+    if (id === 'phone' || id === 'whatsapp' || id === 'employeePhone') {
       value = value.replace(/\D/g, '');
       if (value.length > 10) {
         value = value.slice(0, 10);
@@ -1277,6 +1625,7 @@ export default function SignUpPage() {
     if (
       id !== 'address' &&
       id !== 'companyName' &&
+      id !== 'networkOther' &&
       id !== 'email' &&
       id !== 'numTrucks' &&
       errors[id as keyof FormErrors]
@@ -1329,6 +1678,14 @@ export default function SignUpPage() {
       newErrors.companyName = "Company name cannot exceed 40 characters";
     }
 
+    if (data.networks.includes('other')) {
+      if (!data.networkOther.trim()) {
+        newErrors.networkOther = "Network name is required";
+      } else if (data.networkOther.length > 40) {
+        newErrors.networkOther = "Network name cannot exceed 40 characters";
+      }
+    }
+
     // Email validation
     const emailLower = data.email.toLowerCase();
     const hasSpace = /\s/.test(data.email);
@@ -1338,6 +1695,8 @@ export default function SignUpPage() {
       newErrors.email = "Email is required";
     } else if (hasSpace) {
       newErrors.email = "Email cannot contain spaces";
+    } else if (/[^a-zA-Z0-9@.]/.test(data.email)) {
+      newErrors.email = "Email can only contain letters, numbers, and @";
     } else if (data.email.length > 30) {
       newErrors.email = "Email cannot exceed 30 characters";
     } else if (!emailLower.includes('@') || !validDomain) {
@@ -1384,14 +1743,41 @@ export default function SignUpPage() {
     if (!data.stateName) newErrors.stateName = "State is required";
     if (!/^\d{6}$/.test(data.pincode)) newErrors.pincode = "Enter a valid 6-digit pincode";
 
-    if (!data.firstName) newErrors.firstName = "First name is required";
+    if (!data.companyContactName.trim()) {
+      newErrors.companyContactName = "Company contact name is required";
+    } else if (!/^[a-zA-Z\s]+$/.test(data.companyContactName)) {
+      newErrors.companyContactName = "Contact name can only contain letters";
+    }
 
     // WhatsApp validation
     const whatsappClean = data.whatsapp.replace(/\D/g, '');
+    const whatsappAllZeros = /^0+$/.test(whatsappClean);
     if (!data.whatsapp) {
       newErrors.whatsapp = "WhatsApp number is required";
     } else if (whatsappClean.length !== 10) {
       newErrors.whatsapp = "WhatsApp number must be exactly 10 digits";
+    } else if (whatsappAllZeros || whatsappClean.startsWith('0')) {
+      newErrors.whatsapp = "WhatsApp number cannot be all zeros or start with 0";
+    }
+
+    // Employee Details validation (optional fields, validated when filled)
+    if (data.employeeName && !/^[a-zA-Z\s]+$/.test(data.employeeName)) {
+      newErrors.employeeName = "Employee name can only contain letters";
+    }
+
+    const employeePhoneClean = data.employeePhone.replace(/\D/g, '');
+    if (data.employeePhone) {
+      if (employeePhoneClean.length !== 10) {
+        newErrors.employeePhone = "Employee phone number must be exactly 10 digits";
+      } else if (/^0+$/.test(employeePhoneClean) || employeePhoneClean.startsWith('0')) {
+        newErrors.employeePhone = "Employee phone number cannot be all zeros or start with 0";
+      }
+    }
+
+    if (data.employeeAddress && /[^a-zA-Z0-9\s,.\-/]/.test(data.employeeAddress)) {
+      newErrors.employeeAddress = "Employee office address cannot contain special characters";
+    } else if (data.employeeAddress && data.employeeAddress.length > 200) {
+      newErrors.employeeAddress = "Employee office address cannot exceed 200 characters";
     }
 
     // Trucks validation
@@ -1420,8 +1806,12 @@ export default function SignUpPage() {
 
     // companyName/address/stateName aren't collected on this page — they're
     // auto-filled by the GST/pincode lookups, with a missing-fields safety net
-    // right before final submit. Don't block Page 1 on them.
-    const { companyName, address, stateName, ...page1Errors } = newErrors;
+    // right before final submit. Don't block Page 1 on them. pincode joins this
+    // list now too — it's no longer a visible input (auto-extracted from the
+    // GST-fetched address instead), so there's nothing on this page for the
+    // user to fix if extraction comes up short; it gets the same missing-fields
+    // safety net at final submit.
+    const { companyName, address, stateName, pincode, ...page1Errors } = newErrors;
 
     // Mark ALL fields as touched to display errors visually
     const allTouched: Record<string, boolean> = {};
@@ -1473,6 +1863,9 @@ export default function SignUpPage() {
     if (!formData.stateName.trim()) {
       missing.push({ id: 'stateName', label: 'State', placeholder: 'e.g. Maharashtra', maxLength: 40 });
     }
+    if (!/^\d{6}$/.test(formData.pincode)) {
+      missing.push({ id: 'pincode', label: 'Office Pincode', placeholder: 'Enter 6-digit pincode', maxLength: 6 });
+    }
 
     if (missing.length > 0) {
       setMissingFieldsModal({
@@ -1482,6 +1875,7 @@ export default function SignUpPage() {
           companyName: formData.companyName,
           address: formData.address,
           stateName: formData.stateName,
+          pincode: formData.pincode,
         },
       });
       return;
@@ -1496,7 +1890,7 @@ export default function SignUpPage() {
       toast.error(`${emptyField.label} is required.`);
       return;
     }
-    const overrides: { companyName?: string; address?: string; stateName?: string } = {};
+    const overrides: { companyName?: string; address?: string; stateName?: string; pincode?: string } = {};
     missingFieldsModal.fields.forEach(f => {
       overrides[f.id] = missingFieldsModal.values[f.id].trim();
     });
@@ -1505,22 +1899,44 @@ export default function SignUpPage() {
     await submitTransporterData(overrides);
   };
 
-  const submitTransporterData = async (overrides?: { companyName?: string; address?: string; stateName?: string }) => {
+  const submitTransporterData = async (overrides?: { companyName?: string; address?: string; stateName?: string; pincode?: string }) => {
     const extractedService = localStorage.getItem('transporter_extracted_service');
     setIsLoading(true);
     const toastId = toast.loading('Uploading data...');
 
     const dataToSubmit = new FormData();
     // FIX: Cleanly handle key renaming and avoid duplicate data
-    const { stateName, ...restOfData } = formData;
+    // `networks` is pulled out separately (like `zones` below) — it's an
+    // array, and the generic Object.entries loop below does String(value) on
+    // everything, which would comma-join an array instead of JSON-encoding
+    // it the way the backend expects.
+    const { stateName, companyContactName, networks, ...restOfData } = formData;
     const { stateName: stateNameOverride, ...otherOverrides } = overrides || {};
-    const finalData = { ...restOfData, ...otherOverrides, state: stateNameOverride || stateName };
+
+    // Company Contact Name is a single merged field in the UI, but the
+    // backend (transporterAuth controller / transporter model) still expects
+    // separate firstName/lastName fields. Split on the first space here, at
+    // submit time: everything before the first space is firstName, everything
+    // after (if any) is lastName; no space at all → whole string in firstName.
+    const trimmedContactName = companyContactName.trim();
+    const firstSpaceIdx = trimmedContactName.indexOf(' ');
+    const derivedFirstName = firstSpaceIdx === -1 ? trimmedContactName : trimmedContactName.slice(0, firstSpaceIdx);
+    const derivedLastName = firstSpaceIdx === -1 ? '' : trimmedContactName.slice(firstSpaceIdx + 1).trim();
+
+    const finalData = {
+      ...restOfData,
+      ...otherOverrides,
+      state: stateNameOverride || stateName,
+      firstName: derivedFirstName,
+      lastName: derivedLastName,
+    };
 
     Object.entries(finalData).forEach(([key, value]) => {
       dataToSubmit.append(key, String(value));
     });
 
     dataToSubmit.append('zones', JSON.stringify(zones.filter(z => z.trim()))); // Send non-empty zones
+    dataToSubmit.append('networks', JSON.stringify(networks && networks.length > 0 ? networks : ['independent']));
 
     if (file) {
       dataToSubmit.append('sheet', file);
@@ -1530,6 +1946,25 @@ export default function SignUpPage() {
 
     try {
       const token = Cookies.get('authToken');
+
+      // Upload the optional logo first (separate GridFS endpoint — the
+      // addtransporter request only accepts an Excel `sheet`). On any failure
+      // we don't block signup; the logo just falls back to network/initials.
+      if (logoFile) {
+        try {
+          const logoFd = new FormData();
+          logoFd.append('logo', logoFile);
+          const logoRes = await axios.post(`${API_BASE_URL}/api/transporter/auth/upload-logo`, logoFd, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (logoRes.data?.logoUrl) {
+            dataToSubmit.set('logoUrl', logoRes.data.logoUrl);
+          }
+        } catch (logoErr) {
+          console.warn('[signup] logo upload failed, continuing without logo:', logoErr);
+        }
+      }
+
       await axios.post(`${API_BASE_URL}/api/transporter/auth/addtransporter`, dataToSubmit, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -1537,10 +1972,19 @@ export default function SignUpPage() {
       sessionStorage.setItem("companyName", finalData.companyName);
       sessionStorage.setItem("zones", JSON.stringify(zones));
       sessionStorage.setItem("transporter_signup_email", formData.email);
+      sessionStorage.setItem("transporter_signup_phone", formData.phone);
 
       // Clear draft localStorage items upon success
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_onboarding_current_step');
+      // This manual-flow submit just created the transporter itself — clear
+      // any stale 'pending AI creation' flag left over from an earlier,
+      // abandoned AI-extraction attempt in this browser. Otherwise AddPrice
+      // sees the flag still 'true', assumes it still needs to create the
+      // transporter itself, finds the form data already cleared above (since
+      // it was never meant to be needed again), and errors with "signup
+      // details were lost" even though everything actually succeeded.
+      localStorage.removeItem('transporter_pending_creation');
 
       navigate('/addprice');
     } catch (e: any) {
@@ -1807,45 +2251,35 @@ export default function SignUpPage() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="max-w-6xl mx-auto"
+              className="max-w-7xl mx-auto"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-5 bg-white shadow-2xl rounded-2xl overflow-hidden">
-                {/* Branding panel */}
-                <div className="hidden lg:flex lg:col-span-2 flex-col justify-center p-8 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
-                  <h1 className="text-4xl font-extrabold tracking-tight">Partner With FreightCompare</h1>
-                  <p className="mt-4 text-amber-100">
+              <div className="grid grid-cols-1 lg:grid-cols-7 bg-white shadow-2xl rounded-2xl overflow-hidden">
+                {/* Branding panel — shrunk from 2/5 to 2/7 of the width so the
+                    (now wider, multi-column) form below has more horizontal room */}
+                <div className="hidden lg:flex lg:col-span-2 flex-col justify-center p-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                  <h1 className="text-2xl xl:text-3xl font-extrabold tracking-tight">Partner With FreightCompare</h1>
+                  <p className="mt-3 text-sm text-amber-100">
                     Join our verified transporter network, get matched with shippers, and bid on freight that fits your fleet.
                   </p>
-                  <div className="mt-8 flex space-x-2">
+                  <div className="mt-6 flex space-x-2">
                     <span className="w-3 h-3 rounded-full bg-amber-300"></span>
                     <span className="w-3 h-3 rounded-full bg-amber-200"></span>
                     <span className="w-3 h-3 rounded-full bg-amber-100"></span>
                   </div>
                 </div>
 
-                <div className="col-span-1 lg:col-span-3 p-5 sm:p-6 flex flex-col">
+                <div className="col-span-1 lg:col-span-5 p-5 sm:p-6 flex flex-col">
                   <div className="mb-3">
                     <div className="flex items-center justify-between gap-2">
-                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">Create Your Transporter Account</h2>
+                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0 flex items-baseline gap-2">
+                        Create Your Transporter Account
+                        <span className="text-xs font-normal text-stone-400">(Fill GST to autofill details)</span>
+                      </h2>
 
-                      {/* Stepper sits inline between the heading and Log In on screens with room for it */}
+                      {/* Stepper, top-right — Log In button removed per request */}
                       <div className="hidden sm:flex items-center">
                         {renderStepper(0)}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window !== window.parent) {
-                            window.parent.postMessage({ type: 'navigate_to_signin' }, '*');
-                          } else {
-                            navigate('/transporter-signin');
-                          }
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
-                      >
-                        <ArrowLeft size={13} /> Log In
-                      </button>
                     </div>
 
                     {/* Same stepper, dropped to its own centered row when there isn't room above */}
@@ -1855,14 +2289,44 @@ export default function SignUpPage() {
                   </div>
 
                   <form className="space-y-3" onSubmit={handleNextStep} noValidate>
-                    {/* Row 1: GST + Office Pincode */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    {/* Verified-from-GST summary banner — sits above the GST Number
+                        field once the lookup resolves. Replaces separate Company Name /
+                        Company Address boxes with a single soft confirmation card,
+                        matching the approved design reference. formData.companyName /
+                        formData.address stay in state either way (still submitted,
+                        still used by the pincode fallback effect) — this is purely how
+                        they're displayed. */}
+                    {(formData.companyName || formData.address) && (
+                      <div className="flex items-start gap-2.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3.5 py-2.5">
+                        <CheckCircle2 className="w-[18px] h-[18px] text-orange-600 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-slate-900 truncate">
+                            {formData.companyName || 'Company'}{formData.gstNo && <span className="text-stone-400 font-normal"> · {formData.gstNo}</span>}
+                          </p>
+                          {formData.address && (
+                            <p className="text-[11.5px] text-stone-500 mt-0.5 truncate">{formData.address} · verified from GST</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {touched.pincode && errors.pincode && (
+                      <p className="-mt-1 text-xs text-red-600">Couldn't detect a pincode in the company address — {errors.pincode}</p>
+                    )}
+
+                    {/* Row 1: GST Number — one field within the standard 3-col grid
+                        (not full-width) so it lines up with the field rows below.
+                        Office Pincode no longer has its own input — it's
+                        auto-populated by the GST lookup (gstLookup effect below sets
+                        formData.pincode from data.pincode directly), with a
+                        regex-extraction fallback from the address text if the lookup
+                        ever omits it (see effect below). */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
                       <div className="w-full">
-                        <label htmlFor="gstNo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <label htmlFor="gstNo" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
                           GST Number<span className="text-red-500 ml-1">*</span>
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
                             <Hash size={16} />
                           </span>
                           <input
@@ -1871,13 +2335,13 @@ export default function SignUpPage() {
                             onChange={handleFormChange}
                             onFocus={() => setGstFocused(true)}
                             onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
-                            onKeyDown={handleEnterToNext('pincode')}
+                            onKeyDown={handleEnterToNext('companyContactName')}
                             required
                             placeholder="GST Number"
-                            className={`w-full pl-11 pr-9 py-2.5 border rounded-md shadow-sm transition-all duration-300
-                            bg-slate-50 text-slate-900 placeholder:text-slate-400
-                            focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
-                            ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300'}`}
+                            className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
+                            bg-white text-slate-900 placeholder:text-stone-400
+                            focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+                            ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
                             aria-invalid={!!(touched.gstNo && errors.gstNo)}
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -1891,16 +2355,16 @@ export default function SignUpPage() {
                           <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
                         )}
                         {gstLookup.status === 'invalid' && (
-                          <p className="mt-1 text-[10px] text-red-500">Invalid GSTIN format</p>
+                          <p className="mt-1 text-[10.5px] text-red-500">Invalid GSTIN format</p>
                         )}
                         {gstLookup.status === 'loading' && (
-                          <p className="mt-1 text-[10px] text-amber-600">Looking up…</p>
+                          <p className="mt-1 text-[10.5px] text-amber-600">Looking up…</p>
                         )}
                         {gstLookup.successMessage && (
-                          <p className="mt-1 text-[10px] text-green-600">{gstLookup.successMessage}</p>
+                          <p className="mt-1 text-[10.5px] text-green-600">{gstLookup.successMessage}</p>
                         )}
                         {gstLookup.errorMessage && (
-                          <p className="mt-1 text-[10px] text-orange-500">{gstLookup.errorMessage}</p>
+                          <p className="mt-1 text-[10.5px] text-orange-500">{gstLookup.errorMessage}</p>
                         )}
                         {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
                           <GSTConflictPanel
@@ -1910,44 +2374,85 @@ export default function SignUpPage() {
                           />
                         )}
                       </div>
-
-                      <InputField id="pincode" label="Office Pincode" icon={<MapPin size={16} />} type="text" maxLength={6} placeholder="Enter 6-digit pincode" value={formData.pincode} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('firstName')} error={touched.pincode ? errors.pincode : undefined} required />
+                      <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
+                      {/* Third slot: logistics network(s) / franchise umbrella(s) (display-only).
+                          Not required — defaults to "Independent". Tick-wise multi-select: a
+                          transporter can belong to more than one network at once. When "Other"
+                          is ticked, a free-text input reveals directly below within this
+                          same grid cell so the row layout stays intact. */}
+                      <div className="w-full">
+                        <NetworkMultiSelect
+                          id="networks"
+                          label="Logistics Network"
+                          icon={<Network size={16} />}
+                          options={NETWORK_OPTIONS}
+                          value={formData.networks}
+                          onChange={(next) => setFormData(prev => ({ ...prev, networks: next }))}
+                        />
+                        <AnimatePresence>
+                          {formData.networks.includes('other') && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mt-2 overflow-hidden"
+                            >
+                              <InputField
+                                id="networkOther"
+                                label="Network Name"
+                                icon={<Building size={16} />}
+                                placeholder="Enter your network / franchise name"
+                                maxLength={40}
+                                value={formData.networkOther}
+                                onChange={handleFormChange}
+                                onBlur={handleBlur}
+                                error={touched.networkOther ? errors.networkOther : undefined}
+                              />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
 
-                    {/* Row 2: First Name + Last Name */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                      <InputField id="firstName" label="First Name" icon={<Building size={16} />} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
-                      <InputField id="lastName" label="Last Name (optional)" icon={<Building size={16} />} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
+                    {/* Row 2: Company Contact Name (merged first+last) + Company Phone + WhatsApp */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                      <InputField id="companyContactName" label="Company Contact Name" icon={<Building size={16} />} value={formData.companyContactName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.companyContactName ? errors.companyContactName : undefined} required />
+                      <InputField id="phone" label="Company Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('companyContactName')(e); }} error={touched.phone ? errors.phone : undefined} required />
+                      <div className="w-full">
+                        <InputField
+                          id="whatsapp"
+                          label="WhatsApp Number"
+                          icon={<Phone size={16} />}
+                          type="tel"
+                          maxLength={10}
+                          placeholder="10-digit WhatsApp number"
+                          value={formData.whatsapp}
+                          onChange={(e) => {
+                            // Typing here directly stops auto-mirroring Mobile from this point on.
+                            if (sameAsPhone) setSameAsPhone(false);
+                            handleFormChange(e);
+                          }}
+                          onBlur={handleBlur}
+                          onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
+                          error={touched.whatsapp ? errors.whatsapp : undefined}
+                          required
+                        />
+                        <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer w-fit">
+                          <input
+                            type="checkbox"
+                            id="sameAsPhone"
+                            checked={sameAsPhone}
+                            onChange={(e) => setSameAsPhone(e.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          />
+                          Same as Mobile Number
+                        </label>
+                      </div>
                     </div>
 
-                    {/* Row 3: Mobile + WhatsApp */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                      <InputField id="phone" label="Mobile Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('lastName')(e); }} error={touched.phone ? errors.phone : undefined} required />
-                      <InputField
-                        id="whatsapp"
-                        label="WhatsApp Number"
-                        icon={<Phone size={16} />}
-                        type="tel"
-                        maxLength={10}
-                        placeholder="Same as mobile number"
-                        value={formData.whatsapp}
-                        onChange={(e) => {
-                          // Typing here directly stops auto-mirroring Mobile from this point on.
-                          if (sameAsPhone) setSameAsPhone(false);
-                          handleFormChange(e);
-                        }}
-                        onBlur={handleBlur}
-                        onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
-                        error={touched.whatsapp ? errors.whatsapp : undefined}
-                        required
-                      />
-                    </div>
-
-                    {/* Row 4: Email Address */}
-                    <InputField id="email" label="Email Address" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
-
-                    {/* Row 5: Pincodes Served + Fleet Size */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    {/* Row 3: Email + Pincodes Served + Fleet Size */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                      <InputField id="email" label="Email Address" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
                       <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16} />} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
                         <option value="">Select Range</option>
                         <option value="500-1000">500 - 1,000</option>
@@ -1964,33 +2469,171 @@ export default function SignUpPage() {
                       <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16} />} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
                     </div>
 
-                    {/* Row 6: Password */}
-                    <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
-
-                    {/* T&C */}
-                    <div className="flex items-start gap-2 py-1">
-                      <input
-                        type="checkbox"
-                        id="termsAccepted"
-                        checked={termsAccepted}
-                        onChange={(e) => setTermsAccepted(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
-                      />
-                      <label htmlFor="termsAccepted" className="text-xs text-slate-500 cursor-pointer leading-snug py-1">
-                        I agree to the{' '}
-                        <button type="button" onClick={() => setTermsModalOpen(true)} className="text-amber-600 hover:underline font-medium">
-                          Terms &amp; Conditions
-                        </button>
-                      </label>
+                    {/* Company Logo (optional) — display-only branding shown wherever
+                        this transporter appears. Falls back to the selected network's
+                        logo, then an initials circle, if left empty. Collapsed by
+                        default: the upload UI stays hidden until the user opts in. */}
+                    {!showLogoUpload && !logoFile ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowLogoUpload(true)}
+                        className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                      >
+                        <Plus size={15} /> Add company logo <span className="text-stone-400 font-normal">(optional)</span>
+                      </button>
+                    ) : (
+                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white p-3.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
+                          Company Logo <span className="text-stone-400 normal-case font-normal">(optional)</span>
+                        </label>
+                        {!logoFile && (
+                          <button
+                            type="button"
+                            onClick={() => setShowLogoUpload(false)}
+                            className="text-stone-400 hover:text-stone-600 transition-colors"
+                            aria-label="Hide logo upload"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="w-12 h-12 rounded-lg border border-stone-200 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {logoPreview
+                            ? <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain" />
+                            : <ImageIcon size={18} className="text-stone-300" />}
+                        </div>
+                        <label htmlFor="logoUpload" className="inline-flex items-center gap-1.5 px-3 h-[38px] border border-stone-200 rounded-lg text-[12.5px] font-medium text-stone-600 bg-white hover:bg-stone-50 cursor-pointer transition-colors">
+                          <UploadCloud size={15} className="text-stone-400" />
+                          {logoFile ? 'Change logo' : 'Upload logo'}
+                        </label>
+                        <input
+                          id="logoUpload"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] || null;
+                            if (f && f.size > 2 * 1024 * 1024) {
+                              toast.error('Logo must be under 2MB.');
+                              return;
+                            }
+                            setLogoFile(f);
+                            setLogoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return f ? URL.createObjectURL(f) : null; });
+                          }}
+                        />
+                        {logoFile && (
+                          <button
+                            type="button"
+                            onClick={() => { setLogoFile(null); setLogoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); }}
+                            className="inline-flex items-center gap-1 text-[12px] text-stone-500 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        )}
+                        <span className="text-[11px] text-stone-400">PNG, JPG, WEBP or SVG · max 2MB</span>
+                      </div>
                     </div>
-                    {!termsAccepted && (
-                      <p className="-mt-2 text-xs text-red-500">You must accept the Terms &amp; Conditions to continue.</p>
                     )}
 
+                    {/* Employee Details — visually distinct sub-section, separate from the
+                        company-level contact fields above. "Same as company details"
+                        mirrors Name/Phone/Address from the Company Contact Name / Company
+                        Phone Number / Company Address fields above until unchecked. */}
+                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white p-3.5 space-y-3">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <h3 className="text-[12.5px] font-semibold text-stone-700 flex items-center gap-1.5">
+                          <Building size={15} className="text-stone-400" /> Employee Details
+                        </h3>
+                        <label htmlFor="employeeSameAsCompany" className="flex items-center gap-1.5 text-[11.5px] text-stone-500 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            id="employeeSameAsCompany"
+                            checked={employeeSameAsCompany}
+                            onChange={(e) => setEmployeeSameAsCompany(e.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          />
+                          Same as company details
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                        <InputField id="employeeName" label="Employee Name" icon={<Building size={16} />} value={formData.employeeName} onChange={handleFormChange} onBlur={handleBlur} disabled={employeeSameAsCompany} error={touched.employeeName ? errors.employeeName : undefined} />
+                        <InputField id="employeePhone" label="Employee Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit phone number" value={formData.employeePhone} onChange={handleFormChange} onBlur={handleBlur} disabled={employeeSameAsCompany} error={touched.employeePhone ? errors.employeePhone : undefined} />
+
+                        <div className="w-full">
+                          <label htmlFor="employeeAddress" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+                            Employee Office Address
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
+                              <MapPin size={16} />
+                            </span>
+                            <input
+                              id="employeeAddress"
+                              value={formData.employeeAddress}
+                              onChange={handleFormChange}
+                              onBlur={handleBlur}
+                              disabled={employeeSameAsCompany}
+                              maxLength={200}
+                              placeholder="Employee's office address"
+                              className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
+                                bg-white text-slate-900 placeholder:text-stone-400
+                                focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+                                border-stone-200 disabled:bg-stone-50 disabled:text-stone-400`}
+                            />
+                            {!employeeSameAsCompany && (
+                              <button
+                                type="button"
+                                onClick={handleUseCurrentLocationForEmployee}
+                                disabled={isLocatingEmployee}
+                                title="Use my current location"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-amber-600 disabled:opacity-50 transition-colors"
+                              >
+                                {isLocatingEmployee ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
+                              </button>
+                            )}
+                          </div>
+                          {touched.employeeAddress && errors.employeeAddress && (
+                            <p className="mt-1 text-[11px] text-red-500">{errors.employeeAddress}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {!employeeSameAsCompany && (
+                        <p className="text-[10.5px] text-stone-400 -mt-1">
+                          Type the address, or tap the pin icon in the field above to use your current location.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="pt-2">
-                      <button type="submit" disabled={!termsAccepted} className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 text-white font-semibold rounded-lg shadow-md hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
-                        Continue <ArrowRight size={18} />
+                      <button type="submit" disabled={!termsAccepted} className="w-full h-11 inline-flex items-center justify-center gap-2 bg-amber-500 text-white text-[14px] font-semibold rounded-[9px] hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                        Continue <ArrowRight size={16} />
                       </button>
+                    </div>
+
+                    {/* T&C — placed below Continue per earlier request */}
+                    <div>
+                      <label htmlFor="termsAccepted" className="flex items-start gap-2 py-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          id="termsAccepted"
+                          checked={termsAccepted}
+                          onChange={(e) => setTermsAccepted(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                        />
+                        <span className="text-[12.5px] text-stone-500 leading-snug py-0.5">
+                          I agree to the{' '}
+                          <button type="button" onClick={() => setTermsModalOpen(true)} className="text-orange-600 hover:underline font-semibold">
+                            terms and conditions
+                          </button>
+                        </span>
+                      </label>
+                      {!termsAccepted && (
+                        <p className="-mt-1 text-xs text-red-500">You must accept the Terms &amp; Conditions to continue.</p>
+                      )}
                     </div>
                   </form>
                 </div>
@@ -2611,9 +3254,18 @@ export default function SignUpPage() {
                             </div>
                           </form>
                         ) : (
-                          // Step 2 Active: Left column shows a highly professional summary of step 1 inputs
+                          // Step 2 Active: Left column shows a summary of Step 1's actual
+                          // fields only — this used to list an older field set (Website
+                          // Link, Office Timings, Delivery Mode, Max Loading, Experience,
+                          // Turnover, Customer Network) that no longer exists anywhere on
+                          // the real Step 1 form above, so it's replaced with the exact
+                          // fields collected there instead.
                           <div className="space-y-6">
-                            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                            <div className="flex items-center justify-center border-b border-slate-100 pb-3">
+                              {renderStepper(2)}
+                            </div>
+
+                            <div className="flex justify-between items-center">
                               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                                 <CheckCircle className="text-green-500" size={20} />
                                 Form Information Completed
@@ -2636,28 +3288,41 @@ export default function SignUpPage() {
                                 <p className="text-slate-800 font-bold mt-1">{formData.gstNo}</p>
                               </div>
                               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Contact Email</p>
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Logistics Network</p>
+                                <p className="text-slate-800 font-medium mt-1">
+                                  {formData.networks.includes('other') ? formData.networkOther : formData.networks.join(', ')}
+                                </p>
+                              </div>
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Company Contact Name</p>
+                                <p className="text-slate-800 font-medium mt-1">{formData.companyContactName}</p>
+                              </div>
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Company Phone Number</p>
+                                <p className="text-slate-800 font-medium mt-1">{formData.phone}</p>
+                              </div>
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">WhatsApp Number</p>
+                                <p className="text-slate-800 font-medium mt-1">{formData.whatsapp}</p>
+                              </div>
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Email Address</p>
                                 <p className="text-slate-800 font-medium mt-1 truncate">{formData.email}</p>
                               </div>
                               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Contact Phone</p>
-                                <p className="text-slate-800 font-medium mt-1">{formData.phone}</p>
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Number of Pincodes Served</p>
+                                <p className="text-slate-800 font-medium mt-1">{formData.pincodesServedRange}</p>
+                              </div>
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Fleet Size</p>
+                                <p className="text-slate-800 font-medium mt-1">{formData.numTrucks}</p>
                               </div>
                               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 sm:col-span-2">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Office Location & Hours</p>
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Employee Details</p>
                                 <p className="text-slate-800 font-medium mt-1">
-                                  {formData.address || "N/A"}, {formData.pincode} ({formData.stateName})
+                                  {formData.employeeName} · {formData.employeePhone}
                                 </p>
-                                <p className="text-slate-500 text-xs mt-1">Hours: {formData.officeStart} - {formData.officeEnd}</p>
-                              </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 sm:col-span-2">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Capabilities & Fleet</p>
-                                <p className="text-slate-800 font-medium mt-1">
-                                  Mode: {formData.deliveryMode} | Fleet: {formData.numTrucks} Trucks
-                                </p>
-                                <p className="text-slate-500 text-xs mt-1">
-                                  Max Cap: {formData.maxLoading} tons | Experience: {formData.experience} yrs | Turnover: ₹{formData.turnover}
-                                </p>
+                                <p className="text-slate-500 text-xs mt-1">{formData.employeeAddress}</p>
                               </div>
                             </div>
                           </div>
@@ -2672,10 +3337,76 @@ export default function SignUpPage() {
 
                   {/* Top Card: Upload Sheet */}
                   <Card className="p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
-                      <UploadCloud className="text-blue-600" size={20} />
-                      Step 2: Upload Servicability Pincodes
-                    </h3>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <UploadCloud className="text-blue-600" size={20} />
+                        Step 2: Upload Servicability Pincodes
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const csv = `pincode,isOda,zone
+110001,false,North
+110002,false,North
+400001,false,West
+400002,true,West
+560001,false,South
+700001,false,East
+
+Notes:
+- Only "pincode" is required
+- isOda is optional (true/false)
+- zone groups pincodes for pricing (e.g. North, South, East, West)`;
+                          const blob = new Blob([csv], { type: 'text/csv' });
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(blob);
+                          link.download = 'serviceability_template.csv';
+                          link.click();
+                          URL.revokeObjectURL(link.href);
+                          toast.success('Template downloaded');
+                        }}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm flex-shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download Sample Template
+                      </button>
+                    </div>
+
+                    {/* Sample Table Preview */}
+                    <div className="p-3 mb-4 rounded-lg bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-200">
+                      <p className="text-xs font-semibold text-blue-800 mb-2 flex items-center gap-1.5">
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        Sample Format
+                      </p>
+                      <div className="bg-white rounded-lg border border-blue-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-100 border-b border-slate-200">
+                            <tr>
+                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700">pincode</th>
+                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700">isOda</th>
+                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700">zone</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            <tr className="hover:bg-slate-50">
+                              <td className="px-3 py-1.5 font-mono text-slate-900">110001</td>
+                              <td className="px-3 py-1.5 text-slate-600">FALSE</td>
+                              <td className="px-3 py-1.5 text-slate-600">North</td>
+                            </tr>
+                            <tr className="hover:bg-slate-50">
+                              <td className="px-3 py-1.5 font-mono text-slate-900">400001</td>
+                              <td className="px-3 py-1.5 text-slate-600">FALSE</td>
+                              <td className="px-3 py-1.5 text-slate-600">West</td>
+                            </tr>
+                            <tr className="hover:bg-slate-50">
+                              <td className="px-3 py-1.5 font-mono text-slate-900">560001</td>
+                              <td className="px-3 py-1.5 text-slate-600">FALSE</td>
+                              <td className="px-3 py-1.5 text-slate-600">South</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
 
                     {currentStep === 0 ? (
                       // Locked State during Step 1

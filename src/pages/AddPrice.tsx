@@ -188,7 +188,7 @@ export default function AddPrice() {
       const savedRates = localStorage.getItem('transporter_zone_rates');
       if (savedRates) {
         const parsed = JSON.parse(savedRates);
-        hasExtractedZoneRates = Array.isArray(parsed) && parsed.some((row: number[]) => row.some(v => v > 0));
+        hasExtractedZoneRates = Array.isArray(parsed?.matrix) && parsed.matrix.some((row: number[]) => row.some(v => v > 0));
       }
     } catch (_) {}
     return !hasManuallySaved && (hasExtractedCharges || hasExtractedZoneRates);
@@ -254,12 +254,15 @@ export default function AddPrice() {
     localStorage.setItem('transporter_price_rate', JSON.stringify(priceRate));
   }, [priceRate]);
 
-  // Persist zone rates to localStorage
+  // Persist zone rates to localStorage, paired with the exact zone labels
+  // they were built against. A previous version stored only the matrix, so a
+  // later reload with a *different* (but same-length) zoneLabels order would
+  // silently reuse rows under the wrong zone — see loadFromStorage below.
   useEffect(() => {
     if (zoneRates && zoneRates.length > 0) {
-      localStorage.setItem('transporter_zone_rates', JSON.stringify(zoneRates));
+      localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabels, matrix: zoneRates }));
     }
-  }, [zoneRates]);
+  }, [zoneRates, zoneLabels]);
 
   // Announce readiness to parent so it can push UTSF prefill via postMessage
   useEffect(() => {
@@ -366,14 +369,24 @@ export default function AddPrice() {
       if (arr) {
         setZoneLabels(arr);
         const savedRates = localStorage.getItem('transporter_zone_rates');
+        // A saved matrix is only reusable if it was built against this exact
+        // label order — a stale matrix from an earlier extraction attempt can
+        // have the same length (same zone count) but a different order, which
+        // would silently attach real rates to the wrong origin zone.
+        let reused = false;
         if (savedRates) {
-          const parsedRates = JSON.parse(savedRates);
-          if (Array.isArray(parsedRates) && parsedRates.length === arr.length) {
-            setZoneRates(parsedRates);
-          } else {
-            setZoneRates(arr.map(() => arr!.map(() => 0)));
-          }
-        } else {
+          try {
+            const parsed = JSON.parse(savedRates);
+            const sameLabels = Array.isArray(parsed?.labels) &&
+              parsed.labels.length === arr.length &&
+              parsed.labels.every((z: string, i: number) => z === arr![i]);
+            if (sameLabels && Array.isArray(parsed.matrix)) {
+              setZoneRates(parsed.matrix);
+              reused = true;
+            }
+          } catch (_) {}
+        }
+        if (!reused) {
           setZoneRates(arr.map(() => arr!.map(() => 0)));
         }
       }
@@ -479,11 +492,16 @@ export default function AddPrice() {
     }
 
     const dataToSubmit = new FormData();
-    const { stateName, ...restOfData } = formData;
+    // `networks` is an array — pulled out separately so the generic
+    // Object.entries loop below (which does String(value) on everything)
+    // doesn't comma-join it instead of JSON-encoding it the way the backend
+    // expects (same fix as SignUpPage's submitTransporterData).
+    const { stateName, networks, ...restOfData } = formData;
     Object.entries({ ...restOfData, state: stateName }).forEach(([key, value]) => {
       dataToSubmit.append(key, String(value));
     });
     dataToSubmit.append('zones', JSON.stringify(zoneLabels.filter(z => z.trim())));
+    dataToSubmit.append('networks', JSON.stringify(Array.isArray(networks) && networks.length > 0 ? networks : ['independent']));
     dataToSubmit.append('service', extractedService);
 
     try {
@@ -491,6 +509,7 @@ export default function AddPrice() {
         headers: { Authorization: `Bearer ${token}` },
       });
       sessionStorage.setItem('transporter_signup_email', formData.email || '');
+      sessionStorage.setItem('transporter_signup_phone', formData.phone || '');
       // Keep sessionStorage.companyName in sync with what was actually just
       // submitted — it can otherwise be stale from AI-extraction time (set
       // once during upload, never refreshed if the user edits the Company
@@ -561,8 +580,12 @@ export default function AddPrice() {
       localStorage.removeItem('transporter_extracted_service');
 
       const email = sessionStorage.getItem('transporter_signup_email');
+      const phone = sessionStorage.getItem('transporter_signup_phone');
       if (email) {
-        await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, { email });
+        // Sending both together means one shared OTP goes out to email and
+        // phone at once, instead of VerifyOtpPage separately triggering its
+        // own (different) phone code a moment later.
+        await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, { email, phone: phone || undefined });
         navigate("/transporter-verify-otp");
       } else {
         // No email on hand (e.g. AddPrice opened directly) — fall back to manual sign-in.
@@ -584,6 +607,9 @@ export default function AddPrice() {
   // ZoneRateMatrix itself hides the all-zero rows by default in that case.
   const zoneRatesFullyPopulated = zoneRates.length > 0 && zoneRates.every(row => row.some(v => v > 0));
   const zoneRatesPartiallyPopulated = zoneRates.some(row => row.some(v => v > 0)) && !zoneRatesFullyPopulated;
+  // At least one zone-rate cell must be filled before Save & Continue is allowed —
+  // an all-zero/empty matrix has no pricing to submit.
+  const hasAnyZoneRate = zoneRates.some(row => row.some(v => Number(v) > 0));
   const skipMatrixStep = wasAiPrefilled && zoneRatesFullyPopulated;
   const stepLabels = skipMatrixStep ? ['Charges', 'Review'] : ['Charges', 'Rates'];
   const lastStep = stepLabels.length - 1;
@@ -673,7 +699,7 @@ export default function AddPrice() {
   // out/disabled. The active column is still distinguished from the inactive
   // one purely by the inactive side collapsing to a plain dash below.
   const cellInputClass =
-    "w-full p-1 text-center border border-slate-200 rounded-md font-medium transition-colors text-xs bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-500";
+    "w-16 mx-auto block p-0.5 text-center border border-slate-200 rounded-md font-medium transition-colors text-xs bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-500";
   const inactiveCell = <span className="block text-center text-slate-300 text-xs">—</span>;
 
   // Shared row renderer for every FLAT/PER KG/%-ON-BASE charge — only the
@@ -691,11 +717,11 @@ export default function AddPrice() {
     const isMissing = showValidationErrors && isMandatory && missingMandatoryFields.some(f => f.key === key);
     return (
       <tr key={key as string} className={`hover:bg-slate-50/50 transition-colors ${isMissing ? 'bg-red-50/60' : ''}`}>
-        <td className={`p-1 border-r border-slate-200 font-medium text-slate-700 text-xs ${opts?.indent ? 'pl-6' : 'pl-4 flex items-center gap-2'}`}>
+        <td className={`p-0.5 border-r border-slate-200 font-medium text-slate-700 text-xs uppercase tracking-wide ${opts?.indent ? 'pl-5' : 'pl-3 flex items-center gap-1.5'}`}>
           {opts?.icon}{label}
           {isMandatory && <span className={isMissing ? 'text-red-600 font-bold' : 'text-red-500'} title="Required">*</span>}
         </td>
-        <td className="p-1 border-r border-slate-200">
+        <td className="p-0.5 border-r border-slate-200">
           {isVariable ? inactiveCell : (
             <input
               type="number" min={0} max={max.fixed}
@@ -705,7 +731,7 @@ export default function AddPrice() {
             />
           )}
         </td>
-        <td className="p-1 border-r border-slate-200">
+        <td className="p-0.5 border-r border-slate-200">
           {!isVariable ? inactiveCell : (
             <input
               type="number" step="0.01" min={0} max={max.variable}
@@ -715,7 +741,7 @@ export default function AddPrice() {
             />
           )}
         </td>
-        <td className="p-1">
+        <td className="p-0.5">
           <UnitSelect value={unit} onChange={(v) => setUnit(key as string, v)} />
         </td>
       </tr>
@@ -747,38 +773,60 @@ export default function AddPrice() {
             <ArrowLeft size={15} /> Back
           </button>
 
-          <div className="flex items-center gap-4 flex-1 justify-center min-w-0">
-            <div className="flex items-baseline gap-1.5 min-w-0 whitespace-nowrap overflow-hidden">
-              <h1 className="text-base font-semibold text-slate-900">Price Configuration</h1>
-              <span className="text-sm text-slate-300">—</span>
-              <span className="text-sm text-slate-500 truncate">
-                for <span className="font-semibold text-blue-600">{transporterName || "your new transporter"}</span>
+          <div className="flex items-center gap-3 flex-1 justify-center min-w-0">
+            <div className="flex items-baseline gap-1.5 min-w-0 shrink" title={transporterName || undefined}>
+              <h1 className="text-base font-semibold text-slate-900 flex-shrink-0">Price Configuration</h1>
+              <span className="text-sm text-slate-300 flex-shrink-0">—</span>
+              <span className="text-base text-slate-500 truncate">
+                for <span className="font-bold text-blue-600">{transporterName || "your new transporter"}</span>
               </span>
             </div>
             <div className="hidden md:block h-4 w-px bg-slate-200 flex-shrink-0" />
-            <div className="hidden md:flex">{renderStepper()}</div>
+            <div className="hidden md:flex flex-shrink-0">{renderStepper()}</div>
+            {wasAiPrefilled && (
+              <div
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #0f2027, #1a3a4a)', border: '1px solid #1e4060' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                <Sparkles size={11} className="text-blue-400 flex-shrink-0" />
+                <span className="text-[11px] font-bold text-white whitespace-nowrap">AI Pre-filled</span>
+              </div>
+            )}
           </div>
 
           {step !== lastStep ? (
-            <button
-              key="next-btn"
-              type="button"
-              onClick={goNext}
-              disabled={isPendingAiCreation && aiExtractionStatus === 'processing'}
-              title={isPendingAiCreation && aiExtractionStatus === 'processing' ? 'Still reading your documents — please wait' : undefined}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-md shadow-blue-500/20 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
-            >
-              {isPendingAiCreation && aiExtractionStatus === 'processing'
-                ? <><Loader2 className="animate-spin" size={15} />Reading...</>
-                : <>Next <ArrowRight size={15} /></>
-              }
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Sits directly left of the Next/Reading button instead of its
+                  own centered line below the header, so the two read as one
+                  unit: what's happening + the button it's blocking. */}
+              {isPendingAiCreation && aiExtractionStatus === 'processing' && (
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-lg">
+                  <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
+                  <span className="text-[11px] font-semibold text-blue-800 whitespace-nowrap">Reading your documents…</span>
+                </div>
+              )}
+              <button
+                key="next-btn"
+                type="button"
+                onClick={goNext}
+                disabled={isPendingAiCreation && aiExtractionStatus === 'processing'}
+                title={isPendingAiCreation && aiExtractionStatus === 'processing' ? 'Still reading your documents — please wait' : undefined}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-md shadow-blue-500/20 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+              >
+                {isPendingAiCreation && aiExtractionStatus === 'processing'
+                  ? <><Loader2 className="animate-spin" size={15} />Reading...</>
+                  : <>Next <ArrowRight size={15} /></>
+                }
+              </button>
+            </div>
           ) : (
             <button
               key="submit-btn"
               type="submit"
               form="addPriceForm"
-              disabled={loading}
+              disabled={loading || !hasAnyZoneRate}
+              title={!hasAnyZoneRate ? 'Fill at least one zone rate cell before continuing' : undefined}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-md shadow-blue-500/20 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
               {loading
@@ -799,11 +847,11 @@ export default function AddPrice() {
         {/* Stepper on its own line for small screens */}
         <div className="flex md:hidden justify-center mb-1">{renderStepper()}</div>
 
-        {/* Background extraction status — small and unobtrusive, mirrors the
-            indicator on the upload page. Only relevant while vendor creation
-            is still deferred (see isPendingAiCreation above). */}
+        {/* Background extraction status — mobile-only fallback; sm+ screens
+            show this inline to the left of the Next/Reading button instead
+            (see the header row above). */}
         {isPendingAiCreation && aiExtractionStatus === 'processing' && (
-          <div className="mx-auto max-w-fit flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg">
+          <div className="sm:hidden mx-auto max-w-fit flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg">
             <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin shrink-0" />
             <span className="text-xs font-semibold text-blue-800">Still reading your documents in the background…</span>
           </div>
@@ -816,12 +864,14 @@ export default function AddPrice() {
           </div>
         )}
 
-        {/* AI Pre-fill banner */}
+        {/* AI Pre-fill banner — shown inline in the header on lg+ screens now;
+            this stacked version only appears below that, where the header row
+            wraps and there's no room for the inline badge. */}
         {wasAiPrefilled && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-lg overflow-hidden mx-auto max-w-fit"
+            className="lg:hidden rounded-lg overflow-hidden mx-auto max-w-fit"
             style={{ background: 'linear-gradient(135deg, #0f2027, #1a3a4a)', border: '1px solid #1e4060' }}
           >
             <div className="flex items-center gap-2 px-3 py-1.5 flex-wrap">
@@ -846,44 +896,44 @@ export default function AddPrice() {
             <Card className="p-0 overflow-hidden border-0 shadow-lg">
               {/* Unified Table */}
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left min-w-[700px]">
+                <table className="w-full text-xs text-left min-w-[560px]">
                   <thead className="bg-[#f8fafc] text-slate-500 text-xs tracking-wider uppercase font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="p-1.5 border-r border-slate-200 w-1/3">Charge</th>
-                      <th className="p-1.5 border-r border-slate-200 w-1/5 text-center">Fixed (₹)</th>
-                      <th className="p-1.5 border-r border-slate-200 w-1/5 text-center">Variable (%)</th>
-                      <th className="p-1.5 w-1/5 text-center">Unit / Threshold</th>
+                      <th className="p-1 border-r border-slate-200 w-[32%]">Charge</th>
+                      <th className="p-1 border-r border-slate-200 w-[16%] text-center">Fixed (₹)</th>
+                      <th className="p-1 border-r border-slate-200 w-[16%] text-center">Variable (%)</th>
+                      <th className="p-1 w-[36%] text-center">Unit / Threshold</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-100">
                     {/* BASIC CHARGES HEADER */}
                     <tr className="bg-slate-50/80">
-                      <td colSpan={4} className="px-3 py-1 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">Basic Charges</td>
+                      <td colSpan={4} className="px-3 py-0.5 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">Basic Charges</td>
                     </tr>
 
-                    {renderChargeRow("docketCharges", "Docket Charges", { icon: <Package size={15} className="text-blue-500"/> })}
-                    {renderChargeRow("fuel", "Fuel Surcharge", { icon: <Percent size={15} className="text-blue-500"/> })}
+                    {renderChargeRow("docketCharges", "Docket Charges", { icon: <Package size={13} className="text-blue-500"/> })}
+                    {renderChargeRow("fuel", "Fuel Surcharge", { icon: <Percent size={13} className="text-blue-500"/> })}
 
                     {/* Min Chargeable Weight — pure KG threshold, no fixed/variable duality */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-1 border-r border-slate-200 font-medium text-slate-700 pl-4 flex items-center gap-2 text-xs"><Weight size={15} className="text-blue-500"/> Min Chargeable Wt</td>
-                      <td className="p-1 border-r border-slate-200">
-                        <input type="number" min={0} max={FIELD_MAX.minWeight} className="w-full p-1 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" placeholder="-" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e, FIELD_MAX.minWeight)} />
+                      <td className="p-0.5 border-r border-slate-200 font-medium text-slate-700 pl-3 flex items-center gap-1.5 text-xs uppercase tracking-wide"><Weight size={13} className="text-blue-500"/> Min Chargeable Wt</td>
+                      <td className="p-0.5 border-r border-slate-200">
+                        <input type="number" min={0} max={FIELD_MAX.minWeight} className="w-16 mx-auto block p-0.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" placeholder="-" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e, FIELD_MAX.minWeight)} />
                       </td>
-                      <td className="p-1 border-r border-slate-200">
-                        <input type="number" disabled className="w-full p-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-xs" placeholder="-" />
+                      <td className="p-0.5 border-r border-slate-200">
+                        <input type="number" disabled className="w-16 mx-auto block p-0.5 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-xs" placeholder="-" />
                       </td>
-                      <td className="p-1">
+                      <td className="p-0.5">
                         <UnitSelect value="KG" readOnly />
                       </td>
                     </tr>
 
-                    {renderChargeRow("minCharges", "Minimum Charges", { icon: <DollarSign size={15} className="text-blue-500"/> })}
-                    {renderChargeRow("gstPct", "GST %", { icon: <Percent size={15} className="text-blue-500"/> })}
+                    {renderChargeRow("minCharges", "Minimum Charges", { icon: <DollarSign size={13} className="text-blue-500"/> })}
+                    {renderChargeRow("gstPct", "GST %", { icon: <Percent size={13} className="text-blue-500"/> })}
 
                     {/* ADDITIONAL CHARGES HEADER */}
                     <tr className="bg-slate-50/80">
-                      <td colSpan={4} className="px-3 py-1 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">Additional Charges</td>
+                      <td colSpan={4} className="px-3 py-0.5 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">Additional Charges</td>
                     </tr>
 
                     {renderChargeRow("rovCharges", "ROV / FOV Charges", { indent: true })}
@@ -892,9 +942,9 @@ export default function AddPrice() {
 
                     {/* Weight Threshold — pure KG value tied to Handling, no fixed/variable duality */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-1 border-r border-slate-200 font-medium text-slate-400 pl-8 text-xs">› Weight Threshold</td>
-                      <td className="p-1 border-r border-slate-200">
-                        <input type="number" min={0} max={FIELD_MAX.minWeight} placeholder="-" className="w-full p-1 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" value={(priceRate.handlingCharges as any)?.threshholdweight || ""} onChange={e => handleRateChange("handlingCharges", "threshholdweight", e, FIELD_MAX.minWeight)} />
+                      <td className="p-0.5 border-r border-slate-200 font-medium text-slate-400 pl-6 text-xs uppercase tracking-wide">› Weight Threshold</td>
+                      <td className="p-0.5 border-r border-slate-200">
+                        <input type="number" min={0} max={FIELD_MAX.minWeight} placeholder="-" className="w-16 mx-auto block p-0.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" value={(priceRate.handlingCharges as any)?.threshholdweight || ""} onChange={e => handleRateChange("handlingCharges", "threshholdweight", e, FIELD_MAX.minWeight)} />
                       </td>
                       <td className="p-1 border-r border-slate-200">
                         <input type="number" disabled className="w-full p-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-xs" placeholder="-" />
@@ -987,6 +1037,16 @@ export default function AddPrice() {
               Shown on the same "Rates" step as Review below, not as its own step. */}
           {!skipMatrixStep && step === 1 && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              {zoneRatesPartiallyPopulated && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                  <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>
+                    Only one origin zone's rates were found in the uploaded file — the source sheet appears to list a single
+                    per-destination-zone price list rather than a full zone-to-zone matrix. Please review and fill in the
+                    remaining rows below.
+                  </span>
+                </div>
+              )}
               <Card>
                 <ZoneRateMatrix
                   zoneLabels={zoneLabels}

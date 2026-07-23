@@ -9,6 +9,10 @@ interface JwtPayload {
   email: string;
   name: string;
   companyName?: string;
+  // Display-only network badge(s) + own uploaded logo (from JWT payload).
+  networks?: string[];
+  networkOther?: string;
+  logoUrl?: string;
   contactNumber?: string;
   gstNumber?: string;
   address?: string;
@@ -34,6 +38,10 @@ interface AuthUser {
   email: string;
   name: string;
   companyName?: string;
+  // Display-only network badge(s) + own uploaded logo (from JWT payload).
+  networks?: string[];
+  networkOther?: string;
+  logoUrl?: string;
   contactNumber?: string;
   gstNumber?: string;
   address?: string;

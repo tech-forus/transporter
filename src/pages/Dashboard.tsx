@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { API_BASE_URL } from '../config/apiConfig'
+import { resolveTransporterLogo } from '../utils/transporterLogo'
 
 // ensure your authToken cookie is sent on every request
 axios.defaults.withCredentials = true
@@ -316,6 +317,27 @@ const Dashboard: React.FC = () => {
         )}
 
         <header className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Own logo → network logo → initials fallback (shared resolver) */}
+            {(() => {
+              const logoSrc = resolveTransporterLogo({
+                logoUrl: user?.logoUrl,
+                networks: user?.networks,
+                companyName: user?.companyName,
+              });
+              return logoSrc ? (
+                <img
+                  src={logoSrc}
+                  alt={`${user?.companyName || 'Company'} logo`}
+                  className="w-12 h-12 rounded-xl object-contain bg-white border border-slate-200 shadow-sm flex-shrink-0"
+                  draggable={false}
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                  {(user?.companyName?.[0] || 'C').toUpperCase()}
+                </div>
+              );
+            })()}
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
               Available Bids
@@ -323,6 +345,7 @@ const Dashboard: React.FC = () => {
             <p className="text-sm text-slate-500 mt-0.5">
               {openBids.length + limitedBids.length + semiLimitedBids.length} bid{(openBids.length + limitedBids.length + semiLimitedBids.length) === 1 ? '' : 's'} matching your service zones
             </p>
+          </div>
           </div>
           <button
             onClick={fetchBids}

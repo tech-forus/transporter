@@ -6,23 +6,33 @@ import { Loader2, Mail } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useAuth } from '../hooks/useAuth';
 
+// Only the Email OTP field is shown — no separate Phone OTP tab/column.
+// Both channels still carry the SAME code under the hood (the page before
+// this one sends it to email+phone together via one /send-otp call), so a
+// transporter without email access can just use whatever arrived by phone
+// call in the email field instead; the copy below tells them that.
 export default function VerifyOtpPage() {
   const navigate = useNavigate();
   const { loginWithToken } = useAuth();
   const [email] = useState(() => sessionStorage.getItem('transporter_signup_email') || '');
-  const [otp, setOtp] = useState('');
+  const [phone] = useState(() => sessionStorage.getItem('transporter_signup_phone') || '');
+  const [emailOtp, setEmailOtp] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendTimer, setResendTimer] = useState(59);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!email) {
+    if (!email && !phone) {
       // Nothing to verify — bounce back rather than show a dead-end screen.
       navigate('/transporter-signup', { replace: true });
       return;
     }
     startCountdown();
+    // If only a phone number is on hand (no email — this screen still needs
+    // to show *some* code, entered via the email-style field above), this is
+    // the first send for this page, so it still needs to be fired here.
+    if (!email && phone) sendOtp();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -38,11 +48,23 @@ export default function VerifyOtpPage() {
     }, 1000);
   };
 
+  // Sends the same OTP to whichever of email/phone are available — used both
+  // for the phone-only initial send and for the Resend button, so a resend
+  // always refreshes the shared code on every channel at once rather than
+  // letting one channel's code go stale while the other's is renewed.
+  const sendOtp = async () => {
+    try {
+      await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, { email: email || undefined, phone: phone || undefined });
+    } catch (err: any) {
+      console.warn('[VerifyOtpPage] OTP send failed:', err?.response?.data?.message || err.message);
+    }
+  };
+
   const handleResend = async () => {
     setResending(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, { email });
-      toast.success('OTP resent to your email.');
+      await sendOtp();
+      toast.success(email && phone ? 'OTP resent — check your email or phone call.' : email ? 'OTP resent to your email.' : 'OTP resent — check your phone call.');
       startCountdown();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Failed to resend OTP.');
@@ -52,13 +74,16 @@ export default function VerifyOtpPage() {
   };
 
   const handleVerify = async () => {
+    const otp = emailOtp;
     if (!otp) { toast.error('Please enter the OTP.'); return; }
     setVerifying(true);
     try {
-      const { data } = await axios.post(`${API_BASE_URL}/api/transporter/auth/verify-otp`, { email, otp });
+      const payload = email ? { email, otp } : { phone, otp };
+      const { data } = await axios.post(`${API_BASE_URL}/api/transporter/auth/verify-otp`, payload);
       if (data.token) {
         loginWithToken(data.token);
         sessionStorage.removeItem('transporter_signup_email');
+        sessionStorage.removeItem('transporter_signup_phone');
         toast.success(data.message || 'Verified! Welcome aboard.');
         navigate('/dashboard', { replace: true });
       } else {
@@ -71,6 +96,8 @@ export default function VerifyOtpPage() {
     }
   };
 
+  const bothAvailable = !!email && !!phone;
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full mx-auto p-6 bg-white rounded-2xl shadow-lg border border-slate-200/60 space-y-4">
@@ -79,8 +106,10 @@ export default function VerifyOtpPage() {
             <Mail size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Verify Your Email</h2>
-            <p className="text-sm text-slate-500">A one-time password has been sent to {email || 'your registered email'}.</p>
+            <h2 className="text-lg font-bold text-slate-800">Verify Your Account</h2>
+            <p className="text-sm text-slate-500">
+              A one-time password has been sent to {email || 'your registered email'}.
+            </p>
           </div>
         </div>
 
@@ -89,14 +118,19 @@ export default function VerifyOtpPage() {
             Email OTP <span className="text-red-500">*</span>
           </label>
           <input
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            value={emailOtp}
+            onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
             placeholder="Enter OTP"
             inputMode="numeric"
             maxLength={8}
             onKeyDown={(e) => { if (e.key === 'Enter') handleVerify(); }}
             className="w-full px-3 py-2.5 border border-slate-300 rounded-lg bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <p className="mt-1 text-[11px] text-slate-400">
+            {bothAvailable
+              ? 'You will also receive a phone call reading out the same code — enter it above if that arrives first.'
+              : 'Enter the code you received.'}
+          </p>
         </div>
 
         <div className="text-center">
