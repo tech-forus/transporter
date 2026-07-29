@@ -253,6 +253,27 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
   // nothing to hide.
   const [lanesExpanded, setLanesExpanded] = useState<boolean>((initialLanes?.length || 0) <= 5);
 
+  // Master pincode list, loaded once for client-side "does this pincode
+  // exist" validation on every manually-typed origin/destination field —
+  // same /pincodes.json source and fetch pattern as ZoneSummaryPanel.tsx.
+  // null while loading; an empty set means the fetch failed — in either
+  // case we don't block the user (fail-open) rather than reject valid
+  // pincodes because the master list wasn't available yet.
+  const [pincodeSet, setPincodeSet] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    fetch(`${(import.meta as any).env?.BASE_URL || '/'}pincodes.json`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: Array<{ pincode: string }>) => {
+        setPincodeSet(new Set((Array.isArray(data) ? data : []).map((e) => String(e.pincode))));
+      })
+      .catch(() => setPincodeSet(new Set()));
+  }, []);
+
+  const isKnownPincode = (p: string): boolean => {
+    if (!pincodeSet || pincodeSet.size === 0) return true; // still loading / failed to load — don't block
+    return pincodeSet.has(p);
+  };
+
   // --- Manual tab state ---
   const [manualOrigin, setManualOrigin] = useState('');
   const [manualDest, setManualDest] = useState('');
@@ -265,12 +286,20 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
   const [manualCustomHeight, setManualCustomHeight] = useState('');
   const [manualCustomRunningCost, setManualCustomRunningCost] = useState('');
 
+  // Shown inline under the input the moment 6 digits are typed — same
+  // isKnownPincode check re-run at submit time below as a hard gate, since
+  // a user can technically submit via Enter before the inline error renders.
+  const manualOriginError = manualOrigin.length === 6 && !isKnownPincode(manualOrigin) ? 'Invalid pincode — not found' : '';
+  const manualDestError = manualDest.length === 6 && !isKnownPincode(manualDest) ? 'Invalid pincode — not found' : '';
+
   const addManualLane = () => {
     const origin = manualOrigin.replace(/\D/g, '').slice(0, 6);
     const dest = manualDest.replace(/\D/g, '').slice(0, 6);
     const price = Number(manualPrice);
     if (origin.length !== 6) return toast.error('Enter a valid 6-digit origin pincode');
+    if (!isKnownPincode(origin)) return toast.error('Origin pincode not found — please re-check it');
     if (dest.length !== 6) return toast.error('Enter a valid 6-digit destination pincode');
+    if (!isKnownPincode(dest)) return toast.error('Destination pincode not found — please re-check it');
     if (!manualVehicle) return toast.error('Select a vehicle type');
     if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
 
@@ -554,13 +583,20 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
   const canContinue = lanes.length > 0;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-6xl mx-auto space-y-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
         <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors">
           <ArrowLeft size={13} /> Back
         </button>
         <h2 className="text-lg font-bold text-slate-800">Delivery Areas</h2>
-        <div className="w-16" />
+        <button
+          type="button"
+          onClick={() => onContinue(lanes)}
+          disabled={!canContinue}
+          className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-semibold text-sm rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          Continue <ArrowRight size={15} />
+        </button>
       </div>
 
       <div className="flex gap-2 bg-slate-100 p-1 rounded-xl w-fit">
@@ -575,6 +611,8 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
         </button>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="space-y-5">
       {subTab === 'manual' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
           <div>
@@ -613,18 +651,35 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><MapPin size={13} /> Origin Pincode</label>
-              <input type="text" inputMode="numeric" maxLength={6} value={manualOrigin} onChange={(e) => setManualOrigin(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 400001" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+              <input
+                type="text" inputMode="numeric" maxLength={6} value={manualOrigin}
+                onChange={(e) => setManualOrigin(e.target.value.replace(/\D/g, ''))}
+                placeholder="e.g. 400001"
+                className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:outline-none ${manualOriginError ? 'border-red-300 focus:ring-red-300' : 'border-slate-200 focus:ring-blue-400'}`}
+              />
+              {manualOriginError && <p className="text-xs text-red-600 mt-1">{manualOriginError}</p>}
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><MapPin size={13} /> Destination Pincode</label>
-              <input type="text" inputMode="numeric" maxLength={6} value={manualDest} onChange={(e) => setManualDest(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 110001" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+              <input
+                type="text" inputMode="numeric" maxLength={6} value={manualDest}
+                onChange={(e) => setManualDest(e.target.value.replace(/\D/g, ''))}
+                placeholder="e.g. 110001"
+                className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:outline-none ${manualDestError ? 'border-red-300 focus:ring-red-300' : 'border-slate-200 focus:ring-blue-400'}`}
+              />
+              {manualDestError && <p className="text-xs text-red-600 mt-1">{manualDestError}</p>}
             </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹)</label>
             <input type="number" min={1} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
           </div>
-          <button type="button" onClick={addManualLane} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
+          <button
+            type="button"
+            onClick={addManualLane}
+            disabled={!!manualOriginError || !!manualDestError}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors"
+          >
             Add Lane
           </button>
         </div>
@@ -818,44 +873,56 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
         </div>
       )}
 
-      {lanes.length > 0 && (
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setLanesExpanded((prev) => !prev)}
-            className="w-full flex items-center justify-between text-sm font-bold text-slate-700"
-            aria-expanded={lanesExpanded}
-          >
-            <span>Lanes Added ({lanes.length})</span>
-            <ChevronDown
-              size={16}
-              className={`text-slate-400 transition-transform duration-200 ${lanesExpanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-          {lanesExpanded && (
-            <div className="max-h-56 overflow-y-auto border border-slate-100 rounded-lg divide-y divide-slate-100">
-              {lanes.map((lane, idx) => (
-                <div key={idx} className="flex items-center justify-between px-3 py-2 text-xs">
-                  <span>{lane.originPincode} → {lane.destinationPincode} · {lane.vehicleType} · ₹{lane.price.toLocaleString('en-IN')}</span>
-                  <button type="button" onClick={() => removeLane(idx)} className="text-red-500 hover:text-red-700">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      </div>
 
-      <div className="flex justify-end pt-2">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <button
           type="button"
-          onClick={() => onContinue(lanes)}
-          disabled={!canContinue}
-          className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          onClick={() => setLanesExpanded((prev) => !prev)}
+          className="w-full flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100 text-sm font-bold text-slate-700"
+          aria-expanded={lanesExpanded}
         >
-          Continue <ArrowRight size={16} />
+          <span>Lanes Added ({lanes.length})</span>
+          <ChevronDown
+            size={16}
+            className={`text-slate-400 transition-transform duration-200 ${lanesExpanded ? 'rotate-180' : ''}`}
+          />
         </button>
+        {lanesExpanded && (
+          lanes.length === 0 ? (
+            <p className="text-sm text-slate-400 italic px-4 sm:px-6 py-8 text-center">No lanes added yet — use the form on the left.</p>
+          ) : (
+            <div className="max-h-[32rem] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 sticky top-0">
+                  <tr>
+                    <th className="text-left p-2.5 pl-4 sm:pl-6 font-bold text-slate-600">Origin</th>
+                    <th className="text-left p-2.5 font-bold text-slate-600">Destination</th>
+                    <th className="text-left p-2.5 font-bold text-slate-600">Vehicle</th>
+                    <th className="text-left p-2.5 font-bold text-slate-600">Price (₹)</th>
+                    <th className="p-2.5 pr-4 sm:pr-6"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {lanes.map((lane, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/60">
+                      <td className="p-2.5 pl-4 sm:pl-6 font-mono">{lane.originPincode}</td>
+                      <td className="p-2.5 font-mono">{lane.destinationPincode}</td>
+                      <td className="p-2.5">{lane.vehicleType}</td>
+                      <td className="p-2.5">₹{lane.price.toLocaleString('en-IN')}</td>
+                      <td className="p-2.5 pr-4 sm:pr-6 text-right">
+                        <button type="button" onClick={() => removeLane(idx)} className="text-red-500 hover:text-red-700">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </div>
       </div>
     </div>
   );
