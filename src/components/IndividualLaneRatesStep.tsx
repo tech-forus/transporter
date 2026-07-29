@@ -198,8 +198,11 @@ function PincodeResultList({
       {state.computing && (
         <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Computing nearby pincodes...</p>
       )}
-      {!state.computing && state.nearbyPincodes.length === 0 && (
+      {!state.computing && state.nearbyPincodes.length === 0 && !state.point && (
         <p className="text-xs text-slate-400 italic">Not picked yet — use the map on the left.</p>
+      )}
+      {!state.computing && state.nearbyPincodes.length === 0 && state.point && (
+        <p className="text-xs text-amber-600 italic">No serviceable pincodes found within {RADIUS_KM}km of this point — try clicking a different, more built-up spot on the map.</p>
       )}
       {!state.computing && state.nearbyPincodes.length > 0 && (
         <div className="space-y-2">
@@ -233,14 +236,28 @@ function PincodeResultList({
 // Free-text place search — OSM Nominatim's /search endpoint (same free,
 // no-key service already used for BookNowModal's reverse-geocode), biased to
 // India. Returns the first match's coordinates, or null if nothing matched.
+//
+// A bare place name like "jhansi" ambiguously matches both the city itself
+// AND its enclosing district/county (an administrative boundary whose
+// centroid can be many km from the actual city — e.g. Jhansi district's
+// centroid lands ~6km from the nearest real pincode, just outside this
+// screen's 5km radius, while the city point itself is inside it). Try
+// featureType=city first so common city/town searches resolve to the
+// actual settlement point; if that yields nothing (smaller towns/villages
+// aren't always tagged "city" in OSM), fall back to the unrestricted query.
 async function searchPlace(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=in&limit=1&q=${encodeURIComponent(query)}`,
-    { headers: { Accept: 'application/json' } }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  const hit = data?.[0];
+  const fetchHit = async (extraParams: string) => {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=in&limit=1&q=${encodeURIComponent(query)}${extraParams}`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.[0] || null;
+  };
+
+  const cityHit = await fetchHit('&featureType=city');
+  const hit = cityHit || (await fetchHit(''));
   if (!hit) return null;
   return { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon), label: hit.display_name };
 }
