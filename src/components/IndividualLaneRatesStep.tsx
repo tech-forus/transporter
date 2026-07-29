@@ -14,7 +14,7 @@
 //                 set wins on any disagreement (Mappls verification is
 //                 optional/best-effort — the offline calc always works even
 //                 without a key).
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from 'react-leaflet';
@@ -55,6 +55,10 @@ const VEHICLE_TYPES: { value: string; maxCapacityKg: number }[] = [
 
 export const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((v) => v.value);
 
+// Sentinel for "Other — enter your own vehicle", same convention as
+// freight-compare-frontend's CUSTOM_VEHICLE_OPTION (config/ftlVehicleTypes.ts).
+export const CUSTOM_VEHICLE = '__custom__';
+
 function vehicleLabel(value: string): string {
   const v = VEHICLE_TYPES.find((t) => t.value === value);
   return v ? `${v.value} (up to ${v.maxCapacityKg.toLocaleString('en-IN')} kg)` : value;
@@ -66,6 +70,42 @@ export interface LaneRate {
   price: number;
   vehicleType: string;
   source: 'manual' | 'bulk' | 'area';
+  isCustomVehicle?: boolean;
+  customVehicleName?: string;
+  maxCapacityKg?: number;
+  bedLengthFt?: number | null;
+  bedWidthFt?: number | null;
+  bedHeightFt?: number | null;
+  runningCostPerKm?: number | null;
+}
+
+// Shared validation for the custom-vehicle fields — same rule set as
+// freight-compare-frontend's AddIndividualFtlTransporter.tsx: capacity is
+// required (finite, > 0); L/W/H/running-cost are optional but if given must
+// be finite and >= 0. Returns an error message, or null if valid.
+function validateCustomVehicleFields(fields: {
+  customVehicleName: string;
+  maxCapacityKg: string;
+  bedLengthFt: string;
+  bedWidthFt: string;
+  bedHeightFt: string;
+  runningCostPerKm: string;
+}): string | null {
+  if (!fields.customVehicleName.trim()) return 'Enter the vehicle name';
+  const capacity = Number(fields.maxCapacityKg);
+  if (!Number.isFinite(capacity) || capacity <= 0) return 'Enter a valid carrying capacity (kg)';
+  const dims: [string, string][] = [
+    ['Bed length', fields.bedLengthFt],
+    ['Bed width', fields.bedWidthFt],
+    ['Bed height', fields.bedHeightFt],
+    ['Running cost', fields.runningCostPerKm],
+  ];
+  for (const [label, raw] of dims) {
+    if (!raw.trim()) continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return `${label} must be a valid non-negative number`;
+  }
+  return null;
 }
 
 interface IndividualLaneRatesStepProps {
@@ -218,6 +258,12 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
   const [manualDest, setManualDest] = useState('');
   const [manualPrice, setManualPrice] = useState('');
   const [manualVehicle, setManualVehicle] = useState('');
+  const [manualCustomName, setManualCustomName] = useState('');
+  const [manualCustomCapacity, setManualCustomCapacity] = useState('');
+  const [manualCustomLength, setManualCustomLength] = useState('');
+  const [manualCustomWidth, setManualCustomWidth] = useState('');
+  const [manualCustomHeight, setManualCustomHeight] = useState('');
+  const [manualCustomRunningCost, setManualCustomRunningCost] = useState('');
 
   const addManualLane = () => {
     const origin = manualOrigin.replace(/\D/g, '').slice(0, 6);
@@ -228,15 +274,57 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     if (!manualVehicle) return toast.error('Select a vehicle type');
     if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
 
-    setLanes((prev) => [...prev, { originPincode: origin, destinationPincode: dest, price, vehicleType: manualVehicle, source: 'manual' }]);
+    const isCustom = manualVehicle === CUSTOM_VEHICLE;
+    let customFields: Partial<LaneRate> = {};
+    if (isCustom) {
+      const err = validateCustomVehicleFields({
+        customVehicleName: manualCustomName,
+        maxCapacityKg: manualCustomCapacity,
+        bedLengthFt: manualCustomLength,
+        bedWidthFt: manualCustomWidth,
+        bedHeightFt: manualCustomHeight,
+        runningCostPerKm: manualCustomRunningCost,
+      });
+      if (err) return toast.error(err);
+      customFields = {
+        isCustomVehicle: true,
+        customVehicleName: manualCustomName.trim(),
+        maxCapacityKg: Number(manualCustomCapacity),
+        bedLengthFt: manualCustomLength.trim() ? Number(manualCustomLength) : null,
+        bedWidthFt: manualCustomWidth.trim() ? Number(manualCustomWidth) : null,
+        bedHeightFt: manualCustomHeight.trim() ? Number(manualCustomHeight) : null,
+        runningCostPerKm: manualCustomRunningCost.trim() ? Number(manualCustomRunningCost) : null,
+      };
+    }
+
+    setLanes((prev) => [
+      ...prev,
+      {
+        originPincode: origin,
+        destinationPincode: dest,
+        price,
+        vehicleType: isCustom ? manualCustomName.trim() : manualVehicle,
+        source: 'manual',
+        ...customFields,
+      },
+    ]);
     setManualOrigin('');
     setManualDest('');
     setManualPrice('');
+    setManualCustomName('');
+    setManualCustomCapacity('');
+    setManualCustomLength('');
+    setManualCustomWidth('');
+    setManualCustomHeight('');
+    setManualCustomRunningCost('');
     toast.success('Lane added');
   };
 
   // --- Bulk tab state ---
-  const [bulkRows, setBulkRows] = useState<Array<{ originPincode: string; destinationPincode: string; price: string; vehicleType: string }>>([]);
+  const [bulkRows, setBulkRows] = useState<Array<{
+    originPincode: string; destinationPincode: string; price: string; vehicleType: string;
+    customVehicleName: string; customCapacityKg: string; customLengthFt: string; customWidthFt: string; customHeightFt: string; customRunningCost: string;
+  }>>([]);
   const [bulkFileName, setBulkFileName] = useState('');
 
   const handleBulkFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -253,7 +341,10 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
       const destinationPincode = String(r['Destination Pincode'] ?? r['Destination'] ?? r['destination'] ?? '').replace(/\D/g, '').slice(0, 6);
       const price = String(r['Price'] ?? r['price'] ?? r['Charge'] ?? '').replace(/[^0-9.]/g, '');
       const vehicleType = String(r['Vehicle Type'] ?? r['Vehicle'] ?? r['vehicle'] ?? '');
-      return { originPincode, destinationPincode, price, vehicleType };
+      return {
+        originPincode, destinationPincode, price, vehicleType,
+        customVehicleName: '', customCapacityKg: '', customLengthFt: '', customWidthFt: '', customHeightFt: '', customRunningCost: '',
+      };
     }).filter((r) => r.originPincode.length === 6 && r.destinationPincode.length === 6);
 
     if (parsed.length === 0) {
@@ -269,7 +360,11 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     }
   };
 
-  const updateBulkRow = (idx: number, field: 'price' | 'vehicleType', value: string) => {
+  const updateBulkRow = (
+    idx: number,
+    field: 'price' | 'vehicleType' | 'customVehicleName' | 'customCapacityKg' | 'customLengthFt' | 'customWidthFt' | 'customHeightFt' | 'customRunningCost',
+    value: string
+  ) => {
     setBulkRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
   };
 
@@ -279,13 +374,39 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
       toast.error(`${incomplete.length} row(s) still need a price and vehicle type`);
       return;
     }
-    const newBulkLanes: LaneRate[] = bulkRows.map((r) => ({
-      originPincode: r.originPincode,
-      destinationPincode: r.destinationPincode,
-      price: Number(r.price),
-      vehicleType: r.vehicleType,
-      source: 'bulk' as const,
-    }));
+    for (const r of bulkRows) {
+      if (r.vehicleType !== CUSTOM_VEHICLE) continue;
+      const err = validateCustomVehicleFields({
+        customVehicleName: r.customVehicleName,
+        maxCapacityKg: r.customCapacityKg,
+        bedLengthFt: r.customLengthFt,
+        bedWidthFt: r.customWidthFt,
+        bedHeightFt: r.customHeightFt,
+        runningCostPerKm: r.customRunningCost,
+      });
+      if (err) return toast.error(`Row ${r.originPincode} → ${r.destinationPincode}: ${err}`);
+    }
+    const newBulkLanes: LaneRate[] = bulkRows.map((r) => {
+      const isCustom = r.vehicleType === CUSTOM_VEHICLE;
+      return {
+        originPincode: r.originPincode,
+        destinationPincode: r.destinationPincode,
+        price: Number(r.price),
+        vehicleType: isCustom ? r.customVehicleName.trim() : r.vehicleType,
+        source: 'bulk' as const,
+        ...(isCustom
+          ? {
+              isCustomVehicle: true,
+              customVehicleName: r.customVehicleName.trim(),
+              maxCapacityKg: Number(r.customCapacityKg),
+              bedLengthFt: r.customLengthFt.trim() ? Number(r.customLengthFt) : null,
+              bedWidthFt: r.customWidthFt.trim() ? Number(r.customWidthFt) : null,
+              bedHeightFt: r.customHeightFt.trim() ? Number(r.customHeightFt) : null,
+              runningCostPerKm: r.customRunningCost.trim() ? Number(r.customRunningCost) : null,
+            }
+          : {}),
+      };
+    });
     // A fresh upload replaces only the lanes that came from a PRIOR bulk
     // upload — manually-added and area-drawn lanes (different `source`
     // values) are left untouched. Without this filter, re-uploading a file
@@ -308,6 +429,12 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
   const areaMapRef = useRef<L.Map | null>(null);
   const [areaPrice, setAreaPrice] = useState('');
   const [areaVehicle, setAreaVehicle] = useState('');
+  const [areaCustomName, setAreaCustomName] = useState('');
+  const [areaCustomCapacity, setAreaCustomCapacity] = useState('');
+  const [areaCustomLength, setAreaCustomLength] = useState('');
+  const [areaCustomWidth, setAreaCustomWidth] = useState('');
+  const [areaCustomHeight, setAreaCustomHeight] = useState('');
+  const [areaCustomRunningCost, setAreaCustomRunningCost] = useState('');
 
   useEffect(() => {
     loadCentroids().catch(() => {});
@@ -381,10 +508,40 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     if (!areaVehicle) return toast.error('Select a vehicle type');
     if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
 
+    const isCustom = areaVehicle === CUSTOM_VEHICLE;
+    let customFields: Partial<LaneRate> = {};
+    if (isCustom) {
+      const err = validateCustomVehicleFields({
+        customVehicleName: areaCustomName,
+        maxCapacityKg: areaCustomCapacity,
+        bedLengthFt: areaCustomLength,
+        bedWidthFt: areaCustomWidth,
+        bedHeightFt: areaCustomHeight,
+        runningCostPerKm: areaCustomRunningCost,
+      });
+      if (err) return toast.error(err);
+      customFields = {
+        isCustomVehicle: true,
+        customVehicleName: areaCustomName.trim(),
+        maxCapacityKg: Number(areaCustomCapacity),
+        bedLengthFt: areaCustomLength.trim() ? Number(areaCustomLength) : null,
+        bedWidthFt: areaCustomWidth.trim() ? Number(areaCustomWidth) : null,
+        bedHeightFt: areaCustomHeight.trim() ? Number(areaCustomHeight) : null,
+        runningCostPerKm: areaCustomRunningCost.trim() ? Number(areaCustomRunningCost) : null,
+      };
+    }
+
     const newLanes: LaneRate[] = [];
     for (const originPincode of areaOriginSelected) {
       for (const destinationPincode of areaDestSelected) {
-        newLanes.push({ originPincode, destinationPincode, price, vehicleType: areaVehicle, source: 'area' });
+        newLanes.push({
+          originPincode,
+          destinationPincode,
+          price,
+          vehicleType: isCustom ? areaCustomName.trim() : areaVehicle,
+          source: 'area',
+          ...customFields,
+        });
       }
     }
     setLanes((prev) => [...prev, ...newLanes]);
@@ -425,8 +582,34 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
             <select value={manualVehicle} onChange={(e) => setManualVehicle(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white">
               <option value="">Select vehicle type</option>
               {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
+              <option value={CUSTOM_VEHICLE}>Other — enter your own vehicle</option>
             </select>
           </div>
+
+          {manualVehicle === CUSTOM_VEHICLE && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Vehicle Name</label>
+                <input type="text" value={manualCustomName} onChange={(e) => setManualCustomName(e.target.value)} placeholder="e.g. Ashok Leyland Dost+" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Carrying Capacity (kg)</label>
+                <input type="number" min={1} value={manualCustomCapacity} onChange={(e) => setManualCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Bed Size — optional (ft)</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <input type="number" min={0} value={manualCustomLength} onChange={(e) => setManualCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} value={manualCustomWidth} onChange={(e) => setManualCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} value={manualCustomHeight} onChange={(e) => setManualCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Running Cost — optional (₹/km)</label>
+                <input type="number" min={0} value={manualCustomRunningCost} onChange={(e) => setManualCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><MapPin size={13} /> Origin Pincode</label>
@@ -472,19 +655,35 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                   </thead>
                   <tbody>
                     {bulkRows.map((row, idx) => (
-                      <tr key={idx} className="border-t border-slate-100">
-                        <td className="p-2">{row.originPincode}</td>
-                        <td className="p-2">{row.destinationPincode}</td>
-                        <td className="p-2">
-                          <select value={row.vehicleType} onChange={(e) => updateBulkRow(idx, 'vehicleType', e.target.value)} className="w-full px-1.5 py-1 border border-slate-200 rounded text-xs bg-white">
-                            <option value="">Select</option>
-                            {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
-                          </select>
-                        </td>
-                        <td className="p-2">
-                          <input type="number" min={1} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', e.target.value)} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
-                        </td>
-                      </tr>
+                      <Fragment key={idx}>
+                        <tr className="border-t border-slate-100">
+                          <td className="p-2">{row.originPincode}</td>
+                          <td className="p-2">{row.destinationPincode}</td>
+                          <td className="p-2">
+                            <select value={row.vehicleType} onChange={(e) => updateBulkRow(idx, 'vehicleType', e.target.value)} className="w-full px-1.5 py-1 border border-slate-200 rounded text-xs bg-white">
+                              <option value="">Select</option>
+                              {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
+                              <option value={CUSTOM_VEHICLE}>Other</option>
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <input type="number" min={1} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', e.target.value)} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
+                          </td>
+                        </tr>
+                        {row.vehicleType === CUSTOM_VEHICLE && (
+                          <tr className="border-t border-slate-100 bg-blue-50/40">
+                            <td colSpan={4} className="p-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                                <input value={row.customVehicleName} onChange={(e) => updateBulkRow(idx, 'customVehicleName', e.target.value)} placeholder="Vehicle name" className="px-1.5 py-1 border border-slate-200 rounded text-xs col-span-2" />
+                                <input type="number" min={1} value={row.customCapacityKg} onChange={(e) => updateBulkRow(idx, 'customCapacityKg', e.target.value)} placeholder="Capacity (kg)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} value={row.customLengthFt} onChange={(e) => updateBulkRow(idx, 'customLengthFt', e.target.value)} placeholder="Length (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} value={row.customWidthFt} onChange={(e) => updateBulkRow(idx, 'customWidthFt', e.target.value)} placeholder="Width (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} value={row.customHeightFt} onChange={(e) => updateBulkRow(idx, 'customHeightFt', e.target.value)} placeholder="Height (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -570,8 +769,34 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                   <select value={areaVehicle} onChange={(e) => setAreaVehicle(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white">
                     <option value="">Select vehicle type</option>
                     {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
+                    <option value={CUSTOM_VEHICLE}>Other — enter your own vehicle</option>
                   </select>
                 </div>
+
+                {areaVehicle === CUSTOM_VEHICLE && (
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Vehicle Name</label>
+                      <input type="text" value={areaCustomName} onChange={(e) => setAreaCustomName(e.target.value)} placeholder="e.g. Ashok Leyland Dost+" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Carrying Capacity (kg)</label>
+                      <input type="number" min={1} value={areaCustomCapacity} onChange={(e) => setAreaCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Bed Size — optional (ft)</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input type="number" min={0} value={areaCustomLength} onChange={(e) => setAreaCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} value={areaCustomWidth} onChange={(e) => setAreaCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} value={areaCustomHeight} onChange={(e) => setAreaCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Running Cost — optional (₹/km)</label>
+                      <input type="number" min={0} value={areaCustomRunningCost} onChange={(e) => setAreaCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹) — applied to every generated lane</label>
                   <input type="number" min={1} value={areaPrice} onChange={(e) => setAreaPrice(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
