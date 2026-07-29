@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Loader2, Mail } from 'lucide-react';
+import { ArrowLeft, Loader2, Mail } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useAuth } from '../hooks/useAuth';
 
@@ -98,9 +98,32 @@ export default function VerifyOtpPage() {
 
   const bothAvailable = !!email && !!phone;
 
+  // Individual/owner-operator accounts land here straight from Delivery
+  // Areas (no Price Configuration step exists for them — see
+  // SignUpPage.tsx's submitTransporterData), so Back must return to signup
+  // details (step 0), not to /addprice like a Business account would.
+  // The transporter record was already created by this point, so signup
+  // details reopens as an edit of what was just submitted, not a blank form.
+  const handleBack = () => {
+    const accountType = sessionStorage.getItem('transporter_signup_account_type');
+    if (accountType === 'individual') {
+      localStorage.setItem('transporter_onboarding_current_step', '0');
+      navigate('/transporter-signup');
+    } else {
+      navigate(-1);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full mx-auto p-6 bg-white rounded-2xl shadow-lg border border-slate-200/60 space-y-4">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors"
+        >
+          <ArrowLeft size={13} /> Back
+        </button>
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
             <Mail size={20} />

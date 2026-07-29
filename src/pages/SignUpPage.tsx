@@ -19,6 +19,7 @@ import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { GSTConflictPanel } from '../components/GSTConflictPanel';
 import { useAuth } from '../hooks/useAuth';
 import { TermsModal } from '../components/TermsModal';
+import IndividualLaneRatesStep, { type LaneRate } from '../components/IndividualLaneRatesStep';
 
 // --- Type Definitions for State ---
 interface IFormData {
@@ -31,6 +32,10 @@ interface IFormData {
   companyContactName: string;
   firstName: string;
   lastName: string;
+  // Individual/owner-operator only — replaces the "Logistics Network" field
+  // for this account type (an individual isn't part of a franchise network,
+  // they just have a name for their one-truck operation).
+  transporterName: string;
   phone: string;
   whatsapp: string;
   email: string;
@@ -198,8 +203,10 @@ interface NetworkMultiSelectProps {
   value: string[];
   onChange: (next: string[]) => void;
   error?: string;
+  disabled?: boolean;
+  required?: boolean;
 }
-const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon, options, value, onChange, error }) => {
+const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon, options, value, onChange, error, disabled = false, required = false }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -212,6 +219,7 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
   }, []);
 
   const toggle = (optValue: string) => {
+    if (disabled) return;
     if (optValue === 'independent') {
       // "Independent" is mutually exclusive with actual network picks.
       onChange(['independent']);
@@ -236,15 +244,17 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
   return (
     <div className="w-full relative" ref={rootRef}>
       <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
-        {label}
+        {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <button
         type="button"
         id={id}
-        onClick={() => setOpen(o => !o)}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen(o => !o)}
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] text-left transition-colors duration-150
           bg-white text-slate-900 relative
           focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+          disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed
           ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
       >
         <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none">
@@ -461,7 +471,7 @@ export default function SignUpPage() {
       }
     }
     return {
-      companyName: '', companyContactName: '', firstName: '', lastName: '', phone: '', whatsapp: '', email: '', password: '', gstNo: '', address: '',
+      companyName: '', companyContactName: '', firstName: '', lastName: '', transporterName: '', phone: '', whatsapp: '', email: '', password: '', gstNo: '', address: '',
       stateName: '', pincode: '', experience: '', officeStart: '09:00',
       officeEnd: '18:00', deliveryMode: 'Road', zoneCount: 0,
       trackingLink: '', websiteLink: '', maxLoading: '', numTrucks: '', turnover: '', customerNetwork: '', pincodesServedRange: '',
@@ -479,10 +489,38 @@ export default function SignUpPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   // Logo upload stays collapsed until the transporter opts in by clicking.
   const [showLogoUpload, setShowLogoUpload] = useState(false);
+  // Employee Details (Business only) stays collapsed too, same click-to-open
+  // pattern as the logo — most transporters don't need a separate on-ground
+  // contact distinct from the company contact.
+  const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
   const [uploadedService, setUploadedService] = useState<{ pincode: number; isOda: boolean; zone: string }[]>([]);
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Individual/owner-operator Step 2 — lanes + pricing collected via
+  // IndividualLaneRatesStep (manual / bulk / area-radius). Kept in a ref
+  // (not state) purely so submitTransporterData's closure always reads the
+  // latest value without needing to be re-created on every lane change.
+  const individualLaneRatesRef = useRef<LaneRate[]>(
+    (() => {
+      // A genuinely new signup (?new_session=1) must never surface the
+      // previous attempt's lanes, even transiently. This check has to happen
+      // right here in this same synchronous initializer — not in the
+      // onboardingMode state initializer below (which clears the other draft
+      // localStorage keys) or in a useEffect — because this ref's initializer
+      // runs first, on the very same render, before either of those. Reading
+      // sessionStorage before clearing it would load stale lanes into the
+      // ref once, and being a ref (not state), nothing would ever re-read it.
+      if (new URLSearchParams(window.location.search).get('new_session') === '1') {
+        sessionStorage.removeItem('transporter_individual_lane_rates');
+        return [];
+      }
+      try {
+        const saved = sessionStorage.getItem('transporter_individual_lane_rates');
+        return saved ? JSON.parse(saved) : [];
+      } catch { return []; }
+    })()
+  );
   const [currentStep, setCurrentStep] = useState(() => {
     if (new URLSearchParams(window.location.search).get('new_session') === '1') return 0;
     const saved = localStorage.getItem('transporter_onboarding_current_step');
@@ -494,6 +532,11 @@ export default function SignUpPage() {
       localStorage.removeItem('transporter_onboarding_current_step');
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_extracted_service');
+      // Individual/owner-operator Step 2 lanes (see individualLaneRatesRef's
+      // own initializer above, which already clears this key before this
+      // block ever runs — this removeItem is kept here too so the "start
+      // fresh" clearing logic for this key is visible in one place).
+      sessionStorage.removeItem('transporter_individual_lane_rates');
       // None of these are scoped to a particular transporter/GST — they're
       // just whatever the last session (possibly a different company) left
       // behind. AddPrice.tsx falls back to transporter_extracted_price_rate
@@ -528,6 +571,13 @@ export default function SignUpPage() {
     hasPricingData: boolean;
   }
   const [aiSummaryData, setAiSummaryData] = useState<AiSummaryData | null>(null);
+
+  // Business (GST-backed company) vs Individual (owner-operator, no GST) —
+  // mirrors the shipper signup's "I AM A" toggle. Individual drops the GST
+  // field/lookup and the merged Company Contact Name field in favour of
+  // separate First/Last Name inputs; Logistics Network, Employee Details,
+  // Pincodes Served and Fleet Size stay the same for both.
+  const [accountType, setAccountType] = useState<'business' | 'individual'>('business');
 
   // Pre-checked by default — unticking blocks "Next". Clicking "Terms & Conditions"
   // opens TermsModal; never a forced full-page gate.
@@ -643,6 +693,31 @@ export default function SignUpPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.phone, formData.whatsapp, sameAsPhone]);
+
+  // Individual mode collects First/Last Name directly instead of the merged
+  // Company Contact Name field — keep companyContactName in sync from them so
+  // submitTransporterData's existing first/last-split logic (built for the
+  // Business merged field) still works unchanged for Individual signups.
+  useEffect(() => {
+    if (accountType !== 'individual') return;
+    const merged = [formData.firstName, formData.lastName].filter(Boolean).join(' ').trim();
+    setFormData(prev => (prev.companyContactName === merged ? prev : { ...prev, companyContactName: merged }));
+  }, [accountType, formData.firstName, formData.lastName]);
+
+  // Switching to Individual clears GST (and anything the GST lookup already
+  // filled in) — an individual account has no GSTIN to autofill from. Logistics
+  // Network is left as-is (unlocked) — an individual/owner-operator can still
+  // be a franchise partner of a courier network, same as Business. Company
+  // logo and Employee Details still don't apply to an individual, so those
+  // stay cleared/collapsed.
+  const handleSwitchToIndividual = () => {
+    setAccountType('individual');
+    setFormData(prev => ({ ...prev, gstNo: '' }));
+    setErrors(prev => ({ ...prev, gstNo: undefined, companyContactName: undefined }));
+    setShowLogoUpload(false);
+    setLogoFile(null);
+    setLogoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+  };
 
   const navigate = useNavigate();
 
@@ -1487,7 +1562,7 @@ export default function SignUpPage() {
       }
     }
 
-    if (id === 'companyContactName' || id === 'employeeName') {
+    if (id === 'companyContactName' || id === 'employeeName' || id === 'firstName' || id === 'lastName') {
       value = value.replace(/[^a-zA-Z\s]/g, '');
     }
 
@@ -1525,6 +1600,12 @@ export default function SignUpPage() {
       } else {
         setErrors(prev => ({ ...prev, password: undefined }));
       }
+    }
+
+    if (id === 'transporterName') {
+      // Letters and spaces only (matches every other name-type field in this
+      // form, e.g. firstName/companyContactName), capped at 30 chars.
+      value = value.replace(/[^a-zA-Z\s]/g, '').slice(0, 30);
     }
 
     if (id === 'gstNo') {
@@ -1686,13 +1767,15 @@ export default function SignUpPage() {
       }
     }
 
-    // Email validation
+    // Email validation — optional for Individual (owner-operators mostly sign
+    // up via phone); still validated for format when they do provide one.
+    // Business accounts keep it required.
     const emailLower = data.email.toLowerCase();
     const hasSpace = /\s/.test(data.email);
     const validDomain = /\.(com|co|in|net|org|edu|gov|mil|us|info|biz)(\.[a-z]{2})?$/i.test(emailLower);
 
     if (!data.email) {
-      newErrors.email = "Email is required";
+      if (accountType === 'business') newErrors.email = "Email is required";
     } else if (hasSpace) {
       newErrors.email = "Email cannot contain spaces";
     } else if (/[^a-zA-Z0-9@.]/.test(data.email)) {
@@ -1726,10 +1809,12 @@ export default function SignUpPage() {
       newErrors.phone = "Phone must be a valid Indian mobile number starting with 6, 7, 8 or 9";
     }
 
-    // GST validation
-    const gstError = validateGST(data.gstNo);
-    if (gstError) {
-      newErrors.gstNo = gstError;
+    // GST validation — Individual accounts have no GSTIN at all.
+    if (accountType === 'business') {
+      const gstError = validateGST(data.gstNo);
+      if (gstError) {
+        newErrors.gstNo = gstError;
+      }
     }
 
     // Address validation (word count check)
@@ -1743,10 +1828,26 @@ export default function SignUpPage() {
     if (!data.stateName) newErrors.stateName = "State is required";
     if (!/^\d{6}$/.test(data.pincode)) newErrors.pincode = "Enter a valid 6-digit pincode";
 
-    if (!data.companyContactName.trim()) {
-      newErrors.companyContactName = "Company contact name is required";
-    } else if (!/^[a-zA-Z\s]+$/.test(data.companyContactName)) {
-      newErrors.companyContactName = "Contact name can only contain letters";
+    if (accountType === 'business') {
+      if (!data.companyContactName.trim()) {
+        newErrors.companyContactName = "Company contact name is required";
+      } else if (!/^[a-zA-Z\s]+$/.test(data.companyContactName)) {
+        newErrors.companyContactName = "Contact name can only contain letters";
+      }
+    } else {
+      if (!data.firstName.trim()) {
+        newErrors.firstName = "First name is required";
+      } else if (!/^[a-zA-Z\s]+$/.test(data.firstName)) {
+        newErrors.firstName = "First name can only contain letters";
+      }
+      if (data.lastName && !/^[a-zA-Z\s]+$/.test(data.lastName)) {
+        newErrors.lastName = "Last name can only contain letters";
+      }
+      if (!data.transporterName.trim()) {
+        newErrors.transporterName = "Transporter name is required";
+      } else if (!/^[a-zA-Z\s]+$/.test(data.transporterName)) {
+        newErrors.transporterName = "Transporter name can only contain letters";
+      }
     }
 
     // WhatsApp validation
@@ -1780,17 +1881,20 @@ export default function SignUpPage() {
       newErrors.employeeAddress = "Employee office address cannot exceed 200 characters";
     }
 
-    // Trucks validation
-    const trucksNum = Number(data.numTrucks);
-    if (!data.numTrucks) {
-      newErrors.numTrucks = "Number of trucks is required";
-    } else if (trucksNum <= 0) {
-      newErrors.numTrucks = "Enter valid number of trucks";
-    } else if (trucksNum > 10000) {
-      newErrors.numTrucks = "Total Fleet Size cannot exceed 10000";
-    }
+    // Trucks / pincodes-served validation — Business-only. Individual/owner-
+    // operators no longer collect these on Step 1 (see field removal above).
+    if (accountType === 'business') {
+      const trucksNum = Number(data.numTrucks);
+      if (!data.numTrucks) {
+        newErrors.numTrucks = "Number of trucks is required";
+      } else if (trucksNum <= 0) {
+        newErrors.numTrucks = "Enter valid number of trucks";
+      } else if (trucksNum > 10000) {
+        newErrors.numTrucks = "Total Fleet Size cannot exceed 10000";
+      }
 
-    if (!data.pincodesServedRange) newErrors.pincodesServedRange = "Select number of pincodes served";
+      if (!data.pincodesServedRange) newErrors.pincodesServedRange = "Select number of pincodes served";
+    }
 
     setErrors(newErrors);
     return newErrors;
@@ -1804,14 +1908,15 @@ export default function SignUpPage() {
     }
     const newErrors = validateData(formData);
 
-    // companyName/address/stateName aren't collected on this page — they're
+    // address/stateName/pincode aren't collected on this page — they're
     // auto-filled by the GST/pincode lookups, with a missing-fields safety net
-    // right before final submit. Don't block Page 1 on them. pincode joins this
-    // list now too — it's no longer a visible input (auto-extracted from the
-    // GST-fetched address instead), so there's nothing on this page for the
-    // user to fix if extraction comes up short; it gets the same missing-fields
-    // safety net at final submit.
-    const { companyName, address, stateName, pincode, ...page1Errors } = newErrors;
+    // right before final submit. Don't block Page 1 on them. companyName IS now
+    // a visible, editable field on Page 1 for Business (auto-filled from GST
+    // but user-correctable), so it stays a blocking error there; Individual
+    // still has no companyName input, so it's excluded from blocking there too
+    // — same missing-fields safety net at final submit covers it.
+    const { address, stateName, pincode, ...rest } = newErrors;
+    const page1Errors = accountType === 'individual' ? (() => { const { companyName, ...r } = rest; return r; })() : rest;
 
     // Mark ALL fields as touched to display errors visually
     const allTouched: Record<string, boolean> = {};
@@ -1929,14 +2034,27 @@ export default function SignUpPage() {
       state: stateNameOverride || stateName,
       firstName: derivedFirstName,
       lastName: derivedLastName,
+      // Individual/owner-operator accounts never fill in `companyName` (Step 1
+      // only collects `transporterName` for them, GST-lookup autofill is
+      // Business-only) — fall back to transporterName so the backend's
+      // required-field check and the companyName-keyed Redis cache/model both
+      // have something non-empty to work with.
+      companyName: accountType === 'individual' ? (restOfData.transporterName || restOfData.companyName) : restOfData.companyName,
     };
 
     Object.entries(finalData).forEach(([key, value]) => {
       dataToSubmit.append(key, String(value));
     });
+    // Individual accounts skip GST lookup + office address entirely (see
+    // "Row 1 (Individual)" in the Step 1 JSX) — tell the backend so it doesn't
+    // 400 on gstNo/address/state/pincode/officeStart/officeEnd being blank.
+    dataToSubmit.append('accountType', accountType);
 
     dataToSubmit.append('zones', JSON.stringify(zones.filter(z => z.trim()))); // Send non-empty zones
     dataToSubmit.append('networks', JSON.stringify(networks && networks.length > 0 ? networks : ['independent']));
+    // Individual/owner-operator lanes + pricing from Step 2 (IndividualLaneRatesStep).
+    // Empty array for Business accounts — harmless no-op on that side.
+    dataToSubmit.append('individualLaneRates', JSON.stringify(individualLaneRatesRef.current));
 
     if (file) {
       dataToSubmit.append('sheet', file);
@@ -1973,6 +2091,11 @@ export default function SignUpPage() {
       sessionStorage.setItem("zones", JSON.stringify(zones));
       sessionStorage.setItem("transporter_signup_email", formData.email);
       sessionStorage.setItem("transporter_signup_phone", formData.phone);
+      // Read by VerifyOtpPage's Back button — individual/owner-operator
+      // accounts skip straight from Delivery Areas to OTP verification
+      // (no Price Configuration step exists for them), so Back from there
+      // needs to know to return to signup details, not to /addprice.
+      sessionStorage.setItem("transporter_signup_account_type", accountType);
 
       // Clear draft localStorage items upon success
       localStorage.removeItem('transporter_onboarding_form_data');
@@ -1986,7 +2109,11 @@ export default function SignUpPage() {
       // details were lost" even though everything actually succeeded.
       localStorage.removeItem('transporter_pending_creation');
 
-      navigate('/addprice');
+      // Individual/owner-operator accounts have no rate matrix / Price
+      // Configuration to fill in — Delivery Areas' lane prices ARE their
+      // pricing — so they go straight to OTP verification instead of
+      // /addprice, which only Business accounts need.
+      navigate(accountType === 'individual' ? '/transporter-verify-otp' : '/addprice');
     } catch (e: any) {
       const message = e.response?.data?.message || e.message || "An unknown error occurred.";
       toast.error(message, { id: toastId });
@@ -2270,22 +2397,48 @@ export default function SignUpPage() {
 
                 <div className="col-span-1 lg:col-span-5 p-5 sm:p-6 flex flex-col">
                   <div className="mb-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0 flex items-baseline gap-2">
+                    {/* Single row, three columns: heading (left) / 1-2-3 step indicator
+                        (center) / Business-Individual toggle (right). GST-autofill
+                        subtitle sits on its own line below. Switching to Individual
+                        clears any entered GST and swaps the merged Company Contact Name
+                        field for First/Last Name below. */}
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">
                         Create Your Transporter Account
-                        <span className="text-xs font-normal text-stone-400">(Fill GST to autofill details)</span>
                       </h2>
 
-                      {/* Stepper, top-right — Log In button removed per request */}
-                      <div className="hidden sm:flex items-center">
+                      <div className="flex items-center justify-center flex-1 min-w-[120px]">
                         {renderStepper(0)}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">I Am A</p>
+                        <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setAccountType('business')}
+                            className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${
+                              accountType === 'business' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 hover:text-stone-700'
+                            }`}
+                          >
+                            Business
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSwitchToIndividual}
+                            className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${
+                              accountType === 'individual' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 hover:text-stone-700'
+                            }`}
+                          >
+                            Individual
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Same stepper, dropped to its own centered row when there isn't room above */}
-                    <div className="flex sm:hidden items-center justify-center mt-2">
-                      {renderStepper(0)}
-                    </div>
+                    <p className="text-xs font-normal text-stone-400 mt-1">
+                      {accountType === 'business' ? '(Fill GST to autofill details)' : '(Owner-operator, no GST needed)'}
+                    </p>
                   </div>
 
                   <form className="space-y-3" onSubmit={handleNextStep} noValidate>
@@ -2296,7 +2449,7 @@ export default function SignUpPage() {
                         formData.address stay in state either way (still submitted,
                         still used by the pincode fallback effect) — this is purely how
                         they're displayed. */}
-                    {(formData.companyName || formData.address) && (
+                    {accountType === 'business' && (formData.companyName || formData.address) && (
                       <div className="flex items-start gap-2.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3.5 py-2.5">
                         <CheckCircle2 className="w-[18px] h-[18px] text-orange-600 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
@@ -2309,179 +2462,272 @@ export default function SignUpPage() {
                         </div>
                       </div>
                     )}
-                    {touched.pincode && errors.pincode && (
+                    {accountType === 'business' && touched.pincode && errors.pincode && (
                       <p className="-mt-1 text-xs text-red-600">Couldn't detect a pincode in the company address — {errors.pincode}</p>
                     )}
 
-                    {/* Row 1: GST Number — one field within the standard 3-col grid
-                        (not full-width) so it lines up with the field rows below.
-                        Office Pincode no longer has its own input — it's
-                        auto-populated by the GST lookup (gstLookup effect below sets
-                        formData.pincode from data.pincode directly), with a
-                        regex-extraction fallback from the address text if the lookup
-                        ever omits it (see effect below). */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-                      <div className="w-full">
-                        <label htmlFor="gstNo" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
-                          GST Number<span className="text-red-500 ml-1">*</span>
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
-                            <Hash size={16} />
-                          </span>
-                          <input
-                            id="gstNo"
-                            value={formData.gstNo}
-                            onChange={handleFormChange}
-                            onFocus={() => setGstFocused(true)}
-                            onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
-                            onKeyDown={handleEnterToNext('companyContactName')}
-                            required
-                            placeholder="GST Number"
-                            className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-                            bg-white text-slate-900 placeholder:text-stone-400
-                            focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-                            ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
-                            aria-invalid={!!(touched.gstNo && errors.gstNo)}
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                            {gstLookup.status === 'loading' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
-                            {gstLookup.status === 'success' && !gstLookup.showConflictPanel && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                            {gstLookup.status === 'failed' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
-                            {gstLookup.status === 'invalid' && <XCircle className="w-4 h-4 text-red-400" />}
-                          </span>
-                        </div>
-                        {touched.gstNo && errors.gstNo && (
-                          <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
-                        )}
-                        {gstLookup.status === 'invalid' && (
-                          <p className="mt-1 text-[10.5px] text-red-500">Invalid GSTIN format</p>
-                        )}
-                        {gstLookup.status === 'loading' && (
-                          <p className="mt-1 text-[10.5px] text-amber-600">Looking up…</p>
-                        )}
-                        {gstLookup.successMessage && (
-                          <p className="mt-1 text-[10.5px] text-green-600">{gstLookup.successMessage}</p>
-                        )}
-                        {gstLookup.errorMessage && (
-                          <p className="mt-1 text-[10.5px] text-orange-500">{gstLookup.errorMessage}</p>
-                        )}
-                        {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
-                          <GSTConflictPanel
-                            conflicts={gstLookup.conflicts}
-                            onApply={handleConflictApply}
-                            onKeep={gstLookup.dismissConflictPanel}
-                          />
-                        )}
-                      </div>
-                      <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
-                      {/* Third slot: logistics network(s) / franchise umbrella(s) (display-only).
-                          Not required — defaults to "Independent". Tick-wise multi-select: a
-                          transporter can belong to more than one network at once. When "Other"
-                          is ticked, a free-text input reveals directly below within this
-                          same grid cell so the row layout stays intact. */}
-                      <div className="w-full">
-                        <NetworkMultiSelect
-                          id="networks"
-                          label="Logistics Network"
-                          icon={<Network size={16} />}
-                          options={NETWORK_OPTIONS}
-                          value={formData.networks}
-                          onChange={(next) => setFormData(prev => ({ ...prev, networks: next }))}
-                        />
-                        <AnimatePresence>
-                          {formData.networks.includes('other') && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="mt-2 overflow-hidden"
-                            >
-                              <InputField
-                                id="networkOther"
-                                label="Network Name"
-                                icon={<Building size={16} />}
-                                placeholder="Enter your network / franchise name"
-                                maxLength={40}
-                                value={formData.networkOther}
+                    {accountType === 'business' ? (
+                      <>
+                        {/* Row 1 (Business): GST Number + Set Password + Logistics Network.
+                            Office Pincode no longer has its own input — it's auto-populated
+                            by the GST lookup (gstLookup effect below sets formData.pincode
+                            from data.pincode directly), with a regex-extraction fallback from
+                            the address text if the lookup ever omits it (see effect below). */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                          <div className="w-full">
+                            <label htmlFor="gstNo" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+                              GST Number<span className="text-red-500 ml-1">*</span>
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
+                                <Hash size={16} />
+                              </span>
+                              <input
+                                id="gstNo"
+                                value={formData.gstNo}
                                 onChange={handleFormChange}
-                                onBlur={handleBlur}
-                                error={touched.networkOther ? errors.networkOther : undefined}
+                                onFocus={() => setGstFocused(true)}
+                                onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
+                                onKeyDown={handleEnterToNext('companyName')}
+                                required
+                                placeholder="GST Number"
+                                className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
+                                bg-white text-slate-900 placeholder:text-stone-400
+                                focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+                                ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
+                                aria-invalid={!!(touched.gstNo && errors.gstNo)}
                               />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                {gstLookup.status === 'loading' && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
+                                {gstLookup.status === 'success' && !gstLookup.showConflictPanel && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                                {gstLookup.status === 'failed' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
+                                {gstLookup.status === 'invalid' && <XCircle className="w-4 h-4 text-red-400" />}
+                              </span>
+                            </div>
+                            {touched.gstNo && errors.gstNo && (
+                              <p className="mt-1.5 text-xs text-red-600">{errors.gstNo}</p>
+                            )}
+                            {gstLookup.status === 'invalid' && (
+                              <p className="mt-1 text-[10.5px] text-red-500">Invalid GSTIN format</p>
+                            )}
+                            {gstLookup.status === 'loading' && (
+                              <p className="mt-1 text-[10.5px] text-amber-600">Looking up…</p>
+                            )}
+                            {gstLookup.successMessage && (
+                              <p className="mt-1 text-[10.5px] text-green-600">{gstLookup.successMessage}</p>
+                            )}
+                            {gstLookup.errorMessage && (
+                              <p className="mt-1 text-[10.5px] text-orange-500">{gstLookup.errorMessage}</p>
+                            )}
+                            {gstLookup.showConflictPanel && gstLookup.conflicts.length > 0 && (
+                              <GSTConflictPanel
+                                conflicts={gstLookup.conflicts}
+                                onApply={handleConflictApply}
+                                onKeep={gstLookup.dismissConflictPanel}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleSwitchToIndividual}
+                              className="mt-1.5 text-[11px] font-medium text-amber-600 hover:text-amber-700 underline underline-offset-2"
+                            >
+                              Don't have a GST? Switch to Individual
+                            </button>
+                          </div>
+                          {/* Company Name — auto-filled from the GST lookup (gstLookup effect
+                              below sets formData.companyName from data.legalName), but kept
+                              editable here in case the registered legal name needs a tweak. */}
+                          <InputField id="companyName" label="Company Name" icon={<Building size={16} />} maxLength={40} placeholder="Fetched from GST" value={formData.companyName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('companyContactName')} error={touched.companyName ? errors.companyName : undefined} required />
+                          {/* Third slot: logistics network(s) / franchise umbrella(s) — now
+                              mandatory (defaults to "Independent" so there's always a valid
+                              selection, but the field can no longer be skipped/blanked).
+                              Tick-wise multi-select: a transporter can belong to more than one
+                              network at once. When "Other" is ticked, a free-text input reveals
+                              directly below within this same grid cell so the row layout stays
+                              intact. */}
+                          <div className="w-full">
+                            <NetworkMultiSelect
+                              id="networks"
+                              label="Logistics Network"
+                              icon={<Network size={16} />}
+                              options={NETWORK_OPTIONS}
+                              value={formData.networks}
+                              onChange={(next) => setFormData(prev => ({ ...prev, networks: next }))}
+                              required
+                            />
+                            <AnimatePresence>
+                              {formData.networks.includes('other') && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="mt-2 overflow-hidden"
+                                >
+                                  <InputField
+                                    id="networkOther"
+                                    label="Network Name"
+                                    icon={<Building size={16} />}
+                                    placeholder="Enter your network / franchise name"
+                                    maxLength={40}
+                                    value={formData.networkOther}
+                                    onChange={handleFormChange}
+                                    onBlur={handleBlur}
+                                    error={touched.networkOther ? errors.networkOther : undefined}
+                                  />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
 
-                    {/* Row 2: Company Contact Name (merged first+last) + Company Phone + WhatsApp */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-                      <InputField id="companyContactName" label="Company Contact Name" icon={<Building size={16} />} value={formData.companyContactName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.companyContactName ? errors.companyContactName : undefined} required />
-                      <InputField id="phone" label="Company Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('companyContactName')(e); }} error={touched.phone ? errors.phone : undefined} required />
-                      <div className="w-full">
-                        <InputField
-                          id="whatsapp"
-                          label="WhatsApp Number"
-                          icon={<Phone size={16} />}
-                          type="tel"
-                          maxLength={10}
-                          placeholder="10-digit WhatsApp number"
-                          value={formData.whatsapp}
-                          onChange={(e) => {
-                            // Typing here directly stops auto-mirroring Mobile from this point on.
-                            if (sameAsPhone) setSameAsPhone(false);
-                            handleFormChange(e);
-                          }}
-                          onBlur={handleBlur}
-                          onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
-                          error={touched.whatsapp ? errors.whatsapp : undefined}
-                          required
-                        />
-                        <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer w-fit">
-                          <input
-                            type="checkbox"
-                            id="sameAsPhone"
-                            checked={sameAsPhone}
-                            onChange={(e) => setSameAsPhone(e.target.checked)}
-                            className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
-                          />
-                          Same as Mobile Number
-                        </label>
-                      </div>
-                    </div>
+                        {/* Row 2 (Business): Contact Person Name + Phone Number + WhatsApp Number */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                          <InputField id="companyContactName" label="Contact Person Name" icon={<Building size={16} />} value={formData.companyContactName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.companyContactName ? errors.companyContactName : undefined} required />
+                          <InputField id="phone" label="Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('companyContactName')(e); }} error={touched.phone ? errors.phone : undefined} required />
+                          <div className="w-full">
+                            <InputField
+                              id="whatsapp"
+                              label="WhatsApp Number"
+                              icon={<Phone size={16} />}
+                              type="tel"
+                              maxLength={10}
+                              placeholder="10-digit WhatsApp number"
+                              value={formData.whatsapp}
+                              onChange={(e) => {
+                                // Typing here directly stops auto-mirroring Mobile from this point on.
+                                if (sameAsPhone) setSameAsPhone(false);
+                                handleFormChange(e);
+                              }}
+                              onBlur={handleBlur}
+                              onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
+                              error={touched.whatsapp ? errors.whatsapp : undefined}
+                              required
+                            />
+                            <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer w-fit">
+                              <input
+                                type="checkbox"
+                                id="sameAsPhone"
+                                checked={sameAsPhone}
+                                onChange={(e) => setSameAsPhone(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                              />
+                              Same as Mobile Number
+                            </label>
+                          </div>
+                        </div>
 
-                    {/* Row 3: Email + Pincodes Served + Fleet Size */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-                      <InputField id="email" label="Email Address" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
-                      <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16} />} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
-                        <option value="">Select Range</option>
-                        <option value="500-1000">500 - 1,000</option>
-                        <option value="1000-5000">1,000 - 5,000</option>
-                        <option value="5000-10000">5,000 - 10,000</option>
-                        <option value="10000-20000">10,000 - 20,000</option>
-                        <option value="20000+">20,000+</option>
-                      </SelectField>
-                      {/* type="text" + inputMode="numeric" instead of type="number" — number
-                        inputs let the up/down arrow keys (and scroll-wheel-while-focused)
-                        silently increment/decrement the value, which a fleet-size field
-                        has no business supporting. Digits-only filtering already happens
-                        in handleFormChange. */}
-                      <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16} />} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
-                    </div>
+                        {/* Row 3 (Business): Email + Pincodes Served + Fleet Size */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                          <InputField id="email" label="Email Address" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
+                          <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16} />} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
+                            <option value="">Select Range</option>
+                            <option value="500-1000">500 - 1,000</option>
+                            <option value="1000-5000">1,000 - 5,000</option>
+                            <option value="5000-10000">5,000 - 10,000</option>
+                            <option value="10000-20000">10,000 - 20,000</option>
+                            <option value="20000+">20,000+</option>
+                          </SelectField>
+                          {/* type="text" + inputMode="numeric" instead of type="number" — number
+                            inputs let the up/down arrow keys (and scroll-wheel-while-focused)
+                            silently increment/decrement the value, which a fleet-size field
+                            has no business supporting. Digits-only filtering already happens
+                            in handleFormChange. */}
+                          <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16} />} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
+                        </div>
 
-                    {/* Company Logo (optional) — display-only branding shown wherever
-                        this transporter appears. Falls back to the selected network's
-                        logo, then an initials circle, if left empty. Collapsed by
-                        default: the upload UI stays hidden until the user opts in. */}
-                    {!showLogoUpload && !logoFile ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowLogoUpload(true)}
-                        className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
-                      >
-                        <Plus size={15} /> Add company logo <span className="text-stone-400 font-normal">(optional)</span>
-                      </button>
+                        {/* Row 4 (Business): Set Password + Company Logo (optional, collapsed)
+                            + Employee Details (optional, collapsed). The two "+ Add …" toggles
+                            sit inline with Password when collapsed; whichever is expanded
+                            renders its full panel below, spanning the row. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 items-start">
+                          <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
+                          <div className="w-full pt-6">
+                            {!showLogoUpload && !logoFile && (
+                              <button
+                                type="button"
+                                onClick={() => setShowLogoUpload(true)}
+                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                              >
+                                <Plus size={15} /> Add company logo <span className="text-stone-400 font-normal">(optional)</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="w-full pt-6">
+                            {!showEmployeeDetails && (
+                              <button
+                                type="button"
+                                onClick={() => setShowEmployeeDetails(true)}
+                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                              >
+                                <Plus size={15} /> Add employee details <span className="text-stone-400 font-normal">(optional)</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </>
                     ) : (
+                      <>
+                        {/* Row 1 (Individual): First Name + Last Name + Transporter Name.
+                            Transporter Name replaces Logistics Network here — an individual/
+                            owner-operator isn't part of a franchise network, they just need
+                            a name for their one-truck operation (letters/spaces only, 30 char max). */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                          <InputField id="firstName" label="First Name" icon={<Building size={16} />} value={formData.firstName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('lastName')} error={touched.firstName ? errors.firstName : undefined} required />
+                          <InputField id="lastName" label="Last Name (Optional)" icon={<Building size={16} />} value={formData.lastName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.lastName ? errors.lastName : undefined} />
+                          <InputField id="transporterName" label="Transporter Name" icon={<Truck size={16} />} maxLength={30} value={formData.transporterName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.transporterName ? errors.transporterName : undefined} required />
+                        </div>
+
+                        {/* Row 2 (Individual): Mobile Number + WhatsApp Number + Email (optional) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                          <InputField id="phone" label="Mobile Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('lastName')(e); }} error={touched.phone ? errors.phone : undefined} required />
+                          <div className="w-full">
+                            <InputField
+                              id="whatsapp"
+                              label="WhatsApp Number"
+                              icon={<Phone size={16} />}
+                              type="tel"
+                              maxLength={10}
+                              placeholder="10-digit WhatsApp number"
+                              value={formData.whatsapp}
+                              onChange={(e) => {
+                                // Typing here directly stops auto-mirroring Mobile from this point on.
+                                if (sameAsPhone) setSameAsPhone(false);
+                                handleFormChange(e);
+                              }}
+                              onBlur={handleBlur}
+                              onKeyDown={(e) => { handleEnterToNext('email')(e); handleBackspaceToPrev('phone')(e); }}
+                              error={touched.whatsapp ? errors.whatsapp : undefined}
+                              required
+                            />
+                            <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer w-fit">
+                              <input
+                                type="checkbox"
+                                id="sameAsPhone"
+                                checked={sameAsPhone}
+                                onChange={(e) => setSameAsPhone(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                              />
+                              Same as Mobile Number
+                            </label>
+                          </div>
+                          <InputField id="email" label="Email Address (Optional)" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} />
+                        </div>
+
+                        {/* Row 3 (Individual): Password only — Pincodes Served / Fleet Size
+                            don't apply to a one-truck owner-operator, removed entirely. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                          <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} error={touched.password ? errors.password : undefined} required />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Company Logo (optional) — display-only branding shown wherever this
+                        transporter appears. Falls back to the selected network's logo, then
+                        an initials circle, if left empty. Collapsed by default; the
+                        "+ Add company logo" trigger lives inline in Row 4 above — this only
+                        renders the expanded panel once the user opts in. Individual accounts
+                        have no company branding, so this is dropped entirely. */}
+                    {accountType === 'business' && (showLogoUpload || logoFile) && (
                     <div className="mt-2 rounded-[10px] border border-stone-200 bg-white p-3.5">
                       <div className="flex items-center justify-between mb-2">
                         <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
@@ -2538,24 +2784,39 @@ export default function SignUpPage() {
                     )}
 
                     {/* Employee Details — visually distinct sub-section, separate from the
-                        company-level contact fields above. "Same as company details"
-                        mirrors Name/Phone/Address from the Company Contact Name / Company
-                        Phone Number / Company Address fields above until unchecked. */}
+                        company-level contact fields above. "Same as company details" mirrors
+                        Name/Phone/Address from the Contact Person Name / Phone Number /
+                        Company Address fields above until unchecked. Business only —
+                        collapsed by default; the "+ Add employee details" trigger lives
+                        inline in Row 4 above, this only renders the expanded panel.
+                        Individual accounts have no separate on-ground employee, so this is
+                        dropped entirely. */}
+                    {accountType === 'business' && showEmployeeDetails && (
                     <div className="mt-2 rounded-[10px] border border-stone-200 bg-white p-3.5 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <h3 className="text-[12.5px] font-semibold text-stone-700 flex items-center gap-1.5">
                           <Building size={15} className="text-stone-400" /> Employee Details
                         </h3>
-                        <label htmlFor="employeeSameAsCompany" className="flex items-center gap-1.5 text-[11.5px] text-stone-500 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            id="employeeSameAsCompany"
-                            checked={employeeSameAsCompany}
-                            onChange={(e) => setEmployeeSameAsCompany(e.target.checked)}
-                            className="h-3.5 w-3.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
-                          />
-                          Same as company details
-                        </label>
+                        <div className="flex items-center gap-3">
+                          <label htmlFor="employeeSameAsCompany" className="flex items-center gap-1.5 text-[11.5px] text-stone-500 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              id="employeeSameAsCompany"
+                              checked={employeeSameAsCompany}
+                              onChange={(e) => setEmployeeSameAsCompany(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                            />
+                            Same as company details
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowEmployeeDetails(false)}
+                            className="text-stone-400 hover:text-stone-600 transition-colors"
+                            aria-label="Hide employee details"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
@@ -2607,6 +2868,7 @@ export default function SignUpPage() {
                         </p>
                       )}
                     </div>
+                    )}
 
                     <div className="pt-2">
                       <button type="submit" disabled={!termsAccepted} className="w-full h-11 inline-flex items-center justify-center gap-2 bg-amber-500 text-white text-[14px] font-semibold rounded-[9px] hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
@@ -2638,6 +2900,21 @@ export default function SignUpPage() {
                   </form>
                 </div>
               </div>
+            </motion.div>
+          ) : accountType === 'individual' ? (
+            // Individual/owner-operators skip the AI-document-extraction /
+            // manual-zone-matrix route entirely — they don't have a rate-card
+            // document to upload, just their own lanes + prices.
+            <motion.div key="individual-lanes" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+              <IndividualLaneRatesStep
+                onBack={() => setCurrentStep(0)}
+                initialLanes={individualLaneRatesRef.current}
+                onContinue={(lanes) => {
+                  individualLaneRatesRef.current = lanes;
+                  sessionStorage.setItem('transporter_individual_lane_rates', JSON.stringify(lanes));
+                  submitTransporterData();
+                }}
+              />
             </motion.div>
           ) : onboardingMode === 'selection' ? (
             <motion.div
