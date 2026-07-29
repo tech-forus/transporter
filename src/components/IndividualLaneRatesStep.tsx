@@ -722,6 +722,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹)</label>
             <input type="number" min={1} max={PRICE_MAX} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+            <p className="text-[11px] text-slate-400 mt-1">Limit ₹{PRICE_MAX} max</p>
           </div>
           <button
             type="button"
@@ -754,7 +755,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                       <th className="text-left p-2 font-bold text-slate-600">Origin</th>
                       <th className="text-left p-2 font-bold text-slate-600">Destination</th>
                       <th className="text-left p-2 font-bold text-slate-600">Vehicle Type</th>
-                      <th className="text-left p-2 font-bold text-slate-600">Price (₹)</th>
+                      <th className="text-left p-2 font-bold text-slate-600">Price (₹) — max {PRICE_MAX}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -904,6 +905,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹) — applied to every generated lane</label>
                   <input type="number" min={1} max={PRICE_MAX} value={areaPrice} onChange={(e) => setAreaPrice(e.target.value)} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <p className="text-[11px] text-slate-400 mt-1">Limit ₹{PRICE_MAX} max</p>
                 </div>
                 <p className="text-xs text-slate-500">
                   {areaOriginSelected.length} origin pincode(s) × {areaDestSelected.length} destination pincode(s) selected.
