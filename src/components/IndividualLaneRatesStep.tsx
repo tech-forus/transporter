@@ -611,8 +611,8 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-      <div className="space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
+      <div className="lg:col-span-7 space-y-5">
       {subTab === 'manual' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
           <div>
@@ -875,7 +875,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
 
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <button
           type="button"
           onClick={() => setLanesExpanded((prev) => !prev)}
