@@ -5,7 +5,7 @@ import axios from 'axios'
 import { Link } from 'react-router-dom'
 import {
   RefreshCw, Clock, MapPin, Package, IndianRupee, ArrowRight,
-  Sparkles, X, ShieldCheck, Zap,
+  Sparkles, X, ShieldCheck, Zap, Bell,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { API_BASE_URL } from '../config/apiConfig'
@@ -142,9 +142,14 @@ const Dashboard: React.FC = () => {
       )
 
       const { openBids, limitedBids, semiLimitedBids } = res.data.data
-      setOpenBids(openBids)
-      setLimitedBids(limitedBids)
-      setSemiLimitedBids(semiLimitedBids)
+      // The backend returns every matching bid regardless of whether its
+      // bidding window has already closed — filter those out here so a
+      // transporter with only stale/ended bids sees "no bids yet" instead
+      // of a list of things they can no longer act on.
+      const stillOpen = (bids: Bid[]) => bids.filter((b) => new Date(b.bidEndTime).getTime() > Date.now())
+      setOpenBids(stillOpen(openBids))
+      setLimitedBids(stillOpen(limitedBids))
+      setSemiLimitedBids(stillOpen(semiLimitedBids))
     } catch (err) {
       console.error(err)
       setError('Failed to fetch bids.')
@@ -157,6 +162,16 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) fetchBids()
   }, [isAuthenticated, user?._id])
+
+  // When this app is embedded in the freight-compare-frontend host (see
+  // TransporterSignupPage.tsx / TransporterFrameContext.tsx there), tell the
+  // parent a transporter is signed in so its Header can hide the shipper-
+  // facing LOGIN/SIGN UP buttons instead of showing them above this same
+  // transporter's own dashboard. Harmless no-op when opened standalone
+  // (window.parent === window, or no listener attached).
+  useEffect(() => {
+    window.parent.postMessage({ type: isAuthenticated ? 'transporter_authenticated' : 'transporter_logged_out' }, '*')
+  }, [isAuthenticated])
 
   if (!isAuthenticated) {
     return (
@@ -358,9 +373,21 @@ const Dashboard: React.FC = () => {
         </header>
 
         <main>
-          <Section title="Open Bids" bids={openBids} />
-          <Section title="Limited Bids" bids={limitedBids} />
-          <Section title="Semi‑Limited Bids" bids={semiLimitedBids} />
+          {openBids.length + limitedBids.length + semiLimitedBids.length === 0 ? (
+            <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+                <Bell size={20} />
+              </div>
+              <p className="text-slate-700 font-semibold">No bids yet</p>
+              <p className="text-sm text-slate-400 mt-1">We'll notify you once one is added.</p>
+            </div>
+          ) : (
+            <>
+              <Section title="Open Bids" bids={openBids} />
+              <Section title="Limited Bids" bids={limitedBids} />
+              <Section title="Semi‑Limited Bids" bids={semiLimitedBids} />
+            </>
+          )}
         </main>
       </div>
     </div>

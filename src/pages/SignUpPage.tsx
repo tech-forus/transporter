@@ -2112,8 +2112,25 @@ export default function SignUpPage() {
       // Individual/owner-operator accounts have no rate matrix / Price
       // Configuration to fill in — Delivery Areas' lane prices ARE their
       // pricing — so they go straight to OTP verification instead of
-      // /addprice, which only Business accounts need.
-      navigate(accountType === 'individual' ? '/transporter-verify-otp' : '/addprice');
+      // /addprice, which only Business accounts need. AddPrice.tsx's own
+      // final submit is normally what fires /send-otp before navigating to
+      // VerifyOtpPage (see its handleFinalSubmit) — individual accounts
+      // skip that screen entirely, so this is now the only place that ever
+      // sends their OTP; without it VerifyOtpPage shows "OTP sent" but none
+      // ever went out.
+      if (accountType === 'individual') {
+        try {
+          await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, {
+            email: formData.email || undefined,
+            phone: formData.phone || undefined,
+          });
+        } catch (otpErr: any) {
+          console.warn('[signup] initial send-otp failed, VerifyOtpPage will retry on Resend:', otpErr?.response?.data?.message || otpErr.message);
+        }
+        navigate('/transporter-verify-otp');
+      } else {
+        navigate('/addprice');
+      }
     } catch (e: any) {
       const message = e.response?.data?.message || e.message || "An unknown error occurred.";
       toast.error(message, { id: toastId });
