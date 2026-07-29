@@ -29,10 +29,18 @@ export default function VerifyOtpPage() {
       return;
     }
     startCountdown();
-    // If only a phone number is on hand (no email — this screen still needs
-    // to show *some* code, entered via the email-style field above), this is
-    // the first send for this page, so it still needs to be fired here.
-    if (!email && phone) sendOtp();
+    // Deliberately does NOT auto-send an OTP here. Every path that lands on
+    // this page already sent one before navigating — AddPrice.tsx's final
+    // submit (business accounts) and SignUpPage.tsx's submitTransporterData
+    // (individual accounts, whether or not they have an email) both call
+    // /send-otp first. This used to also fire sendOtp() here for the no-
+    // email case "just in case", but since BOTH callers now always send
+    // first, that was a genuine second send generating a DIFFERENT code
+    // moments after the first — whichever channel's message arrived second
+    // silently invalidated the one the user was about to type, surfacing as
+    // "Invalid or expired OTP" on an objectively correct code. (React
+    // StrictMode's dev-mode double-effect-invocation made this worse by
+    // sometimes firing even this single call twice on its own.)
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
