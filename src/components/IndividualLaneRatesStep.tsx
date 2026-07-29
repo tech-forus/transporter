@@ -136,6 +136,14 @@ interface IndividualLaneRatesStepProps {
   onBack: () => void;
   onContinue: (lanes: LaneRate[]) => void;
   initialLanes?: LaneRate[];
+  // Whether the parent's onContinue handler (submitTransporterData) is
+  // currently in flight — disables Continue so a fast double-click can't
+  // fire two overlapping submits. Each submit generates its own OTP
+  // server-side, so a duplicate call silently overwrites the first code in
+  // Redis with a second one before the user has a chance to use it,
+  // surfacing as "Invalid OTP" even though the code they typed was correct
+  // a moment earlier.
+  submitting?: boolean;
 }
 
 const MAPPLS_API_KEY = (import.meta as any).env?.VITE_MAPPLS_API_KEY || '';
@@ -286,7 +294,7 @@ async function searchPlace(query: string): Promise<{ lat: number; lng: number; l
   return { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon), label: hit.display_name };
 }
 
-export default function IndividualLaneRatesStep({ onBack, onContinue, initialLanes }: IndividualLaneRatesStepProps) {
+export default function IndividualLaneRatesStep({ onBack, onContinue, initialLanes, submitting = false }: IndividualLaneRatesStepProps) {
   const [subTab, setSubTab] = useState<'manual' | 'bulk' | 'area'>('area');
   const [lanes, setLanes] = useState<LaneRate[]>(initialLanes || []);
   // Collapsed by default once a big batch (bulk/area-radius add) would
@@ -653,10 +661,10 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
         <button
           type="button"
           onClick={() => onContinue(lanes)}
-          disabled={!canContinue}
+          disabled={!canContinue || submitting}
           className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-semibold text-sm rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
-          Continue <ArrowRight size={15} />
+          {submitting ? <><Loader2 size={15} className="animate-spin" /> Submitting...</> : <>Continue <ArrowRight size={15} /></>}
         </button>
       </div>
 

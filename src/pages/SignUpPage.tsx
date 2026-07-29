@@ -2086,7 +2086,18 @@ export default function SignUpPage() {
       await axios.post(`${API_BASE_URL}/api/transporter/auth/addtransporter`, dataToSubmit, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      toast.success('Transporter added successfully!', { id: toastId });
+      // Individual accounts aren't actually done yet at this point — they
+      // still have to verify OTP before they're logged in, so claiming
+      // success here was misleading (and confusing right after an OTP
+      // mismatch, which looks like the "success" toast lied). VerifyOtpPage's
+      // own "Verified! Welcome aboard." toast is the real completion signal
+      // for them. Business accounts still go on to fill in pricing at
+      // /addprice, a genuinely separate save step, so their toast stays.
+      if (accountType === 'individual') {
+        toast.dismiss(toastId);
+      } else {
+        toast.success('Transporter added successfully!', { id: toastId });
+      }
       sessionStorage.setItem("companyName", finalData.companyName);
       sessionStorage.setItem("zones", JSON.stringify(zones));
       sessionStorage.setItem("transporter_signup_email", formData.email);
@@ -2926,7 +2937,9 @@ export default function SignUpPage() {
               <IndividualLaneRatesStep
                 onBack={() => setCurrentStep(0)}
                 initialLanes={individualLaneRatesRef.current}
+                submitting={isLoading}
                 onContinue={(lanes) => {
+                  if (isLoading) return; // guards a fast double-click racing two submits (see IndividualLaneRatesStep's `submitting` prop doc)
                   individualLaneRatesRef.current = lanes;
                   sessionStorage.setItem('transporter_individual_lane_rates', JSON.stringify(lanes));
                   submitTransporterData();
