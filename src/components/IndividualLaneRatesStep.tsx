@@ -1,0 +1,637 @@
+// Step 2 of Individual/owner-operator signup — collects the lanes (origin →
+// destination pincode), price, and vehicle type this one-truck transporter
+// services. Three input methods, each producing the same LaneRate[] shape:
+//   1. Manual   — one lane at a time (mirrors AddIndividualFtlTransporter.tsx
+//                 in the shipper-facing freight-compare-frontend app).
+//   2. Bulk     — upload an Excel/CSV sheet of pincode pairs; if the sheet has
+//                 no Price column, the price is entered inline per-row before
+//                 continuing.
+//   3. Area     — drop a pin on a map, get every pincode within 5km computed
+//                 offline (free, instant) against pincode_centroids.json via
+//                 the Haversine formula, then apply one price to the batch.
+//                 If VITE_MAPPLS_API_KEY is configured, the same click is also
+//                 checked against the Mappls Nearby API and the API's pincode
+//                 set wins on any disagreement (Mappls verification is
+//                 optional/best-effort — the offline calc always works even
+//                 without a key).
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import * as XLSX from 'xlsx';
+import toast from 'react-hot-toast';
+import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import {
+  MapPin, Truck, IndianRupee, PenLine, UploadCloud, MapIcon, Loader2,
+  CheckCircle2, Trash2, ArrowLeft, ArrowRight, Search, ChevronDown,
+} from 'lucide-react';
+
+// Leaflet's default marker icons reference image paths that don't survive
+// bundling — point them at the CDN copies, the standard workaround.
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+// Same canonical vehicle classes and "(up to X kg)" labeling as freight-compare-
+// frontend's Add Vendor -> Individual FTL Transporter dropdown (src/config/
+// ftlVehicleTypes.ts + AddIndividualFtlTransporter.tsx) — kept as a plain list
+// here since this app doesn't run the Wheelseye pricing engine, just needs the
+// dropdown to read identically to the rest of the product.
+const VEHICLE_TYPES: { value: string; maxCapacityKg: number }[] = [
+  { value: 'Champion', maxCapacityKg: 665 },
+  { value: 'Tata Ace', maxCapacityKg: 1000 },
+  { value: 'Pickup', maxCapacityKg: 1200 },
+  { value: '10 ft Truck', maxCapacityKg: 1500 },
+  { value: 'Eicher 14 ft', maxCapacityKg: 2000 },
+  { value: '17 ft Truck', maxCapacityKg: 4000 },
+  { value: 'Eicher 19 ft', maxCapacityKg: 7000 },
+  { value: 'Eicher 20 ft', maxCapacityKg: 10000 },
+  { value: 'Container 32 ft MXL', maxCapacityKg: 18000 },
+  { value: '22 ft Container', maxCapacityKg: 20000 },
+  { value: '40 ft Container', maxCapacityKg: 28000 },
+];
+
+export const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((v) => v.value);
+
+function vehicleLabel(value: string): string {
+  const v = VEHICLE_TYPES.find((t) => t.value === value);
+  return v ? `${v.value} (up to ${v.maxCapacityKg.toLocaleString('en-IN')} kg)` : value;
+}
+
+export interface LaneRate {
+  originPincode: string;
+  destinationPincode: string;
+  price: number;
+  vehicleType: string;
+  source: 'manual' | 'bulk' | 'area';
+}
+
+interface IndividualLaneRatesStepProps {
+  onBack: () => void;
+  onContinue: (lanes: LaneRate[]) => void;
+  initialLanes?: LaneRate[];
+}
+
+const MAPPLS_API_KEY = (import.meta as any).env?.VITE_MAPPLS_API_KEY || '';
+const RADIUS_KM = 5;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+let centroidCache: Map<string, { lat: number; lng: number }> | null = null;
+async function loadCentroids(): Promise<Map<string, { lat: number; lng: number }>> {
+  if (centroidCache) return centroidCache;
+  const res = await fetch('/pincode_centroids.json', { cache: 'force-cache' });
+  const data: Array<{ pincode: string; lat: number; lng: number }> = await res.json();
+  const map = new Map<string, { lat: number; lng: number }>();
+  for (const e of data) if (e.pincode) map.set(e.pincode, { lat: e.lat, lng: e.lng });
+  centroidCache = map;
+  return map;
+}
+
+// Best-effort Mappls Nearby verification — silently returns null (offline
+// result stands unchanged) if no API key is configured or the call fails.
+// Per product decision: when Mappls DOES respond, its pincode set is trusted
+// over the offline Haversine set for any disagreement.
+async function verifyWithMappls(lat: number, lng: number): Promise<string[] | null> {
+  if (!MAPPLS_API_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://atlas.mappls.com/api/places/nearby/json?keywords=&refLocation=${lat},${lng}&radius=${RADIUS_KM * 1000}`,
+      { headers: { Authorization: `Bearer ${MAPPLS_API_KEY}` } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const pins: string[] = (data?.suggestedLocations || [])
+      .map((s: any) => String(s?.pincode || '').replace(/\D/g, ''))
+      .filter((p: string) => p.length === 6);
+    return pins.length > 0 ? Array.from(new Set(pins)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function ClickCapture({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: (e) => onPick(e.latlng.lat, e.latlng.lng) });
+  return null;
+}
+
+// Per-mode (origin/destination) picker result — one map now drives two of
+// these named result sets instead of rendering two separate <MapContainer>s.
+interface AreaModeState {
+  point: { lat: number; lng: number } | null;
+  nearbyPincodes: string[];
+  selected: Set<string>;
+  verifiedByMappls: boolean;
+  computing: boolean;
+}
+
+function emptyAreaModeState(): AreaModeState {
+  return { point: null, nearbyPincodes: [], selected: new Set(), verifiedByMappls: false, computing: false };
+}
+
+// Read-only-ish list of a mode's computed nearby pincodes with toggle
+// checkboxes — rendered twice in the right column (once per mode), each
+// reading/writing its own AreaModeState regardless of which mode is
+// currently active on the map.
+function PincodeResultList({
+  title,
+  state,
+  onToggle,
+}: {
+  title: string;
+  state: AreaModeState;
+  onToggle: (pincode: string) => void;
+}) {
+  return (
+    <div>
+      <h4 className="text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1"><MapPin size={12} /> {title}</h4>
+      {state.computing && (
+        <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Computing nearby pincodes...</p>
+      )}
+      {!state.computing && state.nearbyPincodes.length === 0 && (
+        <p className="text-xs text-slate-400 italic">Not picked yet — use the map on the left.</p>
+      )}
+      {!state.computing && state.nearbyPincodes.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <CheckCircle2 size={16} />
+            {state.selected.size} of {state.nearbyPincodes.length} selected (within {RADIUS_KM}km)
+            {state.verifiedByMappls && <span className="text-xs font-normal text-emerald-600 ml-1">(verified via Mappls)</span>}
+          </div>
+          <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+            {state.nearbyPincodes.map((p) => (
+              <button
+                type="button"
+                key={p}
+                onClick={() => onToggle(p)}
+                className={`px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                  state.selected.has(p)
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-slate-100 text-slate-400 border-slate-200 line-through'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Free-text place search — OSM Nominatim's /search endpoint (same free,
+// no-key service already used for BookNowModal's reverse-geocode), biased to
+// India. Returns the first match's coordinates, or null if nothing matched.
+async function searchPlace(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=in&limit=1&q=${encodeURIComponent(query)}`,
+    { headers: { Accept: 'application/json' } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  const hit = data?.[0];
+  if (!hit) return null;
+  return { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon), label: hit.display_name };
+}
+
+export default function IndividualLaneRatesStep({ onBack, onContinue, initialLanes }: IndividualLaneRatesStepProps) {
+  const [subTab, setSubTab] = useState<'manual' | 'bulk' | 'area'>('manual');
+  const [lanes, setLanes] = useState<LaneRate[]>(initialLanes || []);
+  // Collapsed by default once a big batch (bulk/area-radius add) would
+  // otherwise dominate the screen; small lists stay open since there's
+  // nothing to hide.
+  const [lanesExpanded, setLanesExpanded] = useState<boolean>((initialLanes?.length || 0) <= 5);
+
+  // --- Manual tab state ---
+  const [manualOrigin, setManualOrigin] = useState('');
+  const [manualDest, setManualDest] = useState('');
+  const [manualPrice, setManualPrice] = useState('');
+  const [manualVehicle, setManualVehicle] = useState('');
+
+  const addManualLane = () => {
+    const origin = manualOrigin.replace(/\D/g, '').slice(0, 6);
+    const dest = manualDest.replace(/\D/g, '').slice(0, 6);
+    const price = Number(manualPrice);
+    if (origin.length !== 6) return toast.error('Enter a valid 6-digit origin pincode');
+    if (dest.length !== 6) return toast.error('Enter a valid 6-digit destination pincode');
+    if (!manualVehicle) return toast.error('Select a vehicle type');
+    if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
+
+    setLanes((prev) => [...prev, { originPincode: origin, destinationPincode: dest, price, vehicleType: manualVehicle, source: 'manual' }]);
+    setManualOrigin('');
+    setManualDest('');
+    setManualPrice('');
+    toast.success('Lane added');
+  };
+
+  // --- Bulk tab state ---
+  const [bulkRows, setBulkRows] = useState<Array<{ originPincode: string; destinationPincode: string; price: string; vehicleType: string }>>([]);
+  const [bulkFileName, setBulkFileName] = useState('');
+
+  const handleBulkFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkFileName(file.name);
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    const parsed = rows.map((r) => {
+      const originPincode = String(r['Origin Pincode'] ?? r['Origin'] ?? r['origin'] ?? '').replace(/\D/g, '').slice(0, 6);
+      const destinationPincode = String(r['Destination Pincode'] ?? r['Destination'] ?? r['destination'] ?? '').replace(/\D/g, '').slice(0, 6);
+      const price = String(r['Price'] ?? r['price'] ?? r['Charge'] ?? '').replace(/[^0-9.]/g, '');
+      const vehicleType = String(r['Vehicle Type'] ?? r['Vehicle'] ?? r['vehicle'] ?? '');
+      return { originPincode, destinationPincode, price, vehicleType };
+    }).filter((r) => r.originPincode.length === 6 && r.destinationPincode.length === 6);
+
+    if (parsed.length === 0) {
+      toast.error('No valid rows found — expected columns like "Origin Pincode", "Destination Pincode", "Price", "Vehicle Type"');
+      return;
+    }
+    setBulkRows(parsed);
+    const missingPrice = parsed.filter((r) => !r.price).length;
+    if (missingPrice > 0) {
+      toast(`${missingPrice} row(s) have no price — fill them in below before continuing`, { icon: '✏️' });
+    } else {
+      toast.success(`${parsed.length} lanes loaded`);
+    }
+  };
+
+  const updateBulkRow = (idx: number, field: 'price' | 'vehicleType', value: string) => {
+    setBulkRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  };
+
+  const commitBulkRows = () => {
+    const incomplete = bulkRows.filter((r) => !r.price || Number(r.price) <= 0 || !r.vehicleType);
+    if (incomplete.length > 0) {
+      toast.error(`${incomplete.length} row(s) still need a price and vehicle type`);
+      return;
+    }
+    const newBulkLanes: LaneRate[] = bulkRows.map((r) => ({
+      originPincode: r.originPincode,
+      destinationPincode: r.destinationPincode,
+      price: Number(r.price),
+      vehicleType: r.vehicleType,
+      source: 'bulk' as const,
+    }));
+    // A fresh upload replaces only the lanes that came from a PRIOR bulk
+    // upload — manually-added and area-drawn lanes (different `source`
+    // values) are left untouched. Without this filter, re-uploading a file
+    // stacked the new rows on top of the old ones forever.
+    setLanes((prev) => [...prev.filter((l) => l.source !== 'bulk'), ...newBulkLanes]);
+    setBulkRows([]);
+    setBulkFileName('');
+    toast.success('Bulk lanes added');
+  };
+
+  // --- Area/radius tab state ---
+  // One shared map/search picker drives two named result sets (origin,
+  // destination) via a mode toggle — switching modes never clears the other
+  // mode's already-computed pincode list.
+  const [areaMode, setAreaMode] = useState<'origin' | 'destination'>('origin');
+  const [areaOriginState, setAreaOriginState] = useState<AreaModeState>(emptyAreaModeState);
+  const [areaDestState, setAreaDestState] = useState<AreaModeState>(emptyAreaModeState);
+  const [areaSearchQuery, setAreaSearchQuery] = useState('');
+  const [areaSearching, setAreaSearching] = useState(false);
+  const areaMapRef = useRef<L.Map | null>(null);
+  const [areaPrice, setAreaPrice] = useState('');
+  const [areaVehicle, setAreaVehicle] = useState('');
+
+  useEffect(() => {
+    loadCentroids().catch(() => {});
+  }, []);
+
+  const areaOriginSelected = Array.from(areaOriginState.selected);
+  const areaDestSelected = Array.from(areaDestState.selected);
+  const areaLaneCount = areaOriginSelected.length * areaDestSelected.length;
+
+  const setActiveAreaState = areaMode === 'origin' ? setAreaOriginState : setAreaDestState;
+
+  const handleAreaMapPick = async (lat: number, lng: number) => {
+    setActiveAreaState((prev) => ({ ...prev, point: { lat, lng }, computing: true, verifiedByMappls: false }));
+    try {
+      const centroids = await loadCentroids();
+      const offline: string[] = [];
+      centroids.forEach((coords, pincode) => {
+        if (haversineKm(lat, lng, coords.lat, coords.lng) <= RADIUS_KM) offline.push(pincode);
+      });
+      const mapplsResult = await verifyWithMappls(lat, lng);
+      const result = mapplsResult || offline;
+      const sel = new Set(result);
+      setActiveAreaState((prev) => ({ ...prev, nearbyPincodes: result, verifiedByMappls: !!mapplsResult, selected: sel, computing: false }));
+    } catch {
+      toast.error('Could not compute nearby pincodes — try a different point');
+      setActiveAreaState((prev) => ({ ...prev, computing: false }));
+    }
+  };
+
+  const searchAreaPlace = async () => {
+    const query = areaSearchQuery.trim();
+    if (!query) return;
+    setAreaSearching(true);
+    try {
+      const hit = await searchPlace(query);
+      if (!hit) {
+        toast.error('Could not find that place — try a more specific name (e.g. add city/state)');
+        return;
+      }
+      areaMapRef.current?.flyTo([hit.lat, hit.lng], 13, { duration: 1 });
+      await handleAreaMapPick(hit.lat, hit.lng);
+    } catch {
+      toast.error('Search failed — check your connection and try again');
+    } finally {
+      setAreaSearching(false);
+    }
+  };
+
+  const toggleOriginPincode = (p: string) => {
+    setAreaOriginState((prev) => {
+      const next = new Set(prev.selected);
+      if (next.has(p)) next.delete(p); else next.add(p);
+      return { ...prev, selected: next };
+    });
+  };
+
+  const toggleDestPincode = (p: string) => {
+    setAreaDestState((prev) => {
+      const next = new Set(prev.selected);
+      if (next.has(p)) next.delete(p); else next.add(p);
+      return { ...prev, selected: next };
+    });
+  };
+
+  const activeAreaState = areaMode === 'origin' ? areaOriginState : areaDestState;
+
+  const commitAreaLanes = () => {
+    const price = Number(areaPrice);
+    if (areaOriginSelected.length === 0) return toast.error('Pick and select at least one origin pincode');
+    if (areaDestSelected.length === 0) return toast.error('Pick and select at least one destination pincode');
+    if (!areaVehicle) return toast.error('Select a vehicle type');
+    if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
+
+    const newLanes: LaneRate[] = [];
+    for (const originPincode of areaOriginSelected) {
+      for (const destinationPincode of areaDestSelected) {
+        newLanes.push({ originPincode, destinationPincode, price, vehicleType: areaVehicle, source: 'area' });
+      }
+    }
+    setLanes((prev) => [...prev, ...newLanes]);
+    setAreaPrice('');
+    toast.success(`${newLanes.length} lanes added from the selected areas`);
+  };
+
+  const removeLane = (idx: number) => setLanes((prev) => prev.filter((_, i) => i !== idx));
+
+  const canContinue = lanes.length > 0;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-5">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors">
+          <ArrowLeft size={13} /> Back
+        </button>
+        <h2 className="text-lg font-bold text-slate-800">Delivery Areas</h2>
+        <div className="w-16" />
+      </div>
+
+      <div className="flex gap-2 bg-slate-100 p-1 rounded-xl w-fit">
+        <button type="button" onClick={() => setSubTab('manual')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'manual' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <PenLine size={14} /> Manual
+        </button>
+        <button type="button" onClick={() => setSubTab('bulk')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'bulk' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <UploadCloud size={14} /> Bulk Upload
+        </button>
+        <button type="button" onClick={() => setSubTab('area')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'area' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <MapIcon size={14} /> Area / Radius
+        </button>
+      </div>
+
+      {subTab === 'manual' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Truck size={13} /> Vehicle Type</label>
+            <select value={manualVehicle} onChange={(e) => setManualVehicle(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white">
+              <option value="">Select vehicle type</option>
+              {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><MapPin size={13} /> Origin Pincode</label>
+              <input type="text" inputMode="numeric" maxLength={6} value={manualOrigin} onChange={(e) => setManualOrigin(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 400001" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><MapPin size={13} /> Destination Pincode</label>
+              <input type="text" inputMode="numeric" maxLength={6} value={manualDest} onChange={(e) => setManualDest(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 110001" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹)</label>
+            <input type="number" min={1} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+          </div>
+          <button type="button" onClick={addManualLane} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
+            Add Lane
+          </button>
+        </div>
+      )}
+
+      {subTab === 'bulk' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
+          <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center">
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleBulkFile} className="hidden" id="bulk-lane-file" />
+            <label htmlFor="bulk-lane-file" className="cursor-pointer inline-flex flex-col items-center gap-2">
+              <UploadCloud size={22} className="text-slate-400" />
+              <span className="text-sm font-semibold text-slate-700">{bulkFileName || 'Click to upload Excel/CSV'}</span>
+              <span className="text-xs text-slate-400">Columns: Origin Pincode, Destination Pincode, Price (optional), Vehicle Type (optional)</span>
+            </label>
+          </div>
+
+          {bulkRows.length > 0 && (
+            <div className="space-y-3">
+              <div className="max-h-72 overflow-y-auto border border-slate-100 rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2 font-bold text-slate-600">Origin</th>
+                      <th className="text-left p-2 font-bold text-slate-600">Destination</th>
+                      <th className="text-left p-2 font-bold text-slate-600">Vehicle Type</th>
+                      <th className="text-left p-2 font-bold text-slate-600">Price (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkRows.map((row, idx) => (
+                      <tr key={idx} className="border-t border-slate-100">
+                        <td className="p-2">{row.originPincode}</td>
+                        <td className="p-2">{row.destinationPincode}</td>
+                        <td className="p-2">
+                          <select value={row.vehicleType} onChange={(e) => updateBulkRow(idx, 'vehicleType', e.target.value)} className="w-full px-1.5 py-1 border border-slate-200 rounded text-xs bg-white">
+                            <option value="">Select</option>
+                            {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <input type="number" min={1} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', e.target.value)} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button type="button" onClick={commitBulkRows} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
+                Add {bulkRows.length} Lanes
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {subTab === 'area' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left column: one map + search, re-targeted by the mode toggle */}
+            <div className="space-y-3">
+              <div className="flex gap-2 bg-slate-100 p-1 rounded-lg w-fit">
+                <button
+                  type="button"
+                  onClick={() => setAreaMode('origin')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${areaMode === 'origin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Origin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAreaMode('destination')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${areaMode === 'destination' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Destination
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={areaSearchQuery}
+                  onChange={(e) => setAreaSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchAreaPlace(); } }}
+                  placeholder={`Search for the ${areaMode} area, locality, or city...`}
+                  className="w-full px-3 py-2.5 pr-24 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={searchAreaPlace}
+                  disabled={areaSearching || !areaSearchQuery.trim()}
+                  className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-md flex items-center gap-1"
+                >
+                  {areaSearching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                  Search
+                </button>
+              </div>
+
+              <div className="h-72 rounded-xl overflow-hidden border border-slate-200">
+                <MapContainer ref={areaMapRef} center={[22.9734, 78.6569]} zoom={5} style={{ height: '100%', width: '100%' }}>
+                  <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <ClickCapture onPick={handleAreaMapPick} />
+                  {activeAreaState.point && (
+                    <>
+                      <Marker position={[activeAreaState.point.lat, activeAreaState.point.lng]} />
+                      <Circle center={[activeAreaState.point.lat, activeAreaState.point.lng]} radius={RADIUS_KM * 1000} pathOptions={{ color: '#2563eb', fillOpacity: 0.1 }} />
+                    </>
+                  )}
+                </MapContainer>
+              </div>
+              <p className="text-xs text-slate-500">
+                Click anywhere on the map to select the center of your {areaMode} area ({RADIUS_KM}km radius).
+                Flip the toggle above to set the other side — your previous selection stays saved.
+              </p>
+            </div>
+
+            {/* Right column: both computed pincode lists, vehicle type, price —
+                kept at the same column width as the pincode lists per explicit
+                request, not a full-width block below the 2-column grid. */}
+            <div className="space-y-5">
+              <PincodeResultList title="Origin Pincodes" state={areaOriginState} onToggle={toggleOriginPincode} />
+              <PincodeResultList title="Destination Pincodes" state={areaDestState} onToggle={toggleDestPincode} />
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Truck size={13} /> Vehicle Type</label>
+                  <select value={areaVehicle} onChange={(e) => setAreaVehicle(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white">
+                    <option value="">Select vehicle type</option>
+                    {VEHICLE_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{vehicleLabel(v)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹) — applied to every generated lane</label>
+                  <input type="number" min={1} value={areaPrice} onChange={(e) => setAreaPrice(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                </div>
+                <p className="text-xs text-slate-500">
+                  {areaOriginSelected.length} origin pincode(s) × {areaDestSelected.length} destination pincode(s) selected.
+                </p>
+                <button
+                  type="button"
+                  onClick={commitAreaLanes}
+                  disabled={areaLaneCount === 0}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors"
+                >
+                  Add {areaLaneCount} Lanes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lanes.length > 0 && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setLanesExpanded((prev) => !prev)}
+            className="w-full flex items-center justify-between text-sm font-bold text-slate-700"
+            aria-expanded={lanesExpanded}
+          >
+            <span>Lanes Added ({lanes.length})</span>
+            <ChevronDown
+              size={16}
+              className={`text-slate-400 transition-transform duration-200 ${lanesExpanded ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {lanesExpanded && (
+            <div className="max-h-56 overflow-y-auto border border-slate-100 rounded-lg divide-y divide-slate-100">
+              {lanes.map((lane, idx) => (
+                <div key={idx} className="flex items-center justify-between px-3 py-2 text-xs">
+                  <span>{lane.originPincode} → {lane.destinationPincode} · {lane.vehicleType} · ₹{lane.price.toLocaleString('en-IN')}</span>
+                  <button type="button" onClick={() => removeLane(idx)} className="text-red-500 hover:text-red-700">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          onClick={() => onContinue(lanes)}
+          disabled={!canContinue}
+          className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          Continue <ArrowRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
