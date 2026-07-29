@@ -570,55 +570,41 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     if (!query) return;
     setAreaSearching(true);
     try {
-      // A 6-digit query is a pincode, not a place name — look it up directly
-      // in our OWN pincode_centroids.json instead of ever asking Nominatim's
-      // external geocoder to resolve it. This isn't an optimization: our
-      // dataset and Nominatim's postcode geocoding can disagree by 10-20km+
-      // for the exact same pincode (verified for real pincodes during
-      // testing), so routing pincode searches through Nominatim was
-      // guaranteed to eventually contradict "this pincode is within 5km of
-      // itself" for some pincode, no matter how the free-text search
-      // heuristics above are tuned. A direct lookup here is self-consistent
-      // by construction and can never drift from what the radius search
-      // itself uses.
-      const digitsOnly = query.replace(/\D/g, '');
-      if (digitsOnly.length === 6) {
-        const centroids = await loadCentroids();
-        const known = centroids.get(digitsOnly);
-        if (known) {
-          areaMapRef.current?.flyTo([known.lat, known.lng], 13, { duration: 1 });
-          await handleAreaMapPick(known.lat, known.lng);
-          return;
-        }
-        // Not in our dataset — fall through to Nominatim as a best-effort
-        // fallback rather than giving up outright.
-      }
+      // Nominatim runs first, as the normal/primary search — it's the only
+      // thing that can resolve a free-text query we have no local data for
+      // (a locality, landmark, or misspelled city name). Our own pincode
+      // data is then checked as a backup preference layer on top: our
+      // dataset and Nominatim's postcode geocoding have been observed to
+      // disagree by 10-20km+ for the exact same pincode, so when we DO have
+      // a matching local entry (a searched pincode, or a city name present
+      // in pincodes.json), its centroid is preferred over Nominatim's for
+      // self-consistency with the 5km radius filter — but only as an
+      // override of Nominatim's result, never a replacement for calling it.
+      const hit = await searchPlace(query);
 
-      // Free-text query (city/area name) — check our own city index before
-      // ever asking Nominatim. Pick the first matching pincode's own
-      // centroid, so a search for "jhansi" centers on a pincode WE actually
-      // know about (and can therefore find within its own 5km radius),
-      // rather than an external geocode result that may land nowhere near
-      // any pincode in our dataset.
-      const cityMatch = cityIndexRef.current.get(query.toLowerCase());
-      if (cityMatch && cityMatch.length > 0) {
-        const centroids = await loadCentroids();
-        const centroidPin = cityMatch.find((p) => centroids.has(p));
+      let lat = hit?.lat;
+      let lng = hit?.lng;
+
+      const digitsOnly = query.replace(/\D/g, '');
+      const centroids = await loadCentroids();
+      if (digitsOnly.length === 6 && centroids.has(digitsOnly)) {
+        const known = centroids.get(digitsOnly)!;
+        lat = known.lat; lng = known.lng;
+      } else {
+        const cityMatch = cityIndexRef.current.get(query.toLowerCase());
+        const centroidPin = cityMatch?.find((p) => centroids.has(p));
         if (centroidPin) {
           const known = centroids.get(centroidPin)!;
-          areaMapRef.current?.flyTo([known.lat, known.lng], 13, { duration: 1 });
-          await handleAreaMapPick(known.lat, known.lng);
-          return;
+          lat = known.lat; lng = known.lng;
         }
       }
 
-      const hit = await searchPlace(query);
-      if (!hit) {
+      if (lat === undefined || lng === undefined) {
         toast.error('Could not find that place — try a more specific name (e.g. add city/state)');
         return;
       }
-      areaMapRef.current?.flyTo([hit.lat, hit.lng], 13, { duration: 1 });
-      await handleAreaMapPick(hit.lat, hit.lng);
+      areaMapRef.current?.flyTo([lat, lng], 13, { duration: 1 });
+      await handleAreaMapPick(lat, lng);
     } catch {
       toast.error('Search failed — check your connection and try again');
     } finally {
