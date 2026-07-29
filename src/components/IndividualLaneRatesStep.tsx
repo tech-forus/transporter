@@ -79,10 +79,29 @@ export interface LaneRate {
   runningCostPerKm?: number | null;
 }
 
+// Input caps — shared by the custom-vehicle form (all three tabs) and every
+// price field on this page.
+export const VEHICLE_NAME_MAX_LEN = 30;
+export const VEHICLE_NAME_PATTERN = /^[A-Za-z0-9 ]*$/; // letters, digits, spaces only — no special characters
+export const CAPACITY_MAX_KG = 40000;
+export const BED_LENGTH_MAX_FT = 32;
+export const BED_WIDTH_MAX_FT = 8;
+export const BED_HEIGHT_MAX_FT = 8;
+export const RUNNING_COST_MAX = 1000;
+export const PRICE_MAX = 1000;
+
+// Strips any character outside [A-Za-z0-9 ] and caps length — used as the
+// vehicle-name input's onChange filter so invalid characters never even
+// land in state, rather than only being rejected at submit time.
+export function sanitizeVehicleName(raw: string): string {
+  return raw.replace(/[^A-Za-z0-9 ]/g, '').slice(0, VEHICLE_NAME_MAX_LEN);
+}
+
 // Shared validation for the custom-vehicle fields — same rule set as
 // freight-compare-frontend's AddIndividualFtlTransporter.tsx: capacity is
-// required (finite, > 0); L/W/H/running-cost are optional but if given must
-// be finite and >= 0. Returns an error message, or null if valid.
+// required (finite, > 0, <= CAPACITY_MAX_KG); L/W/H/running-cost are
+// optional but if given must be finite, >= 0, and within their own caps.
+// Returns an error message, or null if valid.
 function validateCustomVehicleFields(fields: {
   customVehicleName: string;
   maxCapacityKg: string;
@@ -91,19 +110,24 @@ function validateCustomVehicleFields(fields: {
   bedHeightFt: string;
   runningCostPerKm: string;
 }): string | null {
-  if (!fields.customVehicleName.trim()) return 'Enter the vehicle name';
+  const name = fields.customVehicleName.trim();
+  if (!name) return 'Enter the vehicle name';
+  if (name.length > VEHICLE_NAME_MAX_LEN) return `Vehicle name must be ${VEHICLE_NAME_MAX_LEN} characters or fewer`;
+  if (!VEHICLE_NAME_PATTERN.test(name)) return 'Vehicle name can only contain letters and numbers';
   const capacity = Number(fields.maxCapacityKg);
   if (!Number.isFinite(capacity) || capacity <= 0) return 'Enter a valid carrying capacity (kg)';
-  const dims: [string, string][] = [
-    ['Bed length', fields.bedLengthFt],
-    ['Bed width', fields.bedWidthFt],
-    ['Bed height', fields.bedHeightFt],
-    ['Running cost', fields.runningCostPerKm],
+  if (capacity > CAPACITY_MAX_KG) return `Carrying capacity cannot exceed ${CAPACITY_MAX_KG.toLocaleString('en-IN')} kg`;
+  const dims: [string, string, number][] = [
+    ['Bed length', fields.bedLengthFt, BED_LENGTH_MAX_FT],
+    ['Bed width', fields.bedWidthFt, BED_WIDTH_MAX_FT],
+    ['Bed height', fields.bedHeightFt, BED_HEIGHT_MAX_FT],
+    ['Running cost', fields.runningCostPerKm, RUNNING_COST_MAX],
   ];
-  for (const [label, raw] of dims) {
+  for (const [label, raw, max] of dims) {
     if (!raw.trim()) continue;
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 0) return `${label} must be a valid non-negative number`;
+    if (n > max) return `${label} cannot exceed ${max}`;
   }
   return null;
 }
@@ -263,7 +287,7 @@ async function searchPlace(query: string): Promise<{ lat: number; lng: number; l
 }
 
 export default function IndividualLaneRatesStep({ onBack, onContinue, initialLanes }: IndividualLaneRatesStepProps) {
-  const [subTab, setSubTab] = useState<'manual' | 'bulk' | 'area'>('manual');
+  const [subTab, setSubTab] = useState<'manual' | 'bulk' | 'area'>('area');
   const [lanes, setLanes] = useState<LaneRate[]>(initialLanes || []);
   // Collapsed by default once a big batch (bulk/area-radius add) would
   // otherwise dominate the screen; small lists stay open since there's
@@ -319,6 +343,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     if (!isKnownPincode(dest)) return toast.error('Destination pincode not found — please re-check it');
     if (!manualVehicle) return toast.error('Select a vehicle type');
     if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
+    if (price > PRICE_MAX) return toast.error(`Price cannot exceed ₹${PRICE_MAX}`);
 
     const isCustom = manualVehicle === CUSTOM_VEHICLE;
     let customFields: Partial<LaneRate> = {};
@@ -418,6 +443,11 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     const incomplete = bulkRows.filter((r) => !r.price || Number(r.price) <= 0 || !r.vehicleType);
     if (incomplete.length > 0) {
       toast.error(`${incomplete.length} row(s) still need a price and vehicle type`);
+      return;
+    }
+    const overCap = bulkRows.filter((r) => Number(r.price) > PRICE_MAX);
+    if (overCap.length > 0) {
+      toast.error(`${overCap.length} row(s) have a price above ₹${PRICE_MAX} — please fix before continuing`);
       return;
     }
     for (const r of bulkRows) {
@@ -552,6 +582,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
     if (areaOriginSelected.length === 0) return toast.error('Pick and select at least one origin pincode');
     if (areaDestSelected.length === 0) return toast.error('Pick and select at least one destination pincode');
     if (!areaVehicle) return toast.error('Select a vehicle type');
+    if (Number.isFinite(price) && price > PRICE_MAX) return toast.error(`Price cannot exceed ₹${PRICE_MAX}`);
     if (!Number.isFinite(price) || price <= 0) return toast.error('Enter a valid price');
 
     const isCustom = areaVehicle === CUSTOM_VEHICLE;
@@ -600,12 +631,25 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
   const canContinue = lanes.length > 0;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+    <div className="max-w-7xl mx-auto space-y-3 overflow-x-hidden">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2 gap-3 flex-wrap">
         <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors">
           <ArrowLeft size={13} /> Back
         </button>
-        <h2 className="text-lg font-bold text-slate-800">Delivery Areas</h2>
+        <div className="flex items-center gap-4 flex-wrap justify-center">
+          <h2 className="text-lg font-bold text-slate-800 whitespace-nowrap">Delivery Areas</h2>
+          <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+            <button type="button" onClick={() => setSubTab('manual')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'manual' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <PenLine size={14} /> Manual
+            </button>
+            <button type="button" onClick={() => setSubTab('bulk')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'bulk' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <UploadCloud size={14} /> Bulk Upload
+            </button>
+            <button type="button" onClick={() => setSubTab('area')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'area' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <MapIcon size={14} /> Area / Radius
+            </button>
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => onContinue(lanes)}
@@ -616,20 +660,8 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
         </button>
       </div>
 
-      <div className="flex gap-2 bg-slate-100 p-1 rounded-xl w-fit">
-        <button type="button" onClick={() => setSubTab('manual')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'manual' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <PenLine size={14} /> Manual
-        </button>
-        <button type="button" onClick={() => setSubTab('bulk')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'bulk' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <UploadCloud size={14} /> Bulk Upload
-        </button>
-        <button type="button" onClick={() => setSubTab('area')} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${subTab === 'area' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <MapIcon size={14} /> Area / Radius
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
-      <div className="lg:col-span-7 space-y-5">
+      <div className="lg:col-span-6 min-w-0 space-y-5">
       {subTab === 'manual' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-6 space-y-4">
           <div>
@@ -645,23 +677,23 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
             <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Vehicle Name</label>
-                <input type="text" value={manualCustomName} onChange={(e) => setManualCustomName(e.target.value)} placeholder="e.g. Ashok Leyland Dost+" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                <input type="text" maxLength={VEHICLE_NAME_MAX_LEN} value={manualCustomName} onChange={(e) => setManualCustomName(sanitizeVehicleName(e.target.value))} placeholder="e.g. Ashok Leyland Dost" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Carrying Capacity (kg)</label>
-                <input type="number" min={1} value={manualCustomCapacity} onChange={(e) => setManualCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                <input type="number" min={1} max={CAPACITY_MAX_KG} value={manualCustomCapacity} onChange={(e) => setManualCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Bed Size — optional (ft)</label>
                 <div className="grid grid-cols-3 gap-2">
-                  <input type="number" min={0} value={manualCustomLength} onChange={(e) => setManualCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                  <input type="number" min={0} value={manualCustomWidth} onChange={(e) => setManualCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                  <input type="number" min={0} value={manualCustomHeight} onChange={(e) => setManualCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={manualCustomLength} onChange={(e) => setManualCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={manualCustomWidth} onChange={(e) => setManualCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={manualCustomHeight} onChange={(e) => setManualCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Running Cost — optional (₹/km)</label>
-                <input type="number" min={0} value={manualCustomRunningCost} onChange={(e) => setManualCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                <input type="number" min={0} max={RUNNING_COST_MAX} value={manualCustomRunningCost} onChange={(e) => setManualCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
               </div>
             </div>
           )}
@@ -689,7 +721,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹)</label>
-            <input type="number" min={1} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+            <input type="number" min={1} max={PRICE_MAX} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
           </div>
           <button
             type="button"
@@ -739,18 +771,18 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                             </select>
                           </td>
                           <td className="p-2">
-                            <input type="number" min={1} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', e.target.value)} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
+                            <input type="number" min={1} max={PRICE_MAX} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', e.target.value)} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
                           </td>
                         </tr>
                         {row.vehicleType === CUSTOM_VEHICLE && (
                           <tr className="border-t border-slate-100 bg-blue-50/40">
                             <td colSpan={4} className="p-2">
                               <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                                <input value={row.customVehicleName} onChange={(e) => updateBulkRow(idx, 'customVehicleName', e.target.value)} placeholder="Vehicle name" className="px-1.5 py-1 border border-slate-200 rounded text-xs col-span-2" />
-                                <input type="number" min={1} value={row.customCapacityKg} onChange={(e) => updateBulkRow(idx, 'customCapacityKg', e.target.value)} placeholder="Capacity (kg)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
-                                <input type="number" min={0} value={row.customLengthFt} onChange={(e) => updateBulkRow(idx, 'customLengthFt', e.target.value)} placeholder="Length (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
-                                <input type="number" min={0} value={row.customWidthFt} onChange={(e) => updateBulkRow(idx, 'customWidthFt', e.target.value)} placeholder="Width (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
-                                <input type="number" min={0} value={row.customHeightFt} onChange={(e) => updateBulkRow(idx, 'customHeightFt', e.target.value)} placeholder="Height (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input maxLength={VEHICLE_NAME_MAX_LEN} value={row.customVehicleName} onChange={(e) => updateBulkRow(idx, 'customVehicleName', sanitizeVehicleName(e.target.value))} placeholder="Vehicle name" className="px-1.5 py-1 border border-slate-200 rounded text-xs col-span-2" />
+                                <input type="number" min={1} max={CAPACITY_MAX_KG} value={row.customCapacityKg} onChange={(e) => updateBulkRow(idx, 'customCapacityKg', e.target.value)} placeholder="Capacity (kg)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={row.customLengthFt} onChange={(e) => updateBulkRow(idx, 'customLengthFt', e.target.value)} placeholder="Length (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={row.customWidthFt} onChange={(e) => updateBulkRow(idx, 'customWidthFt', e.target.value)} placeholder="Width (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={row.customHeightFt} onChange={(e) => updateBulkRow(idx, 'customHeightFt', e.target.value)} placeholder="Height (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
                               </div>
                             </td>
                           </tr>
@@ -849,29 +881,29 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                   <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Vehicle Name</label>
-                      <input type="text" value={areaCustomName} onChange={(e) => setAreaCustomName(e.target.value)} placeholder="e.g. Ashok Leyland Dost+" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                      <input type="text" maxLength={VEHICLE_NAME_MAX_LEN} value={areaCustomName} onChange={(e) => setAreaCustomName(sanitizeVehicleName(e.target.value))} placeholder="e.g. Ashok Leyland Dost" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Carrying Capacity (kg)</label>
-                      <input type="number" min={1} value={areaCustomCapacity} onChange={(e) => setAreaCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                      <input type="number" min={1} max={CAPACITY_MAX_KG} value={areaCustomCapacity} onChange={(e) => setAreaCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Bed Size — optional (ft)</label>
                       <div className="grid grid-cols-3 gap-2">
-                        <input type="number" min={0} value={areaCustomLength} onChange={(e) => setAreaCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                        <input type="number" min={0} value={areaCustomWidth} onChange={(e) => setAreaCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                        <input type="number" min={0} value={areaCustomHeight} onChange={(e) => setAreaCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={areaCustomLength} onChange={(e) => setAreaCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={areaCustomWidth} onChange={(e) => setAreaCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={areaCustomHeight} onChange={(e) => setAreaCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Running Cost — optional (₹/km)</label>
-                      <input type="number" min={0} value={areaCustomRunningCost} onChange={(e) => setAreaCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                      <input type="number" min={0} max={RUNNING_COST_MAX} value={areaCustomRunningCost} onChange={(e) => setAreaCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                     </div>
                   </div>
                 )}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹) — applied to every generated lane</label>
-                  <input type="number" min={1} value={areaPrice} onChange={(e) => setAreaPrice(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={1} max={PRICE_MAX} value={areaPrice} onChange={(e) => setAreaPrice(e.target.value)} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                 </div>
                 <p className="text-xs text-slate-500">
                   {areaOriginSelected.length} origin pincode(s) × {areaDestSelected.length} destination pincode(s) selected.
@@ -892,42 +924,62 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
 
       </div>
 
-      <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setLanesExpanded((prev) => !prev)}
-          className="w-full flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100 text-sm font-bold text-slate-700"
-          aria-expanded={lanesExpanded}
-        >
-          <span>Lanes Added ({lanes.length})</span>
-          <ChevronDown
-            size={16}
-            className={`text-slate-400 transition-transform duration-200 ${lanesExpanded ? 'rotate-180' : ''}`}
-          />
-        </button>
+      <div className="lg:col-span-4 min-w-0 bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => setLanesExpanded((prev) => !prev)}
+            className="flex items-center gap-2 text-sm font-bold text-slate-700"
+            aria-expanded={lanesExpanded}
+          >
+            <span>Lanes Added ({lanes.length})</span>
+            <ChevronDown
+              size={16}
+              className={`text-slate-400 transition-transform duration-200 ${lanesExpanded ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {lanes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete all ${lanes.length} lane(s)? This can't be undone.`)) setLanes([]);
+              }}
+              className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700"
+            >
+              <Trash2 size={13} /> Delete all
+            </button>
+          )}
+        </div>
         {lanesExpanded && (
           lanes.length === 0 ? (
             <p className="text-sm text-slate-400 italic px-4 sm:px-6 py-8 text-center">No lanes added yet — use the form on the left.</p>
           ) : (
-            <div className="max-h-[32rem] overflow-y-auto">
-              <table className="w-full text-xs">
+            <div className="max-h-[32rem] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <table className="w-full text-xs table-fixed border-collapse">
+                <colgroup>
+                  <col className="w-[19%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[38%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
                 <thead className="bg-slate-50 sticky top-0">
                   <tr>
-                    <th className="text-left p-2.5 pl-4 sm:pl-6 font-bold text-slate-600">Origin</th>
-                    <th className="text-left p-2.5 font-bold text-slate-600">Destination</th>
-                    <th className="text-left p-2.5 font-bold text-slate-600">Vehicle</th>
-                    <th className="text-left p-2.5 font-bold text-slate-600">Price (₹)</th>
-                    <th className="p-2.5 pr-4 sm:pr-6"></th>
+                    <th className="text-left p-2.5 pl-4 sm:pl-6 font-bold text-slate-600 border border-slate-200">Origin</th>
+                    <th className="text-left p-2.5 font-bold text-slate-600 border border-slate-200">Destination</th>
+                    <th className="text-left p-2.5 font-bold text-slate-600 border border-slate-200">Vehicle</th>
+                    <th className="text-left p-2.5 font-bold text-slate-600 border border-slate-200">Price (₹)</th>
+                    <th className="p-2.5 pr-4 sm:pr-6 border border-slate-200"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {lanes.map((lane, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/60">
-                      <td className="p-2.5 pl-4 sm:pl-6 font-mono">{lane.originPincode}</td>
-                      <td className="p-2.5 font-mono">{lane.destinationPincode}</td>
-                      <td className="p-2.5">{lane.vehicleType}</td>
-                      <td className="p-2.5">₹{lane.price.toLocaleString('en-IN')}</td>
-                      <td className="p-2.5 pr-4 sm:pr-6 text-right">
+                      <td className="p-2.5 pl-4 sm:pl-6 font-mono truncate border border-slate-100">{lane.originPincode}</td>
+                      <td className="p-2.5 font-mono truncate border border-slate-100">{lane.destinationPincode}</td>
+                      <td className="p-2.5 truncate border border-slate-100" title={lane.vehicleType}>{lane.vehicleType}</td>
+                      <td className="p-2.5 truncate border border-slate-100">₹{lane.price.toLocaleString('en-IN')}</td>
+                      <td className="p-2.5 pr-4 sm:pr-6 text-right border border-slate-100">
                         <button type="button" onClick={() => removeLane(idx)} className="text-red-500 hover:text-red-700">
                           <Trash2 size={14} />
                         </button>
