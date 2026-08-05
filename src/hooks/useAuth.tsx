@@ -137,6 +137,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  // When this app is embedded in the freight-compare-frontend host (see
+  // TransporterSignupPage.tsx / TransporterFrameContext.tsx there), keep the
+  // parent in sync with this transporter's session — who's logged in (so its
+  // Header can show a profile/logout dropdown instead of shipper LOGIN/SIGN
+  // UP over this same transporter's own dashboard), and let the parent
+  // trigger a logout from that dropdown. Lives here in AuthProvider (not a
+  // single page) so it fires no matter which route is currently mounted, and
+  // is a harmless no-op when opened standalone (window.parent === window).
+  useEffect(() => {
+    window.parent.postMessage({
+      type: isAuthenticated ? 'transporter_authenticated' : 'transporter_logged_out',
+      companyName: user?.companyName || '',
+      logoUrl: user?.logoUrl || '',
+    }, '*');
+  }, [isAuthenticated, user?.companyName, user?.logoUrl]);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'request_transporter_logout') logout();
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, login, loginWithToken, logout, loading }}>
       {children}

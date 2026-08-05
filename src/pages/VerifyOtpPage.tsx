@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { ArrowLeft, Loader2, Mail } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useAuth } from '../hooks/useAuth';
+import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 
 // Only the Email OTP field is shown — no separate Phone OTP tab/column.
 // Both channels still carry the SAME code under the hood (the page before
@@ -21,6 +22,13 @@ export default function VerifyOtpPage() {
   const [resending, setResending] = useState(false);
   const [resendTimer, setResendTimer] = useState(59);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Without this, the parent iframe (freight-compare-frontend's
+  // TransporterFrameContext) keeps whatever height the previous, much taller
+  // signup step reported — this page's own flex-centering then centers
+  // within that oversized leftover box instead of the actual viewport,
+  // appearing low on screen with a stray scrollbar.
+  useReportIframeHeight();
 
   useEffect(() => {
     if (!email && !phone) {

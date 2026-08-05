@@ -97,6 +97,16 @@ export function sanitizeVehicleName(raw: string): string {
   return raw.replace(/[^A-Za-z0-9 ]/g, '').slice(0, VEHICLE_NAME_MAX_LEN);
 }
 
+// Caps a numeric input's onChange value at `max` as the user types, so it's
+// never possible to hold a value above the limit in state — the `max` HTML
+// attribute alone only flags invalid state, it doesn't stop entry.
+export function clampNumericInput(raw: string, max: number): string {
+  if (raw === '') return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return n > max ? String(max) : raw;
+}
+
 // Shared validation for the custom-vehicle fields — same rule set as
 // freight-compare-frontend's AddIndividualFtlTransporter.tsx: capacity is
 // required (finite, > 0, <= CAPACITY_MAX_KG); L/W/H/running-cost are
@@ -734,19 +744,19 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Carrying Capacity (kg)</label>
-                <input type="number" min={1} max={CAPACITY_MAX_KG} value={manualCustomCapacity} onChange={(e) => setManualCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                <input type="number" min={1} max={CAPACITY_MAX_KG} value={manualCustomCapacity} onChange={(e) => setManualCustomCapacity(clampNumericInput(e.target.value, CAPACITY_MAX_KG))} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Bed Size — optional (ft)</label>
                 <div className="grid grid-cols-3 gap-2">
-                  <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={manualCustomLength} onChange={(e) => setManualCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                  <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={manualCustomWidth} onChange={(e) => setManualCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                  <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={manualCustomHeight} onChange={(e) => setManualCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={manualCustomLength} onChange={(e) => setManualCustomLength(clampNumericInput(e.target.value, BED_LENGTH_MAX_FT))} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={manualCustomWidth} onChange={(e) => setManualCustomWidth(clampNumericInput(e.target.value, BED_WIDTH_MAX_FT))} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={manualCustomHeight} onChange={(e) => setManualCustomHeight(clampNumericInput(e.target.value, BED_HEIGHT_MAX_FT))} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Running Cost — optional (₹/km)</label>
-                <input type="number" min={0} max={RUNNING_COST_MAX} value={manualCustomRunningCost} onChange={(e) => setManualCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                <input type="number" min={0} max={RUNNING_COST_MAX} value={manualCustomRunningCost} onChange={(e) => setManualCustomRunningCost(clampNumericInput(e.target.value, RUNNING_COST_MAX))} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
               </div>
             </div>
           )}
@@ -774,7 +784,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹)</label>
-            <input type="number" min={1} max={PRICE_MAX} value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+            <input type="number" min={1} max={PRICE_MAX} value={manualPrice} onChange={(e) => setManualPrice(clampNumericInput(e.target.value, PRICE_MAX))} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
             <p className="text-[11px] text-slate-400 mt-1">Limit ₹{PRICE_MAX} max</p>
           </div>
           <button
@@ -825,7 +835,7 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                             </select>
                           </td>
                           <td className="p-2">
-                            <input type="number" min={1} max={PRICE_MAX} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', e.target.value)} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
+                            <input type="number" min={1} max={PRICE_MAX} value={row.price} onChange={(e) => updateBulkRow(idx, 'price', clampNumericInput(e.target.value, PRICE_MAX))} className="w-24 px-1.5 py-1 border border-slate-200 rounded text-xs" placeholder="Enter price" />
                           </td>
                         </tr>
                         {row.vehicleType === CUSTOM_VEHICLE && (
@@ -833,10 +843,10 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                             <td colSpan={4} className="p-2">
                               <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                                 <input maxLength={VEHICLE_NAME_MAX_LEN} value={row.customVehicleName} onChange={(e) => updateBulkRow(idx, 'customVehicleName', sanitizeVehicleName(e.target.value))} placeholder="Vehicle name" className="px-1.5 py-1 border border-slate-200 rounded text-xs col-span-2" />
-                                <input type="number" min={1} max={CAPACITY_MAX_KG} value={row.customCapacityKg} onChange={(e) => updateBulkRow(idx, 'customCapacityKg', e.target.value)} placeholder="Capacity (kg)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
-                                <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={row.customLengthFt} onChange={(e) => updateBulkRow(idx, 'customLengthFt', e.target.value)} placeholder="Length (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
-                                <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={row.customWidthFt} onChange={(e) => updateBulkRow(idx, 'customWidthFt', e.target.value)} placeholder="Width (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
-                                <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={row.customHeightFt} onChange={(e) => updateBulkRow(idx, 'customHeightFt', e.target.value)} placeholder="Height (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={1} max={CAPACITY_MAX_KG} value={row.customCapacityKg} onChange={(e) => updateBulkRow(idx, 'customCapacityKg', clampNumericInput(e.target.value, CAPACITY_MAX_KG))} placeholder="Capacity (kg)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={row.customLengthFt} onChange={(e) => updateBulkRow(idx, 'customLengthFt', clampNumericInput(e.target.value, BED_LENGTH_MAX_FT))} placeholder="Length (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={row.customWidthFt} onChange={(e) => updateBulkRow(idx, 'customWidthFt', clampNumericInput(e.target.value, BED_WIDTH_MAX_FT))} placeholder="Width (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
+                                <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={row.customHeightFt} onChange={(e) => updateBulkRow(idx, 'customHeightFt', clampNumericInput(e.target.value, BED_HEIGHT_MAX_FT))} placeholder="Height (ft)" className="px-1.5 py-1 border border-slate-200 rounded text-xs" />
                               </div>
                             </td>
                           </tr>
@@ -939,25 +949,25 @@ export default function IndividualLaneRatesStep({ onBack, onContinue, initialLan
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Carrying Capacity (kg)</label>
-                      <input type="number" min={1} max={CAPACITY_MAX_KG} value={areaCustomCapacity} onChange={(e) => setAreaCustomCapacity(e.target.value)} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                      <input type="number" min={1} max={CAPACITY_MAX_KG} value={areaCustomCapacity} onChange={(e) => setAreaCustomCapacity(clampNumericInput(e.target.value, CAPACITY_MAX_KG))} placeholder="e.g. 850" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Bed Size — optional (ft)</label>
                       <div className="grid grid-cols-3 gap-2">
-                        <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={areaCustomLength} onChange={(e) => setAreaCustomLength(e.target.value)} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                        <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={areaCustomWidth} onChange={(e) => setAreaCustomWidth(e.target.value)} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-                        <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={areaCustomHeight} onChange={(e) => setAreaCustomHeight(e.target.value)} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} max={BED_LENGTH_MAX_FT} value={areaCustomLength} onChange={(e) => setAreaCustomLength(clampNumericInput(e.target.value, BED_LENGTH_MAX_FT))} placeholder="Length" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} max={BED_WIDTH_MAX_FT} value={areaCustomWidth} onChange={(e) => setAreaCustomWidth(clampNumericInput(e.target.value, BED_WIDTH_MAX_FT))} placeholder="Width" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        <input type="number" min={0} max={BED_HEIGHT_MAX_FT} value={areaCustomHeight} onChange={(e) => setAreaCustomHeight(clampNumericInput(e.target.value, BED_HEIGHT_MAX_FT))} placeholder="Height" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Running Cost — optional (₹/km)</label>
-                      <input type="number" min={0} max={RUNNING_COST_MAX} value={areaCustomRunningCost} onChange={(e) => setAreaCustomRunningCost(e.target.value)} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                      <input type="number" min={0} max={RUNNING_COST_MAX} value={areaCustomRunningCost} onChange={(e) => setAreaCustomRunningCost(clampNumericInput(e.target.value, RUNNING_COST_MAX))} placeholder="e.g. 18" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                     </div>
                   </div>
                 )}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><IndianRupee size={13} /> Price (₹) — applied to every generated lane</label>
-                  <input type="number" min={1} max={PRICE_MAX} value={areaPrice} onChange={(e) => setAreaPrice(e.target.value)} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                  <input type="number" min={1} max={PRICE_MAX} value={areaPrice} onChange={(e) => setAreaPrice(clampNumericInput(e.target.value, PRICE_MAX))} placeholder="e.g. 800" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                   <p className="text-[11px] text-slate-400 mt-1">Limit ₹{PRICE_MAX} max</p>
                 </div>
                 <p className="text-xs text-slate-500">

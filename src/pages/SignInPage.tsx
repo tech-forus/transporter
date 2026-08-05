@@ -3,49 +3,37 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, Lock, LayoutPanelLeft, Loader2 } from 'lucide-react';
+import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
+import { Truck, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+import loginImg from "../assets/login-illustration-amber.svg"
 
-// You can swap this with a relevant illustration from undraw.co, etc.
-const LoginIllustration = () => (
-  <div className="w-full h-full flex items-center justify-center">
-    <LayoutPanelLeft className="w-48 h-48 text-amber-500" strokeWidth={1} />
-  </div>
-);
-
-// A reusable Input with Icon component for consistency
-const InputWithIcon = ({
-  icon,
-  ...props
-}: {
-  icon: React.ReactNode;
-  [key: string]: any;
-}) => (
-  <div className="relative">
-    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-      {icon}
-    </span>
-    <input
-      {...props}
-      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-    />
+// Mirrors the shipper SignInPage's BrandLogo, in the transporter's amber theme.
+const BrandLogo = () => (
+  <div className="flex items-center gap-3 text-2xl font-bold text-slate-800">
+    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
+      <Truck className="w-6 h-6 text-white" />
+    </div>
+    <span>Freight Compare</span>
   </div>
 );
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useReportIframeHeight();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // --- Your Actual API Call Here ---
       const response = await login(email, password);
       if (response.success) {
         toast.success("Login Successful!");
@@ -61,103 +49,142 @@ export default function SignInPage() {
     }
   };
 
+  const goToShipperLogin = () => {
+    if (window !== window.parent) {
+      window.parent.postMessage({ type: 'navigate_to_shipper_login' }, '*');
+    } else {
+      navigate('/signin');
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="flex w-full max-w-4xl bg-white rounded-lg shadow-2xl overflow-hidden mx-auto">
-        
-        {/* Left Side: Illustration & Branding */}
-        <div className="hidden md:flex flex-col justify-center items-center w-1/2 bg-amber-50 text-center p-8">
-          <LoginIllustration />
-          <h2 className="text-3xl font-bold mt-4 text-gray-800">Welcome Back!</h2>
-          <p className="mt-2 text-gray-600">
-            Log in to access your dashboard, manage shipments, and track your fleet.
-          </p>
-        </div>
+    <div className="w-full lg:grid lg:grid-cols-2 font-sans">
+      {/* Left Column: Branding & Image */}
+      <div className="relative hidden lg:flex flex-col items-center justify-center bg-slate-100 p-12">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}>
+          <img
+            src={loginImg}
+            alt="Login branding illustration"
+            className="w-full max-w-lg object-contain"
+          />
+          <div className="text-center mt-8">
+            <h2 className="text-3xl font-bold text-slate-800">
+              Welcome to Your Fleet Hub
+            </h2>
+            <p className="mt-2 text-slate-600">
+              Manage your fleet, track bookings, and grow your business—all in one place.
+            </p>
+          </div>
+        </motion.div>
+      </div>
 
-        {/* Right Side: Login Form */}
-        <div className="w-full md:w-1/2 p-8">
-          <h1 className="text-3xl font-bold mb-8">Transporter Login</h1>
+      {/* Right Column: Sign In Form */}
+      <div className="flex items-center justify-center p-6 sm:p-12 bg-slate-100">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          className="w-full max-w-md"
+        >
+          <div className="lg:hidden mb-8 flex justify-center">
+            <BrandLogo />
+          </div>
 
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1" htmlFor="email">
+          <div className="flex items-center justify-between gap-3 mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 whitespace-nowrap">Transporter Login</h1>
+            {/* Shipper/Transporter switch — faded so it doesn't compete with the
+                heading, but still reachable for a shipper who landed here by mistake. */}
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100/70 p-0.5 opacity-70 hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={goToShipperLogin}
+                className="px-3 py-1 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Shipper
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1 text-xs font-semibold rounded-md bg-white text-orange-600 shadow-sm"
+              >
+                Transporter
+              </button>
+            </div>
+          </div>
+
+          {/* Main Form */}
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+            <div>
+              <label htmlFor="email-address" className="block text-sm font-medium text-slate-700 mb-1">
                 Email Address
               </label>
-              <InputWithIcon
-                icon={<Mail size={18} className="text-gray-400" />}
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-              />
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1" htmlFor="password">
-                Password
-              </label>
-              <InputWithIcon
-                icon={<Lock size={18} className="text-gray-400" />}
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            
-            <div className="flex items-center justify-between mb-6">
-              <label className="flex items-center text-sm">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="form-checkbox h-4 w-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input id="email-address" name="email" type="email" autoComplete="email" required disabled={isLoading}
+                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition disabled:bg-slate-200"
+                  placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)}
                 />
-                <span className="ml-2 text-gray-700">Remember me</span>
-              </label>
-              <Link to="/forgot-password" className="text-sm text-amber-600 hover:underline">
-                Forgot Password?
-              </Link>
+              </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`
-                w-full flex items-center justify-center gap-2
-                bg-amber-500 text-white font-bold py-3 px-4 rounded-md
-                hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500
-                transition-all duration-300
-                ${isLoading ? 'cursor-not-allowed opacity-70' : ''}
-              `}
-            >
-              {isLoading && <Loader2 className="h-5 w-5 animate-spin" />}
-              {isLoading ? 'Signing In…' : 'Login'}
-            </button>
+            <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+                  Password
+                </label>
+                <Link to="/forgot-password" tabIndex={-1} className="text-sm font-medium text-orange-600 hover:text-orange-500 transition-colors">
+                  Forgot?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required disabled={isLoading}
+                  className="w-full pl-10 pr-12 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition disabled:bg-slate-200"
+                  placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
 
-            <p className="text-center text-sm text-gray-600 mt-6">
+            <div className="pt-2">
+              <motion.button type="submit" disabled={isLoading}
+                whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:bg-orange-300 disabled:cursor-not-allowed shadow-lg shadow-orange-500/50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Logging In...
+                  </>
+                ) : 'Login'}
+              </motion.button>
+            </div>
+
+            <p className="text-center text-sm text-slate-600">
               Don't have an account?{' '}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault();
+                onClick={() => {
                   if (window !== window.parent) {
                     window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
                   } else {
                     navigate('/transporter-signup');
                   }
                 }}
-                className="text-amber-600 font-semibold hover:underline bg-transparent border-none cursor-pointer p-0 inline"
+                className="font-semibold text-orange-600 hover:text-orange-500 transition-colors bg-transparent border-none cursor-pointer p-0 inline"
               >
-                Sign up
+                Create one now
               </button>
             </p>
           </form>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

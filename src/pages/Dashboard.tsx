@@ -163,16 +163,6 @@ const Dashboard: React.FC = () => {
     if (isAuthenticated) fetchBids()
   }, [isAuthenticated, user?._id])
 
-  // When this app is embedded in the freight-compare-frontend host (see
-  // TransporterSignupPage.tsx / TransporterFrameContext.tsx there), tell the
-  // parent a transporter is signed in so its Header can hide the shipper-
-  // facing LOGIN/SIGN UP buttons instead of showing them above this same
-  // transporter's own dashboard. Harmless no-op when opened standalone
-  // (window.parent === window, or no listener attached).
-  useEffect(() => {
-    window.parent.postMessage({ type: isAuthenticated ? 'transporter_authenticated' : 'transporter_logged_out' }, '*')
-  }, [isAuthenticated])
-
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
@@ -319,12 +309,15 @@ const Dashboard: React.FC = () => {
                   Keep your coverage and rates up to date to get matched with more shippers.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-50 transition-colors">
+                  {/* Disabled for now — /addprice and /profile aren't ready
+                      for individual/owner-operator accounts yet (no zone
+                      matrix or profile page for this account type). */}
+                  <button type="button" disabled className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-white border border-slate-200 rounded-full px-3 py-1.5 cursor-not-allowed">
                     <ShieldCheck size={13} /> Review your price & zone config
-                  </Link>
-                  <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-50 transition-colors">
+                  </button>
+                  <button type="button" disabled className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-white border border-slate-200 rounded-full px-3 py-1.5 cursor-not-allowed">
                     <Zap size={13} /> View your profile
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
