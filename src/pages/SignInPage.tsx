@@ -90,11 +90,16 @@ export default function SignInPage() {
             <BrandLogo />
           </div>
 
-          <div className="flex items-center justify-between gap-3 mb-8">
+          {/* flex-col on mobile — the nowrap heading + toggle pill together are
+              wider than a narrow phone viewport, and since "Transporter" is one
+              unbreakable word the pill can't shrink to fit, so it ran off the
+              right edge of the screen entirely. Stacked there instead; sm+ keeps
+              the original single-row layout where there's room for both. */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
             <h1 className="text-2xl font-bold text-slate-900 whitespace-nowrap">Transporter Login</h1>
             {/* Shipper/Transporter switch — faded so it doesn't compete with the
                 heading, but still reachable for a shipper who landed here by mistake. */}
-            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100/70 p-0.5 opacity-70 hover:opacity-100 transition-opacity">
+            <div className="inline-flex self-start sm:self-auto rounded-lg border border-slate-200 bg-slate-100/70 p-0.5 opacity-70 hover:opacity-100 transition-opacity">
               <button
                 type="button"
                 onClick={goToShipperLogin}

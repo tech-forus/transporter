@@ -2440,7 +2440,7 @@ export default function SignUpPage() {
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">I Am A</p>
+                        <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">{accountType === 'individual' ? 'I Am An' : 'I Am A'}</p>
                         <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
                           <button
                             type="button"
