@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Loader2, Mail } from 'lucide-react';
-import { API_BASE_URL } from '../config/apiConfig';
+import http from '../lib/http';
 import { useAuth } from '../hooks/useAuth';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 
@@ -70,7 +69,7 @@ export default function VerifyOtpPage() {
   // letting one channel's code go stale while the other's is renewed.
   const sendOtp = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, { email: email || undefined, phone: phone || undefined });
+      await http.post('/api/transporter/auth/send-otp', { email: email || undefined, phone: phone || undefined });
     } catch (err: any) {
       console.warn('[VerifyOtpPage] OTP send failed:', err?.response?.data?.message || err.message);
     }
@@ -95,7 +94,7 @@ export default function VerifyOtpPage() {
     setVerifying(true);
     try {
       const payload = email ? { email, otp } : { phone, otp };
-      const { data } = await axios.post(`${API_BASE_URL}/api/transporter/auth/verify-otp`, payload);
+      const { data } = await http.post('/api/transporter/auth/verify-otp', payload);
       if (data.token) {
         loginWithToken(data.token);
         sessionStorage.removeItem('transporter_signup_email');
@@ -147,14 +146,17 @@ export default function VerifyOtpPage() {
           <div>
             <h2 className="text-lg font-bold text-slate-800">Verify Your Account</h2>
             <p className="text-sm text-slate-500">
-              A one-time password has been sent to {email || 'your registered email'}.
+              A one-time password has been sent to {email ? email : phone ? `${phone} by phone call` : 'your registered contact'}.
             </p>
           </div>
         </div>
 
         <div>
+          {/* Was hardcoded "Email OTP" — misleading for a phone-only signup,
+              since the same code is sent by phone call when there's no
+              email on file (see the module comment above this component). */}
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-            Email OTP <span className="text-red-500">*</span>
+            Verification Code <span className="text-red-500">*</span>
           </label>
           <input
             value={emailOtp}

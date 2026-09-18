@@ -113,7 +113,7 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           required={required}
           className={`w-full h-[38px] pl-9 ${isPassword ? 'pr-9' : 'pr-3'} border rounded-lg text-[13px] transition-colors duration-150
             bg-white text-slate-900 placeholder:text-stone-400
-            focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+            focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400
             ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
             disabled:bg-stone-50 disabled:text-stone-400`}
           aria-invalid={!!error}
@@ -171,7 +171,7 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
         required={required}
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
           bg-white text-slate-900 appearance-none
-          focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+          focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400
           ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
           disabled:bg-stone-50 disabled:text-stone-400`}
         aria-invalid={!!error}
@@ -253,7 +253,7 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
         onClick={() => !disabled && setOpen(o => !o)}
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] text-left transition-colors duration-150
           bg-white text-slate-900 relative
-          focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+          focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400
           disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed
           ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
       >
@@ -278,9 +278,9 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
               return (
                 <label
                   key={opt.value}
-                  className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-amber-50 cursor-pointer"
+                  className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-indigo-50 cursor-pointer"
                 >
-                  <span className={`w-4 h-4 flex items-center justify-center rounded border ${checked ? 'bg-amber-500 border-amber-500' : 'border-stone-300'}`}>
+                  <span className={`w-4 h-4 flex items-center justify-center rounded border ${checked ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300'}`}>
                     {checked && <Check size={12} className="text-white" />}
                   </span>
                   <input
@@ -2382,7 +2382,7 @@ export default function SignUpPage() {
           {idx > 0 && <div className="h-0.5 w-5 sm:w-6 bg-slate-200 rounded-full" />}
           <span
             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full text-sm sm:text-base font-bold flex items-center justify-center flex-shrink-0 transition-colors
-              ${idx === activeIdx ? 'bg-amber-500 text-white' : idx < activeIdx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}
+              ${idx === activeIdx ? 'bg-indigo-600 text-white' : idx < activeIdx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}
           >
             {idx + 1}
           </span>
@@ -2411,15 +2411,15 @@ export default function SignUpPage() {
               <div className="grid grid-cols-1 lg:grid-cols-7 bg-white shadow-2xl rounded-2xl overflow-hidden">
                 {/* Branding panel — shrunk from 2/5 to 2/7 of the width so the
                     (now wider, multi-column) form below has more horizontal room */}
-                <div className="hidden lg:flex lg:col-span-2 flex-col justify-center p-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                <div className="hidden lg:flex lg:col-span-2 flex-col justify-center p-6 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white">
                   <h1 className="text-2xl xl:text-3xl font-extrabold tracking-tight">Partner With FreightCompare</h1>
-                  <p className="mt-3 text-sm text-amber-100">
+                  <p className="mt-3 text-sm text-indigo-100">
                     Join our verified transporter network, get matched with shippers, and bid on freight that fits your fleet.
                   </p>
                   <div className="mt-6 flex space-x-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-300"></span>
-                    <span className="w-3 h-3 rounded-full bg-amber-200"></span>
-                    <span className="w-3 h-3 rounded-full bg-amber-100"></span>
+                    <span className="w-3 h-3 rounded-full bg-indigo-300"></span>
+                    <span className="w-3 h-3 rounded-full bg-indigo-200"></span>
+                    <span className="w-3 h-3 rounded-full bg-indigo-100"></span>
                   </div>
                 </div>
 
@@ -2446,7 +2446,7 @@ export default function SignUpPage() {
                             type="button"
                             onClick={() => setAccountType('business')}
                             className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${
-                              accountType === 'business' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 hover:text-stone-700'
+                              accountType === 'business' ? 'bg-indigo-600 text-white shadow' : 'text-stone-500 hover:text-stone-700'
                             }`}
                           >
                             Business
@@ -2455,7 +2455,7 @@ export default function SignUpPage() {
                             type="button"
                             onClick={handleSwitchToIndividual}
                             className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${
-                              accountType === 'individual' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 hover:text-stone-700'
+                              accountType === 'individual' ? 'bg-indigo-600 text-white shadow' : 'text-stone-500 hover:text-stone-700'
                             }`}
                           >
                             Individual
@@ -2478,8 +2478,8 @@ export default function SignUpPage() {
                         still used by the pincode fallback effect) — this is purely how
                         they're displayed. */}
                     {accountType === 'business' && (formData.companyName || formData.address) && (
-                      <div className="flex items-start gap-2.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3.5 py-2.5">
-                        <CheckCircle2 className="w-[18px] h-[18px] text-orange-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex items-start gap-2.5 rounded-[10px] border border-indigo-200 bg-indigo-50 px-3.5 py-2.5">
+                        <CheckCircle2 className="w-[18px] h-[18px] text-indigo-600 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[13px] font-semibold text-slate-900 truncate">
                             {formData.companyName || 'Company'}{formData.gstNo && <span className="text-stone-400 font-normal"> · {formData.gstNo}</span>}
@@ -2521,7 +2521,7 @@ export default function SignUpPage() {
                                 placeholder="GST Number"
                                 className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
                                 bg-white text-slate-900 placeholder:text-stone-400
-                                focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+                                focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400
                                 ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
                                 aria-invalid={!!(touched.gstNo && errors.gstNo)}
                               />
@@ -2557,7 +2557,7 @@ export default function SignUpPage() {
                             <button
                               type="button"
                               onClick={handleSwitchToIndividual}
-                              className="mt-1.5 text-[11px] font-medium text-amber-600 hover:text-amber-700 underline underline-offset-2"
+                              className="mt-1.5 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-2"
                             >
                               Don't have a GST? Switch to Individual
                             </button>
@@ -2637,7 +2637,7 @@ export default function SignUpPage() {
                                 id="sameAsPhone"
                                 checked={sameAsPhone}
                                 onChange={(e) => setSameAsPhone(e.target.checked)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
                               />
                               Same as Mobile Number
                             </label>
@@ -2674,7 +2674,7 @@ export default function SignUpPage() {
                               <button
                                 type="button"
                                 onClick={() => setShowLogoUpload(true)}
-                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-indigo-600 transition-colors"
                               >
                                 <Plus size={15} /> Add company logo <span className="text-stone-400 font-normal">(optional)</span>
                               </button>
@@ -2685,7 +2685,7 @@ export default function SignUpPage() {
                               <button
                                 type="button"
                                 onClick={() => setShowEmployeeDetails(true)}
-                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-indigo-600 transition-colors"
                               >
                                 <Plus size={15} /> Add employee details <span className="text-stone-400 font-normal">(optional)</span>
                               </button>
@@ -2733,7 +2733,7 @@ export default function SignUpPage() {
                                 id="sameAsPhone"
                                 checked={sameAsPhone}
                                 onChange={(e) => setSameAsPhone(e.target.checked)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
                               />
                               Same as Mobile Number
                             </label>
@@ -2832,7 +2832,7 @@ export default function SignUpPage() {
                               id="employeeSameAsCompany"
                               checked={employeeSameAsCompany}
                               onChange={(e) => setEmployeeSameAsCompany(e.target.checked)}
-                              className="h-3.5 w-3.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-stone-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
                             />
                             Same as company details
                           </label>
@@ -2869,7 +2869,7 @@ export default function SignUpPage() {
                               placeholder="Employee's office address"
                               className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
                                 bg-white text-slate-900 placeholder:text-stone-400
-                                focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+                                focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400
                                 border-stone-200 disabled:bg-stone-50 disabled:text-stone-400`}
                             />
                             {!employeeSameAsCompany && (
@@ -2878,7 +2878,7 @@ export default function SignUpPage() {
                                 onClick={handleUseCurrentLocationForEmployee}
                                 disabled={isLocatingEmployee}
                                 title="Use my current location"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-amber-600 disabled:opacity-50 transition-colors"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-indigo-600 disabled:opacity-50 transition-colors"
                               >
                                 {isLocatingEmployee ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
                               </button>
@@ -2899,7 +2899,7 @@ export default function SignUpPage() {
                     )}
 
                     <div className="pt-2">
-                      <button type="submit" disabled={!termsAccepted} className="w-full h-11 inline-flex items-center justify-center gap-2 bg-amber-500 text-white text-[14px] font-semibold rounded-[9px] hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                      <button type="submit" disabled={!termsAccepted} className="w-full h-11 inline-flex items-center justify-center gap-2 bg-indigo-600 text-white text-[14px] font-semibold rounded-[9px] hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Continue <ArrowRight size={16} />
                       </button>
                     </div>
@@ -2912,11 +2912,11 @@ export default function SignUpPage() {
                           id="termsAccepted"
                           checked={termsAccepted}
                           onChange={(e) => setTermsAccepted(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          className="mt-0.5 h-4 w-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
                         />
                         <span className="text-[12.5px] text-stone-500 leading-snug py-0.5">
                           I agree to the{' '}
-                          <button type="button" onClick={() => setTermsModalOpen(true)} className="text-orange-600 hover:underline font-semibold">
+                          <button type="button" onClick={() => setTermsModalOpen(true)} className="text-indigo-600 hover:underline font-semibold">
                             terms and conditions
                           </button>
                         </span>
@@ -3407,7 +3407,7 @@ export default function SignUpPage() {
                                         required
                                         className={`w-full pl-11 pr-9 py-2.5 border rounded-lg shadow-sm transition-all duration-300
                                           bg-slate-50 text-slate-900 placeholder:text-slate-400
-                                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
+                                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:border-indigo-500
                                           ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300/70'}`}
                                         aria-invalid={!!(touched.gstNo && errors.gstNo)}
                                       />

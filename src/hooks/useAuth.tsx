@@ -1,8 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import Cookies from 'js-cookie';
-import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
-import { API_BASE_URL } from '../config/apiConfig';
+import http from '../lib/http';
 
 interface JwtPayload {
   _id: string;
@@ -104,7 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // ACTUAL API LOGIN
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/transporter/auth/signin`, {
+      const response = await http.post('/api/transporter/auth/signin', {
         email: lowerEmail,
         password: pass,
       });

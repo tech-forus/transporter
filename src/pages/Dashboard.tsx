@@ -170,7 +170,7 @@ const Dashboard: React.FC = () => {
           <p className="text-lg font-semibold text-red-600">
             Please log in to view bids.
           </p>
-          <Link to="/login">
+          <Link to="/transporter-signin">
             <button className="mt-4 px-6 py-2.5 font-semibold text-white bg-blue-600 rounded-xl shadow-sm hover:bg-blue-700 transition-colors">
               Go to Login
             </button>
