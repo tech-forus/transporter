@@ -774,10 +774,16 @@ export default function AddPrice() {
           </button>
 
           <div className="flex items-center gap-3 flex-1 justify-center min-w-0">
-            <div className="flex items-baseline gap-1.5 min-w-0 shrink" title={transporterName || undefined}>
-              <h1 className="text-base font-semibold text-slate-900 flex-shrink-0">Price Configuration</h1>
-              <span className="text-sm text-slate-300 flex-shrink-0">—</span>
-              <span className="text-base text-slate-500 truncate">
+            {/* On mobile the "— for CompanyName" subtitle is dropped rather than
+                squeezed — a shrinking min-w-0 wrapper let the title's own text
+                overflow past its allotted space and visually collide with the
+                Next button (no ellipsis, since overflow was visible not hidden).
+                Title alone always fits at any width; the company name is
+                still available via the title="" tooltip attribute below. */}
+            <div className="flex items-baseline gap-1.5 min-w-0" title={transporterName || undefined}>
+              <h1 className="text-base font-semibold text-slate-900 whitespace-nowrap">Price Configuration</h1>
+              <span className="hidden sm:inline text-sm text-slate-300 flex-shrink-0">—</span>
+              <span className="hidden sm:inline text-base text-slate-500 truncate">
                 for <span className="font-bold text-blue-600">{transporterName || "your new transporter"}</span>
               </span>
             </div>
@@ -894,8 +900,13 @@ export default function AddPrice() {
           {step === 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="max-w-5xl mx-auto">
             <Card className="p-0 overflow-hidden border-0 shadow-lg">
-              {/* Unified Table */}
-              <div className="overflow-x-auto">
+              {/* Unified Table — min-w-[560px] means this always overflows a
+                  phone-width screen. The scroll itself works, but nothing told
+                  a first-time user two required columns (Variable %, Unit)
+                  were hidden off to the right — this fade + hint makes that
+                  visible instead of silently failing validation later. */}
+              <div className="relative">
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left min-w-[560px]">
                   <thead className="bg-[#f8fafc] text-slate-500 text-xs tracking-wider uppercase font-semibold border-b border-slate-200">
                     <tr>
@@ -1028,6 +1039,11 @@ export default function AddPrice() {
 
                   </tbody>
                 </table>
+                </div>
+                <div className="sm:hidden pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent" aria-hidden="true" />
+                <div className="sm:hidden flex items-center justify-center gap-1 py-1 text-[10px] font-semibold text-slate-400 bg-slate-50/80 border-t border-slate-100">
+                  <ArrowLeft size={10} className="rotate-180" /> Swipe table to see Variable % and Unit columns
+                </div>
               </div>
             </Card>
           </motion.div>
