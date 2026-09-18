@@ -12,7 +12,7 @@ import loginImg from "../assets/login-illustration-amber.svg"
 // Mirrors the shipper SignInPage's BrandLogo, in the transporter's amber theme.
 const BrandLogo = () => (
   <div className="flex items-center gap-3 text-2xl font-bold text-slate-800">
-    <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
       <Truck className="w-6 h-6 text-white" />
     </div>
     <span>Freight Compare</span>
@@ -109,7 +109,7 @@ export default function SignInPage() {
               </button>
               <button
                 type="button"
-                className="px-3 py-1 text-xs font-semibold rounded-md bg-white text-indigo-600 shadow-sm"
+                className="px-3 py-1 text-xs font-semibold rounded-md bg-white text-orange-600 shadow-sm"
               >
                 Transporter
               </button>
@@ -125,7 +125,7 @@ export default function SignInPage() {
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input id="email-address" name="email" type="email" autoComplete="email" required disabled={isLoading}
-                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition disabled:bg-slate-200"
+                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition disabled:bg-slate-200"
                   placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
@@ -142,7 +142,7 @@ export default function SignInPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required disabled={isLoading}
-                  className="w-full pl-10 pr-12 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition disabled:bg-slate-200"
+                  className="w-full pl-10 pr-12 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition disabled:bg-slate-200"
                   placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
@@ -161,7 +161,7 @@ export default function SignInPage() {
               <motion.button type="submit" disabled={isLoading}
                 whileHover={{ scale: isLoading ? 1 : 1.02 }}
                 whileTap={{ scale: isLoading ? 1 : 0.98 }}
-                className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/50"
+                className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:bg-orange-300 disabled:cursor-not-allowed shadow-lg shadow-orange-500/50"
               >
                 {isLoading ? (
                   <>
@@ -182,7 +182,7 @@ export default function SignInPage() {
                     navigate('/transporter-signup');
                   }
                 }}
-                className="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors bg-transparent border-none cursor-pointer p-0 inline"
+                className="font-semibold text-orange-600 hover:text-orange-500 transition-colors bg-transparent border-none cursor-pointer p-0 inline"
               >
                 Create one now
               </button>
