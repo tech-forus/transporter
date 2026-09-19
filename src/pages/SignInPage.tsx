@@ -58,7 +58,12 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="w-full lg:grid lg:grid-cols-2 font-sans">
+    // min-h-screen + the bg color here (not just on the inner column below)
+    // matters because this is rendered inside an iframe sized by the HOST to
+    // the viewport, not to this page's own (shorter) content height — the
+    // leftover iframe area below the form had no background of its own at
+    // all, so it fell through to the browser's plain white default.
+    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 font-sans bg-slate-100 dark:bg-[#08141f]">
       {/* Left Column: Branding & Image */}
       <div className="relative hidden lg:flex flex-col items-center justify-center bg-slate-100 dark:bg-[#08141f] p-12">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}>
