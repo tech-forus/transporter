@@ -11,6 +11,7 @@ import BiddingDetails from './pages/BiddingDetails';
 import ProfilePage from './pages/ProfilePage';
 import AddPrice from './pages/AddPrice';
 import VerifyOtpPage from './pages/VerifyOtpPage';
+import { useEmbeddedTheme } from './hooks/useEmbeddedTheme';
 
 
 
@@ -35,6 +36,7 @@ export const PublicRoute: React.FC<React.PropsWithChildren> = ({ children }) => 
   return (isAuthenticated)? <Navigate to="/dashboard" replace /> : <>{children}</>;
 };
 function App() {
+  useEmbeddedTheme();
   return (
     <AuthProvider> {/* AuthProvider now wraps everything */}
         <Router>
