@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Cookies from 'js-cookie';
-import { jwtDecode } from 'jwt-decode';
+import http from '../lib/http';
 
 // Lucide React Icons
 import {
@@ -47,7 +46,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ title, icon, children }) => (
   <div className="bg-white rounded-xl shadow-md overflow-hidden border border-slate-200/80">
     <div className="p-5 md:p-6 border-b border-slate-200 bg-slate-50/50">
       <div className="flex items-center gap-3">
-        <span className="text-blue-600">{icon}</span>
+        <span className="text-amber-600">{icon}</span>
         <h2 className="text-lg font-bold text-slate-800">{title}</h2>
       </div>
     </div>
@@ -84,20 +83,36 @@ const ProfilePage: React.FC = () => {
   const [transporterData, setTransporterData] = useState<TransporterData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Was: Cookies.get('authToken') + jwtDecode, which (a) only ever had a
+  // handful of fields in the JWT payload to begin with — GST/address/office
+  // hours/etc. were never in there — and (b) this app's own client-set
+  // cookie defaults to SameSite=Lax with no explicit cross-site attributes,
+  // which browsers silently drop inside a third-party iframe (this app is
+  // ALWAYS embedded — see MainLayout.tsx's isIframe branch). Confirmed live
+  // 2026-09-22: document.cookie was completely empty mid-session despite
+  // being actively logged in, because Dashboard/auth state live in React
+  // memory, not that cookie. The backend's own session cookie IS configured
+  // correctly for cross-site use (SameSite=None; Secure) and already works —
+  // /me is the same endpoint the native transporter dashboard's own Profile
+  // page relies on, just needs credentials explicitly opted in per-call
+  // since this app's shared http client doesn't default to it.
   useEffect(() => {
-    try {
-      const token = Cookies.get('authToken');
-      if (token) {
-        // We cast the decoded token to our expected type for safety
-        const decodedData = jwtDecode<TransporterData>(token);
-        setTransporterData(decodedData);
-      } else {
-        setError('Authentication token not found. Please log in again.');
-      }
-    } catch (err) {
-      console.error('Failed to decode token or token is invalid:', err);
-      setError('Your session is invalid or has expired. Please log in again.');
-    }
+    let cancelled = false;
+    http.get('/api/transporter/auth/me', { withCredentials: true })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.data?.success && res.data?.transporter) {
+          setTransporterData(res.data.transporter);
+        } else {
+          setError('Could not load your profile. Please log in again.');
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to load transporter profile:', err);
+        setError('Your session is invalid or has expired. Please log in again.');
+      });
+    return () => { cancelled = true; };
   }, []);
 
   if (error) {
@@ -123,12 +138,12 @@ const ProfilePage: React.FC = () => {
     <div className="bg-slate-50 min-h-screen">
       <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8">
-          <div className="w-20 h-20 bg-blue-600 text-white rounded-full flex items-center justify-center text-4xl font-bold shadow-lg flex-shrink-0">
+          <div className="w-20 h-20 bg-amber-600 text-white rounded-full flex items-center justify-center text-4xl font-bold shadow-lg flex-shrink-0">
             {transporterData.companyName?.charAt(0) || 'T'}
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">{transporterData.companyName}</h1>
-            <p className="text-md text-slate-600 mt-1">Transporter Profile</p>
+            <h1 className="text-lg font-black text-slate-900">{transporterData.companyName}</h1>
+            <p className="text-sm text-slate-600 mt-1">Transporter Profile</p>
           </div>
         </div>
 
