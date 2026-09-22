@@ -11,8 +11,18 @@ export function useReportIframeHeight(deps: React.DependencyList = []) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (window.parent === window) return;
+    // Safety cap: a page whose root uses min-h-screen (100vh) can enter a
+    // runaway feedback loop with the parent's resize handling — the iframe's
+    // OWN rendered height IS its internal 100vh, so any reported height that
+    // exceeds the page's real content clears more vh next layout, which
+    // grows scrollHeight again, indefinitely. Confirmed live 2026-09-22:
+    // Dashboard.tsx hit 350,000+px within ~90 seconds before this cap
+    // existed. No real page here is anywhere near this tall — this is a
+    // circuit breaker, not a normal operating value.
+    const MAX_REPORTABLE_HEIGHT = 4000;
     const postHeight = () => {
-      window.parent.postMessage({ type: "resize_iframe", height: document.documentElement.scrollHeight }, "*");
+      const height = Math.min(document.documentElement.scrollHeight, MAX_REPORTABLE_HEIGHT);
+      window.parent.postMessage({ type: "resize_iframe", height }, "*");
     };
     postHeight();
     const observer = new ResizeObserver(postHeight);
