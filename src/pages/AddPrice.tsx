@@ -756,9 +756,13 @@ export default function AddPrice() {
         localStorage.removeItem('transporter_price_rate');
         localStorage.removeItem('transporter_zone_rates');
         localStorage.removeItem('transporter_extracted_price_rate');
-        if (window.parent !== window) {
-          window.parent.postMessage({ type: 'navigate_back' }, '*');
-        }
+        // Plain in-SPA navigation only — this is the SAME iframe/session
+        // IframeNav already navigates within (Dashboard/Profile), not a
+        // parent-frame handoff. `navigate_back` is a different, unrelated
+        // message TransporterSignupPage.tsx's parent handler uses to reset
+        // the iframe to the signup landing page — sending it here was wrong
+        // and bounced a successful save to /transporter-signin instead of
+        // /dashboard (caught live 2026-09-22).
         navigate('/dashboard');
       } catch (err: any) {
         toast.error(err.response?.data?.message || 'Save failed.');
