@@ -26,23 +26,40 @@ const IframeNav: React.FC = () => {
     navigate('/transporter-signin');
   };
 
+  // Same shape as the native app's own MobileTabBar.tsx — amber active
+  // color, filled pill behind the active icon — so this reads as the same
+  // app, not a visually distinct sub-product bolted on the side.
   const linkCls = ({ isActive }: { isActive: boolean }) =>
     `flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold transition-colors ${
-      isActive ? 'text-blue-600' : 'text-slate-400'
+      isActive ? 'text-amber-600' : 'text-slate-400'
     }`;
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 flex items-stretch shadow-[0_-4px_16px_rgba(15,23,42,0.08)]">
+    <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-100 flex items-stretch shadow-[0_-4px_16px_rgba(15,23,42,0.08)]">
       <NavLink to="/dashboard" className={linkCls}>
-        <LayoutDashboard size={20} />
-        Dashboard
+        {({ isActive }) => (
+          <>
+            <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50' : ''}`}>
+              <LayoutDashboard size={20} strokeWidth={isActive ? 2.5 : 2} />
+            </span>
+            Dashboard
+          </>
+        )}
       </NavLink>
       <NavLink to="/profile" className={linkCls}>
-        <UserIcon size={20} />
-        Profile
+        {({ isActive }) => (
+          <>
+            <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50' : ''}`}>
+              <UserIcon size={20} strokeWidth={isActive ? 2.5 : 2} />
+            </span>
+            Profile
+          </>
+        )}
       </NavLink>
       <button onClick={handleSignOut} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold text-slate-400">
-        <LogOut size={20} />
+        <span className="flex items-center justify-center w-9 h-7 rounded-full">
+          <LogOut size={20} />
+        </span>
         Sign Out
       </button>
     </nav>

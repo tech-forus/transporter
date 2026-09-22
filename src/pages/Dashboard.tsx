@@ -182,7 +182,7 @@ const Dashboard: React.FC = () => {
             Please log in to view bids.
           </p>
           <Link to="/transporter-signin">
-            <button className="mt-4 px-6 py-2.5 font-semibold text-white bg-blue-600 rounded-xl shadow-sm hover:bg-blue-700 transition-colors">
+            <button className="mt-4 px-6 py-2.5 font-semibold text-white bg-amber-600 rounded-xl shadow-sm hover:bg-amber-700 transition-colors">
               Go to Login
             </button>
           </Link>
@@ -195,7 +195,7 @@ const Dashboard: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
         <div className="text-center">
-          <RefreshCw size={28} className="mx-auto animate-spin text-blue-500 mb-3" />
+          <RefreshCw size={28} className="mx-auto animate-spin text-amber-500 mb-3" />
           <p className="text-slate-500 text-sm font-medium">Loading bids…</p>
         </div>
       </div>
@@ -260,7 +260,7 @@ const Dashboard: React.FC = () => {
 
             <div className="flex-shrink-0">
               <Link to={`/bidding/details/${b._id}`}>
-                <button className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
+                <button className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-xl shadow-sm hover:bg-amber-700 active:scale-95 transition-all">
                   View Details <ArrowRight size={14} />
                 </button>
               </Link>
@@ -271,7 +271,7 @@ const Dashboard: React.FC = () => {
     ) : (
       <div className="text-center py-10 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
         <p className="text-slate-400 text-sm">No bids found in this category.</p>
-        <Link to="/addprice" className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700">
+        <Link to="/addprice" className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">
           Expand your service zones to unlock more bids <ArrowRight size={12} />
         </Link>
       </div>
@@ -299,7 +299,7 @@ const Dashboard: React.FC = () => {
 
         {/* First-login welcome banner */}
         {showWelcome && (
-          <div className="relative mb-6 rounded-2xl overflow-hidden border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-5">
+          <div className="relative mb-6 rounded-2xl overflow-hidden border border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 p-5">
             <button
               onClick={dismissWelcome}
               className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
@@ -308,7 +308,7 @@ const Dashboard: React.FC = () => {
               <X size={16} />
             </button>
             <div className="flex items-start gap-3 pr-6">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center flex-shrink-0 shadow-sm">
                 <Sparkles size={16} className="text-white" />
               </div>
               <div>
@@ -323,10 +323,10 @@ const Dashboard: React.FC = () => {
                   {/* Both routes are real, working pages in this same app
                       (App.tsx: /addprice, /profile) — the "not ready yet"
                       disabled state here was stale, found live 2026-09-22. */}
-                  <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-50 transition-colors">
+                  <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-white border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-50 transition-colors">
                     <ShieldCheck size={13} /> Review your price & zone config
                   </Link>
-                  <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-50 transition-colors">
+                  <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-white border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-50 transition-colors">
                     <Zap size={13} /> View your profile
                   </Link>
                 </div>
@@ -352,16 +352,19 @@ const Dashboard: React.FC = () => {
                   draggable={false}
                 />
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
                   {(user?.companyName?.[0] || 'C').toUpperCase()}
                 </div>
               );
             })()}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+            {/* text-lg, not the original text-2xl/3xl — matches the native
+                transporter dashboard's own heading scale (TransporterDashboardNative.tsx),
+                reported live 2026-09-22 as feeling oversized next to it. */}
+            <h1 className="text-lg font-black tracking-tight text-slate-900">
               Available Bids
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               {openBids.length + limitedBids.length + semiLimitedBids.length} bid{(openBids.length + limitedBids.length + semiLimitedBids.length) === 1 ? '' : 's'} matching your service zones
             </p>
           </div>
@@ -369,7 +372,7 @@ const Dashboard: React.FC = () => {
           <button
             onClick={fetchBids}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-xl shadow-sm hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-xl shadow-sm hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             Refresh
@@ -379,7 +382,7 @@ const Dashboard: React.FC = () => {
         <main>
           {openBids.length + limitedBids.length + semiLimitedBids.length === 0 ? (
             <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
-              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
                 <Bell size={20} />
               </div>
               <p className="text-slate-700 font-semibold">No bids yet</p>
