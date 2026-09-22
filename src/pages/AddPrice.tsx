@@ -636,6 +636,25 @@ export default function AddPrice() {
     setUploadDismissed(true);
   };
 
+  // A second entry point for the same upload+extract pipeline, right on the
+  // Zone Rate Matrix step — asked for live 2026-09-22: "give user option to
+  // upload zone prices and zone price matrix to auto fill this hectic shit
+  // too". Reuses the exact same uploadFiles/runExtractionAndApply state as
+  // the upload-first screen (it already merges into existing zoneLabels/
+  // zoneRates rather than overwriting), just resets to a blank slate on open
+  // so a stale success/gap-report from an earlier attempt doesn't linger.
+  // Gated the same way as the upload-first screen — the extraction pipeline
+  // needs a real session (withCredentials), which mid-signup users don't
+  // have yet.
+  const [showZoneUploadPanel, setShowZoneUploadPanel] = useState(false);
+  const openZoneUploadPanel = () => {
+    setUploadFiles([]);
+    setUploadStatus('idle');
+    setUploadError(null);
+    setGapReport(null);
+    setShowZoneUploadPanel(true);
+  };
+
   const handleRateChange = (
     section: keyof PriceRate,
     field: keyof VariableFixed | keyof VariableFixedThreshold | null,
@@ -1427,6 +1446,86 @@ export default function AddPrice() {
                   </span>
                 </div>
               )}
+
+              {isReturningTransporter && (
+                <div className="mb-3">
+                  {!showZoneUploadPanel ? (
+                    <button
+                      type="button"
+                      onClick={openZoneUploadPanel}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg font-medium hover:bg-blue-100 dark:hover:bg-blue-900/30 transition"
+                    >
+                      <Upload size={14} /> Upload a zone/pincode rate sheet to auto-fill
+                    </button>
+                  ) : (
+                    <div className="bg-white dark:bg-[#0d2438] rounded-xl border border-slate-200/60 dark:border-[#1d3f5c] p-4">
+                      {uploadStatus !== 'processing' && uploadStatus !== 'success' && (
+                        <>
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <p className="text-sm font-semibold text-slate-700 dark:text-white">Upload zone rates or a pincode/zone coverage sheet</p>
+                            <button type="button" onClick={() => setShowZoneUploadPanel(false)} className="text-slate-400 dark:text-[#6f93b8] hover:text-slate-600 dark:hover:text-[#8fb0cf] flex-shrink-0">
+                              <X size={16} />
+                            </button>
+                          </div>
+                          <div
+                            className="border-2 border-dashed border-slate-300 dark:border-[#1d3f5c] rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+                            onClick={() => uploadFileInputRef.current?.click()}
+                            onDragOver={e => e.preventDefault()}
+                            onDrop={e => { e.preventDefault(); if (e.dataTransfer.files) addUploadFiles(e.dataTransfer.files); }}
+                          >
+                            <Upload size={20} className="mx-auto text-slate-400 dark:text-[#6f93b8]" />
+                            <p className="mt-1.5 text-sm font-semibold text-slate-700 dark:text-white">Tap to choose files, or drag them here</p>
+                          </div>
+                          {uploadFiles.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              {uploadFiles.map(f => (
+                                <div key={f.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-[#1d3f5c] rounded-lg">
+                                  <span className="text-xs font-medium text-slate-700 dark:text-white truncate">{f.file.name}</span>
+                                  <button type="button" onClick={() => removeUploadFile(f.id)} className="text-slate-400 dark:text-[#6f93b8] hover:text-red-500 flex-shrink-0">
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {uploadError && <p className="mt-2 text-xs font-semibold text-red-600 dark:text-red-400">{uploadError}</p>}
+                          <button
+                            type="button"
+                            onClick={runExtractionAndApply}
+                            disabled={uploadFiles.length === 0}
+                            className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-lg transition-colors"
+                          >
+                            <Sparkles size={14} /> Read this document
+                          </button>
+                        </>
+                      )}
+                      {uploadStatus === 'processing' && (
+                        <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-400">
+                          <Loader2 className="animate-spin" size={16} /> Reading your document…
+                        </div>
+                      )}
+                      {uploadStatus === 'success' && (
+                        <>
+                          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-2">
+                            <CheckCircle2 size={16} /> Document read — zone rates below updated where found
+                          </div>
+                          {gapReport?.zoneNote && (
+                            <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">{gapReport.zoneNote}</p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowZoneUploadPanel(false)}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-white font-semibold text-sm rounded-lg transition-colors"
+                          >
+                            Done
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Card>
                 <ZoneRateMatrix
                   zoneLabels={zoneLabels}

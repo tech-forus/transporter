@@ -98,45 +98,53 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
   };
 
   const parsePastedData = useCallback((text: string): { data: number[][], error: string | null } => {
-    const lines = text.trim().split(/\r?\n/).filter(line => line.trim());
+    const rawLines = text.trim().split(/\r?\n/).filter(line => line.trim());
 
-    if (lines.length === 0) {
+    if (rawLines.length === 0) {
       return { data: [], error: "No data found" };
     }
 
-    const firstLine = lines[0];
-    const delimiter = firstLine.includes('\t') ? '\t' : ',';
+    const delimiter = rawLines[0].includes('\t') ? '\t' : ',';
 
-    const parsedData: number[][] = [];
-    let hasHeaders = false;
+    // Trim trailing empty cells only (a common Excel artifact from selecting
+    // one extra blank column/row when copying) — never interior ones, since
+    // an interior blank cell legitimately means "0", not "not pasted".
+    const splitLine = (line: string) => {
+      const cells = line.split(delimiter).map(c => c.trim());
+      while (cells.length > 0 && cells[cells.length - 1] === '') cells.pop();
+      return cells;
+    };
+    let rows = rawLines.map(splitLine).filter(r => r.length > 0);
 
-    const firstRowCells = firstLine.split(delimiter).map(c => c.trim());
-    const firstCellIsEmpty = firstRowCells[0] === '' || firstRowCells[0].toLowerCase() === 'from' || firstRowCells[0].toLowerCase().includes('to');
-
-    if (firstCellIsEmpty || zoneLabels.some(z => firstRowCells.includes(z))) {
-      hasHeaders = true;
+    // Detect a genuine header ROW by whether most of its cells fail to parse
+    // as numbers — NOT by checking only whether row 0's first cell looks like
+    // a zone name. The old check treated ANY row starting with a real zone
+    // label as a header, which is exactly the normal shape of a matrix
+    // copied out of Excel WITH row labels but no header row — it silently
+    // dropped the first real data row every time, producing a row-count
+    // mismatch (and via startCol on every row, corrupted the rest too).
+    const isHeaderRow = (cells: string[]) => {
+      const rest = cells.length > 1 ? cells.slice(1) : cells;
+      const numericCount = rest.filter(c => c !== '' && !isNaN(parseFloat(c))).length;
+      return numericCount < rest.length / 2;
+    };
+    if (rows.length > 0 && isHeaderRow(rows[0])) {
+      rows = rows.slice(1);
     }
 
-    const startRow = hasHeaders ? 1 : 0;
-
-    for (let i = startRow; i < lines.length; i++) {
-      const cells = lines[i].split(delimiter).map(c => c.trim());
-      const startCol = hasHeaders ? 1 : 0;
-
+    // Strip a leading row-label cell PER ROW, independently, instead of one
+    // blanket hasHeaders decision applied to every row — a cell that doesn't
+    // parse as a number is a zone name, not a rate, regardless of what row
+    // 0 looked like.
+    const parsedData: number[][] = rows.map(cells => {
+      const startCol = cells.length > 0 && isNaN(parseFloat(cells[0])) ? 1 : 0;
       const row: number[] = [];
       for (let j = startCol; j < cells.length; j++) {
         const val = parseFloat(cells[j]);
-        if (isNaN(val)) {
-          row.push(0);
-        } else {
-          row.push(Math.min(Math.max(val, 0), CELL_MAX));
-        }
+        row.push(isNaN(val) ? 0 : Math.min(Math.max(val, 0), CELL_MAX));
       }
-
-      if (row.length > 0) {
-        parsedData.push(row);
-      }
-    }
+      return row;
+    });
 
     const expectedRows = zoneLabels.length;
     const expectedCols = zoneLabels.length;
