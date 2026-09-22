@@ -906,6 +906,32 @@ export default function AddPrice() {
   };
   const goBack = () => setStep(s => Math.max(s - 1, 0));
 
+  // Android hardware back button lives in the OUTER native app, which has no
+  // idea this multi-step wizard exists — every step transition here is pure
+  // React state, no URL/history change at any level. Without this, pressing
+  // back mid-wizard found nothing in the outer app's own history and showed
+  // "Exit FreightCompare?" instead of stepping back a page. Reported live
+  // 2026-09-22. See transporterIframeBackBridge.ts in the main app repo for
+  // the other half of this — it asks us first, before touching its own
+  // history or showing that dialog.
+  useEffect(() => {
+    const canGoBackHere = showZoneUploadPanel || step > 0 || (isReturningTransporter && (showUploadStep || step === 0));
+    window.parent?.postMessage({ type: 'transporter_iframe_nav_state', canGoBack: canGoBackHere }, '*');
+  }, [showZoneUploadPanel, step, isReturningTransporter, showUploadStep]);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== 'transporter_iframe_consume_back') return;
+      if (showZoneUploadPanel) { setShowZoneUploadPanel(false); return; }
+      if (step > 0) { goBack(); return; }
+      if (isReturningTransporter) { navigate('/dashboard'); return; }
+      goBackToUpload();
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showZoneUploadPanel, step, isReturningTransporter]);
+
   const renderStepper = () => (
     <div className="flex items-center gap-1.5 flex-shrink-0">
       {stepLabels.map((label, idx) => (
