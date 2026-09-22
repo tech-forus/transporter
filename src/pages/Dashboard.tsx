@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../hooks/useAuth'
 import { API_BASE_URL } from '../config/apiConfig'
 import { resolveTransporterLogo } from '../utils/transporterLogo'
+import { useReportIframeHeight } from '../hooks/useReportIframeHeight'
 
 // ensure your authToken cookie is sent on every request
 axios.defaults.withCredentials = true
@@ -163,6 +164,16 @@ const Dashboard: React.FC = () => {
     if (isAuthenticated) fetchBids()
   }, [isAuthenticated, user?._id])
 
+  // Every OTHER page in this app (SignIn/SignUp/VerifyOtp/AddPrice) calls
+  // this so the parent FreightCompare app can size the embedding iframe to
+  // fit real content — this page never did, so after logging in the iframe
+  // just kept whatever (much shorter) height the sign-in form had reported,
+  // clipping most of this page's actual content. Reported live 2026-09-22
+  // as "chopped crop, hidden UI". Deps cover every state that changes this
+  // page's rendered height: which of the four return branches is active,
+  // the welcome banner, and the bid counts/list length.
+  useReportIframeHeight([isAuthenticated, loading, error, showWelcome, openBids.length, limitedBids.length, semiLimitedBids.length])
+
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
@@ -309,15 +320,15 @@ const Dashboard: React.FC = () => {
                   Keep your coverage and rates up to date to get matched with more shippers.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  {/* Disabled for now — /addprice and /profile aren't ready
-                      for individual/owner-operator accounts yet (no zone
-                      matrix or profile page for this account type). */}
-                  <button type="button" disabled className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-white border border-slate-200 rounded-full px-3 py-1.5 cursor-not-allowed">
+                  {/* Both routes are real, working pages in this same app
+                      (App.tsx: /addprice, /profile) — the "not ready yet"
+                      disabled state here was stale, found live 2026-09-22. */}
+                  <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-50 transition-colors">
                     <ShieldCheck size={13} /> Review your price & zone config
-                  </button>
-                  <button type="button" disabled className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 bg-white border border-slate-200 rounded-full px-3 py-1.5 cursor-not-allowed">
+                  </Link>
+                  <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-white border border-blue-200 rounded-full px-3 py-1.5 hover:bg-blue-50 transition-colors">
                     <Zap size={13} /> View your profile
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

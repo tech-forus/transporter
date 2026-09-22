@@ -2,6 +2,7 @@
 import React, { ReactNode } from 'react';
 import Header from './Header';
 import Footer from './Footer'; // NEW: Import Footer
+import IframeNav from './IframeNav';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -14,9 +15,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   if (isIframe) {
     return (
       <div className="min-h-screen bg-transparent w-full">
-        <main className="w-full">
+        {/* pb-14 clears IframeNav's own height (fixed position, so it's
+            otherwise not accounted for in document flow / scrollHeight) —
+            without it the nav bar sits on top of whatever content happened
+            to be at the bottom of the page. */}
+        <main className="w-full pb-14">
           {children}
         </main>
+        <IframeNav />
       </div>
     );
   }
