@@ -984,8 +984,15 @@ export default function AddPrice() {
   // back partial, name exactly what's still missing rather than silently
   // dumping them into the full table.
   if (showUploadStep) {
+    /* pb-24 below clears IframeNav's fixed bottom bar (measured ~65px live) —
+       this div IS the page's own min-h-screen root, so padding added here
+       stays inside what useReportIframeHeight already measures. A wrapper
+       OUTSIDE a min-h-screen div is what caused the earlier runaway-resize
+       regression (see MainLayout.tsx's comment) — this isn't that. Found
+       live 2026-09-22: the Continue button sat under the fixed nav with no
+       further scroll room to reach it. */
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#08141f] font-sans py-4 px-4">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#08141f] font-sans py-4 px-4 pb-24">
         <div className="container mx-auto max-w-xl">
           <div className="bg-white dark:bg-[#0d2438] rounded-2xl shadow-lg border border-slate-200/60 dark:border-[#1d3f5c] p-5 sm:p-6">
             <h1 className="text-lg font-bold text-slate-900 dark:text-white">Add your routes & rates</h1>
