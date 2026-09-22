@@ -991,7 +991,7 @@ export default function AddPrice() {
             <h1 className="text-lg font-bold text-slate-900 dark:text-white">Add your routes & rates</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-[#8fb0cf]">
               Upload your rate card, zone/pincode coverage sheet, or serviceability doc — PDF, Excel, CSV, Word, or photos of the papers all work.
-              We'll read them and fill in what we can; you only fill the rest.
+              We'll read them and fill in the rest for you. If anything's missing or unclear, we'll tell you exactly what — so you can add it yourself or upload another document that covers it.
             </p>
 
             {uploadStatus !== 'processing' && (
