@@ -45,16 +45,16 @@ const IframeNav: React.FC = () => {
   // app, not a visually distinct sub-product bolted on the side.
   const linkCls = ({ isActive }: { isActive: boolean }) =>
     `flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold transition-colors ${
-      isActive ? 'text-amber-600' : 'text-slate-400'
+      isActive ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-[#6f93b8]'
     }`;
 
   return (
     <>
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-100 flex items-stretch shadow-[0_-4px_16px_rgba(15,23,42,0.08)]">
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white dark:bg-[#0d2438] border-t border-slate-100 dark:border-[#1d3f5c] flex items-stretch shadow-[0_-4px_16px_rgba(15,23,42,0.08)]">
         <NavLink to="/dashboard" className={linkCls}>
           {({ isActive }) => (
             <>
-              <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50' : ''}`}>
+              <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
                 <LayoutDashboard size={20} strokeWidth={isActive ? 2.5 : 2} />
               </span>
               Dashboard
@@ -64,14 +64,14 @@ const IframeNav: React.FC = () => {
         <NavLink to="/profile" className={linkCls}>
           {({ isActive }) => (
             <>
-              <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50' : ''}`}>
+              <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
                 <UserIcon size={20} strokeWidth={isActive ? 2.5 : 2} />
               </span>
               Profile
             </>
           )}
         </NavLink>
-        <button onClick={() => setMoreOpen(true)} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold text-slate-400">
+        <button onClick={() => setMoreOpen(true)} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold text-slate-400 dark:text-[#6f93b8]">
           <span className="flex items-center justify-center w-9 h-7 rounded-full">
             <MoreHorizontal size={20} />
           </span>
@@ -90,28 +90,28 @@ const IframeNav: React.FC = () => {
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="absolute bottom-0 inset-x-0 bg-white rounded-t-2xl p-4 pb-6"
+              className="absolute bottom-0 inset-x-0 bg-white dark:bg-[#0d2438] rounded-t-2xl p-4 pb-6"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-center mb-3">
-                <div className="w-10 h-1 rounded-full bg-slate-200" />
+                <div className="w-10 h-1 rounded-full bg-slate-200 dark:bg-[#1d3f5c]" />
               </div>
               <div className="flex items-center justify-between mb-2 px-1">
-                <h3 className="text-sm font-bold text-slate-800">More</h3>
-                <button onClick={() => setMoreOpen(false)} className="p-1 text-slate-400" aria-label="Close">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-white">More</h3>
+                <button onClick={() => setMoreOpen(false)} className="p-1 text-slate-400 dark:text-[#6f93b8]" aria-label="Close">
                   <X size={18} />
                 </button>
               </div>
               <button
                 onClick={() => goTo('/addprice')}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 rounded-xl"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl"
               >
                 <ShieldCheck size={18} className="text-amber-600" /> Price & zone config
               </button>
-              <hr className="my-2 border-slate-100" />
+              <hr className="my-2 border-slate-100 dark:border-[#1d3f5c]" />
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl"
+                className="w-full flex items-center gap-3 px-3 py-3 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
               >
                 <LogOut size={18} /> Sign Out
               </button>

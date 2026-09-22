@@ -78,10 +78,10 @@ function useCountdown(endTime: string) {
 }
 
 const TIER_CLASSES: Record<string, string> = {
-  safe: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  soon: 'bg-amber-50 text-amber-700 border-amber-200',
-  urgent: 'bg-red-50 text-red-700 border-red-200 animate-pulse',
-  expired: 'bg-slate-100 text-slate-400 border-slate-200',
+  safe: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40',
+  soon: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40',
+  urgent: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/40 animate-pulse',
+  expired: 'bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-[#6f93b8] border-slate-200 dark:border-[#1d3f5c]',
 }
 
 function CountdownBadge({ endTime }: { endTime: string }) {
@@ -191,9 +191,9 @@ const Dashboard: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="p-8 text-center bg-white rounded-2xl shadow-lg border border-slate-100">
-          <p className="text-lg font-semibold text-red-600">
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-[#08141f]">
+        <div className="p-8 text-center bg-white dark:bg-[#0d2438] rounded-2xl shadow-lg border border-slate-100 dark:border-[#1d3f5c]">
+          <p className="text-lg font-semibold text-red-600 dark:text-red-400">
             Please log in to view bids.
           </p>
           <Link to="/transporter-signin">
@@ -208,10 +208,10 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-[#08141f]">
         <div className="text-center">
           <RefreshCw size={28} className="mx-auto animate-spin text-amber-500 mb-3" />
-          <p className="text-slate-500 text-sm font-medium">Loading bids…</p>
+          <p className="text-slate-500 dark:text-[#8fb0cf] text-sm font-medium">Loading bids…</p>
         </div>
       </div>
     );
@@ -219,9 +219,9 @@ const Dashboard: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-6 bg-slate-50 min-h-screen">
-        <div className="p-5 text-center bg-red-50 border border-red-100 rounded-2xl max-w-md mx-auto">
-          <p className="text-red-700 font-medium">{error}</p>
+      <div className="p-6 bg-slate-50 dark:bg-[#08141f] min-h-screen">
+        <div className="p-5 text-center bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40 rounded-2xl max-w-md mx-auto">
+          <p className="text-red-700 dark:text-red-300 font-medium">{error}</p>
           <button
             onClick={fetchBids}
             className="mt-4 px-4 py-2 font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors"
@@ -239,35 +239,35 @@ const Dashboard: React.FC = () => {
         {bids.map((b) => (
           <div
             key={b._id}
-            className="relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
+            className="relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 bg-white dark:bg-[#0d2438] border border-slate-100 dark:border-[#1d3f5c] rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
           >
             <div className={`absolute left-0 top-0 bottom-0 w-1 ${theme.accent}`} />
             <div className="flex-grow min-w-0 pl-2">
               <div className="flex items-center flex-wrap gap-2 mb-2">
-                <span className="font-bold text-base text-slate-900">
+                <span className="font-bold text-base text-slate-900 dark:text-white">
                   {b.userId.companyName}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-400 dark:text-[#6f93b8]">
                   {b.userId.firstName} {b.userId.lastName}
                 </span>
                 <CountdownBadge endTime={b.bidEndTime} />
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-600">
-                <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                  <IndianRupee size={12} className="text-blue-500" />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-600 dark:text-[#8fb0cf]">
+                <span className="inline-flex items-center gap-1 font-semibold text-slate-800 dark:text-white">
+                  <IndianRupee size={12} className="text-blue-500 dark:text-blue-400" />
                   {b.bidAmount.toLocaleString('en-IN')}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <MapPin size={12} className="text-slate-400" />
-                  {b.origin} <ArrowRight size={10} className="text-slate-300" /> {b.destination}
+                  <MapPin size={12} className="text-slate-400 dark:text-[#6f93b8]" />
+                  {b.origin} <ArrowRight size={10} className="text-slate-300 dark:text-[#5c7c9a]" /> {b.destination}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <Package size={12} className="text-slate-400" />
+                  <Package size={12} className="text-slate-400 dark:text-[#6f93b8]" />
                   {b.noofboxes} box{b.noofboxes === 1 ? '' : 'es'} · {b.weightOfBox} kg
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <Clock size={12} className="text-slate-400" />
+                  <Clock size={12} className="text-slate-400 dark:text-[#6f93b8]" />
                   Pickup {new Date(b.pickupDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {b.pickupTime}
                 </span>
               </div>
@@ -284,8 +284,8 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
     ) : (
-      <div className="text-center py-10 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-        <p className="text-slate-400 text-sm">No bids found in this category.</p>
+      <div className="text-center py-10 px-4 border-2 border-dashed border-slate-200 dark:border-[#1d3f5c] rounded-2xl bg-slate-50/50 dark:bg-white/5">
+        <p className="text-slate-400 dark:text-[#6f93b8] text-sm">No bids found in this category.</p>
         <Link to="/addprice" className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700">
           Expand your service zones to unlock more bids <ArrowRight size={12} />
         </Link>
@@ -298,7 +298,7 @@ const Dashboard: React.FC = () => {
       <section className="mb-8">
         <div className="mb-3 flex items-stretch h-9">
           <div className={`w-1 rounded-l-sm flex-shrink-0 ${theme.accent}`} />
-          <h2 className="bg-slate-100 text-slate-800 text-base font-bold flex items-center pl-4 pr-6 gap-2 select-none">
+          <h2 className="bg-slate-100 dark:bg-[#0d2438] text-slate-800 dark:text-white text-base font-bold flex items-center pl-4 pr-6 gap-2 select-none">
             {title}
             <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${theme.chip}`}>{bids.length}</span>
           </h2>
@@ -309,46 +309,46 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div className="bg-slate-50 dark:bg-[#08141f] min-h-screen">
       <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
 
         {/* Your Setup — routes/zones + rate card + fleet size, with a real
             edit path. Deliberately first, above the welcome banner and
             Available Bids: this IS the transporter's own operation, bids
             are what comes TO them because of it, not the other way round. */}
-        <div className="mb-6 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <h2 className="text-sm font-bold text-slate-800 mb-3">Your Setup</h2>
+        <div className="mb-6 bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-100 dark:border-[#1d3f5c] shadow-sm p-5">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white mb-3">Your Setup</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            <div className="rounded-xl bg-slate-50 p-3">
-              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-1">
+            <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-3">
+              <div className="flex items-center gap-1.5 text-slate-400 dark:text-[#6f93b8] text-[11px] font-semibold uppercase tracking-wide mb-1">
                 <MapIcon size={12} /> Routes covered
               </div>
-              <p className="text-lg font-black text-slate-900">
+              <p className="text-lg font-black text-slate-900 dark:text-white">
                 {priceSummary?.hasPriceCard ? priceSummary.destinationRateCount ?? 0 : '—'}
               </p>
             </div>
-            <div className="rounded-xl bg-slate-50 p-3">
-              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-1">
+            <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-3">
+              <div className="flex items-center gap-1.5 text-slate-400 dark:text-[#6f93b8] text-[11px] font-semibold uppercase tracking-wide mb-1">
                 <ShieldCheck size={12} /> Rate card
               </div>
-              <p className="text-lg font-black text-slate-900">
+              <p className="text-lg font-black text-slate-900 dark:text-white">
                 {priceSummary === null ? '—' : priceSummary.hasPriceCard ? 'Set up' : 'Not started'}
               </p>
             </div>
-            <div className="rounded-xl bg-slate-50 p-3">
-              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-1">
+            <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-3">
+              <div className="flex items-center gap-1.5 text-slate-400 dark:text-[#6f93b8] text-[11px] font-semibold uppercase tracking-wide mb-1">
                 <TruckIcon size={12} /> Fleet
               </div>
-              <p className="text-lg font-black text-slate-900">
+              <p className="text-lg font-black text-slate-900 dark:text-white">
                 {user?.noOfTrucks ? `${user.noOfTrucks} trucks` : '—'}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-100 transition-colors">
+            <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
               <MapIcon size={13} /> {priceSummary?.hasPriceCard ? 'Edit routes & rates' : 'Add your routes & rates'}
             </Link>
-            <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5 hover:bg-slate-100 transition-colors">
+            <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-[#8fb0cf] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-[#1d3f5c] rounded-full px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
               <Zap size={13} /> View full profile
             </Link>
           </div>
@@ -356,10 +356,10 @@ const Dashboard: React.FC = () => {
 
         {/* First-login welcome banner */}
         {showWelcome && (
-          <div className="relative mb-6 rounded-2xl overflow-hidden border border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 p-5">
+          <div className="relative mb-6 rounded-2xl overflow-hidden border border-amber-100 dark:border-amber-800/40 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/10 p-5">
             <button
               onClick={dismissWelcome}
-              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute top-3 right-3 text-slate-400 dark:text-[#6f93b8] hover:text-slate-600 dark:hover:text-[#8fb0cf] transition-colors"
               aria-label="Dismiss"
             >
               <X size={16} />
@@ -369,10 +369,10 @@ const Dashboard: React.FC = () => {
                 <Sparkles size={16} className="text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                   Welcome to FreightCompare{user?.companyName ? `, ${user.companyName}` : ''}!
                 </h2>
-                <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                <p className="text-sm text-slate-600 dark:text-[#8fb0cf] mt-1 max-w-2xl">
                   Your profile is live — bids matching your service zones and pricing will appear below.
                   Keep your coverage and rates up to date to get matched with more shippers.
                 </p>
@@ -380,10 +380,10 @@ const Dashboard: React.FC = () => {
                   {/* Both routes are real, working pages in this same app
                       (App.tsx: /addprice, /profile) — the "not ready yet"
                       disabled state here was stale, found live 2026-09-22. */}
-                  <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-white border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-50 transition-colors">
+                  <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-white dark:bg-[#0d2438] border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
                     <ShieldCheck size={13} /> Review your price & zone config
                   </Link>
-                  <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-white border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-50 transition-colors">
+                  <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-white dark:bg-[#0d2438] border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
                     <Zap size={13} /> View your profile
                   </Link>
                 </div>
@@ -405,11 +405,11 @@ const Dashboard: React.FC = () => {
                 <img
                   src={logoSrc}
                   alt={`${user?.companyName || 'Company'} logo`}
-                  className="w-12 h-12 rounded-xl object-contain bg-white border border-slate-200 shadow-sm flex-shrink-0"
+                  className="w-12 h-12 rounded-xl object-contain bg-white dark:bg-[#0d2438] border border-slate-200 dark:border-[#1d3f5c] shadow-sm flex-shrink-0"
                   draggable={false}
                 />
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-lg flex-shrink-0">
                   {(user?.companyName?.[0] || 'C').toUpperCase()}
                 </div>
               );
@@ -418,10 +418,10 @@ const Dashboard: React.FC = () => {
             {/* text-lg, not the original text-2xl/3xl — matches the native
                 transporter dashboard's own heading scale (TransporterDashboardNative.tsx),
                 reported live 2026-09-22 as feeling oversized next to it. */}
-            <h1 className="text-lg font-black tracking-tight text-slate-900">
+            <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
               Available Bids
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mt-0.5">
               {openBids.length + limitedBids.length + semiLimitedBids.length} bid{(openBids.length + limitedBids.length + semiLimitedBids.length) === 1 ? '' : 's'} matching your service zones
             </p>
           </div>
@@ -438,12 +438,12 @@ const Dashboard: React.FC = () => {
 
         <main>
           {openBids.length + limitedBids.length + semiLimitedBids.length === 0 ? (
-            <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
+            <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 dark:border-[#1d3f5c] rounded-2xl bg-white dark:bg-[#0d2438]">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
                 <Bell size={20} />
               </div>
-              <p className="text-slate-700 font-semibold">No bids yet</p>
-              <p className="text-sm text-slate-400 mt-1">We'll notify you once one is added.</p>
+              <p className="text-slate-700 dark:text-white font-semibold">No bids yet</p>
+              <p className="text-sm text-slate-400 dark:text-[#6f93b8] mt-1">We'll notify you once one is added.</p>
             </div>
           ) : (
             <>

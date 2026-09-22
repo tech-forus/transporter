@@ -43,11 +43,11 @@ interface ProfileCardProps {
 }
 
 const ProfileCard: React.FC<ProfileCardProps> = ({ title, icon, children }) => (
-  <div className="bg-white rounded-xl shadow-md overflow-hidden border border-slate-200/80">
-    <div className="p-5 md:p-6 border-b border-slate-200 bg-slate-50/50">
+  <div className="bg-white dark:bg-[#0d2438] rounded-xl shadow-md overflow-hidden border border-slate-200/80 dark:border-[#1d3f5c]">
+    <div className="p-5 md:p-6 border-b border-slate-200 dark:border-[#1d3f5c] bg-slate-50/50 dark:bg-white/5">
       <div className="flex items-center gap-3">
         <span className="text-amber-600">{icon}</span>
-        <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-white">{title}</h2>
       </div>
     </div>
     <div className="p-5 md:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
@@ -65,11 +65,11 @@ interface ProfileFieldProps {
 
 const ProfileField: React.FC<ProfileFieldProps> = ({ label, value, icon, fullWidth = false }) => (
   <div className={`flex gap-3 items-start ${fullWidth ? 'col-span-1 sm:col-span-2 md:col-span-3' : ''}`}>
-    {icon && <span className="text-slate-400 mt-1">{icon}</span>}
+    {icon && <span className="text-slate-400 dark:text-[#6f93b8] mt-1">{icon}</span>}
     <div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
-      <p className="text-base font-medium text-slate-800 break-words">
-        {value || <span className="text-sm text-slate-400 italic">Not Provided</span>}
+      <p className="text-xs font-semibold text-slate-500 dark:text-[#6f93b8] uppercase tracking-wider">{label}</p>
+      <p className="text-base font-medium text-slate-800 dark:text-white break-words">
+        {value || <span className="text-sm text-slate-400 dark:text-[#6f93b8] italic">Not Provided</span>}
       </p>
     </div>
   </div>
@@ -117,17 +117,17 @@ const ProfilePage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-red-600 p-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-red-600 dark:text-red-400 p-4">
         <AlertTriangle className="mb-3" size={40} />
         <p className="text-lg font-semibold text-center">Could not load profile</p>
-        <p className="text-slate-600 text-center">{error}</p>
+        <p className="text-slate-600 dark:text-[#8fb0cf] text-center">{error}</p>
       </div>
     );
   }
 
   if (!transporterData) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-slate-500">
+      <div className="flex items-center justify-center min-h-[60vh] text-slate-500 dark:text-[#8fb0cf]">
         <Loader className="animate-spin mr-3" size={24} />
         <p className="text-lg">Loading Profile...</p>
       </div>
@@ -135,15 +135,15 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div className="bg-slate-50 dark:bg-[#08141f] min-h-screen">
       <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8">
           <div className="w-20 h-20 bg-amber-600 text-white rounded-full flex items-center justify-center text-4xl font-bold shadow-lg flex-shrink-0">
             {transporterData.companyName?.charAt(0) || 'T'}
           </div>
           <div>
-            <h1 className="text-lg font-black text-slate-900">{transporterData.companyName}</h1>
-            <p className="text-sm text-slate-600 mt-1">Transporter Profile</p>
+            <h1 className="text-lg font-black text-slate-900 dark:text-white">{transporterData.companyName}</h1>
+            <p className="text-sm text-slate-600 dark:text-[#8fb0cf] mt-1">Transporter Profile</p>
           </div>
         </div>
 
