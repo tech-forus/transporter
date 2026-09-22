@@ -619,11 +619,23 @@ export default function AddPrice() {
       for (const item of excelFiles) {
         appendLog(`[INFO] Checking "${item.file.name}" locally...`);
         const outcome = await tryParseExcelClientSide(item.file, zoneLabels);
-        if (outcome.handled && outcome.result) {
+        if (outcome.handled && outcome.result) localResults.push(outcome.result);
+
+        // The client parser can only MATCH zones against labels this
+        // transporter already has — it can't discover brand-new ones from
+        // scratch (no dictionary to fall back on, unlike the shipper-side
+        // parser). So when nothing's known yet (zoneLabels empty), the file
+        // still needs the backend for zone/service discovery even if its
+        // charges sheet matched perfectly client-side — otherwise a file
+        // that's 50% readable locally would silently lose the other half
+        // instead of falling back for it.
+        const canSkipBackend = outcome.handled && zoneLabels.length >= 2;
+        if (canSkipBackend) {
           appendLog(`[OK] Read "${item.file.name}" directly — no server round-trip needed.`);
-          localResults.push(outcome.result);
         } else {
-          appendLog(`[INFO] "${item.file.name}" needs a closer read — sending to the document processor.`);
+          appendLog(outcome.handled
+            ? `[INFO] Found some details in "${item.file.name}" already — still sending it for a full read (no zones set up yet to match against).`
+            : `[INFO] "${item.file.name}" needs a closer read — sending to the document processor.`);
           needsBackend.push(item);
         }
       }
