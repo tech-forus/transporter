@@ -98,11 +98,11 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
 
   return (
     <div className="w-full">
-      <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+      <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 dark:text-[#8fb0cf] uppercase tracking-wide mb-1.5">
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-[#6f93b8] pointer-events-none flex items-center justify-center">
           {icon}
         </span>
         <input
@@ -112,10 +112,10 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           placeholder={props.placeholder ?? ""}
           required={required}
           className={`w-full h-[38px] pl-9 ${isPassword ? 'pr-9' : 'pr-3'} border rounded-lg text-[13px] transition-colors duration-150
-            bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400
+            bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400 dark:text-[#6f93b8]
             focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-            ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
-            disabled:bg-stone-50 disabled:text-stone-400`}
+            ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200 dark:border-[#1d3f5c]'}
+            disabled:bg-stone-50 dark:bg-[#08141f] disabled:text-stone-400 dark:text-[#6f93b8]`}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
         />
@@ -123,7 +123,7 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none flex items-center justify-center transition-colors duration-200"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-[#6f93b8] hover:text-stone-600 dark:text-[#8fb0cf] focus:outline-none flex items-center justify-center transition-colors duration-200"
           >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
@@ -158,11 +158,11 @@ interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement>
 }
 const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, required = false, children, ...props }) => (
   <div className="w-full">
-    <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+    <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 dark:text-[#8fb0cf] uppercase tracking-wide mb-1.5">
       {label}{required && <span className="text-red-500 ml-1">*</span>}
     </label>
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-[#6f93b8] pointer-events-none">
         {icon}
       </span>
       <select
@@ -172,15 +172,15 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
           bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white appearance-none
           focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-          ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
-          disabled:bg-stone-50 disabled:text-stone-400`}
+          ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200 dark:border-[#1d3f5c]'}
+          disabled:bg-stone-50 dark:bg-[#08141f] disabled:text-stone-400 dark:text-[#6f93b8]`}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-error` : undefined}
       >
         {children}
       </select>
       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-        <svg className="w-4 h-4 text-stone-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4 4 4-4" /></svg>
+        <svg className="w-4 h-4 text-stone-400 dark:text-[#6f93b8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l4 4 4-4" /></svg>
       </div>
     </div>
     <AnimatePresence>
@@ -243,7 +243,7 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
 
   return (
     <div className="w-full relative" ref={rootRef}>
-      <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+      <label htmlFor={id} className="block text-[11px] font-semibold text-stone-500 dark:text-[#8fb0cf] uppercase tracking-wide mb-1.5">
         {label}{required && <span className="text-red-500 ml-1">*</span>}
       </label>
       <button
@@ -254,15 +254,15 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] text-left transition-colors duration-150
           bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white relative
           focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-          disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed
-          ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
+          disabled:bg-stone-50 dark:bg-[#08141f] disabled:text-stone-400 dark:text-[#6f93b8] disabled:cursor-not-allowed
+          ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200 dark:border-[#1d3f5c]'}`}
       >
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-[#6f93b8] pointer-events-none">
           {icon}
         </span>
         <span className="truncate block">{summary}</span>
         <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-          <ChevronDown size={16} className="text-stone-400" />
+          <ChevronDown size={16} className="text-stone-400 dark:text-[#6f93b8]" />
         </span>
       </button>
       <AnimatePresence>
@@ -271,7 +271,7 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
-            className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white dark:bg-[#0d2438] border border-stone-200 rounded-lg shadow-lg py-1"
+            className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white dark:bg-[#0d2438] border border-stone-200 dark:border-[#1d3f5c] rounded-lg shadow-lg py-1"
           >
             {options.map(opt => {
               const checked = value.includes(opt.value);
@@ -280,7 +280,7 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
                   key={opt.value}
                   className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 dark:text-[#8fb0cf] hover:bg-amber-50 cursor-pointer"
                 >
-                  <span className={`w-4 h-4 flex items-center justify-center rounded border ${checked ? 'bg-amber-500 border-amber-500' : 'border-stone-300'}`}>
+                  <span className={`w-4 h-4 flex items-center justify-center rounded border ${checked ? 'bg-amber-500 border-amber-500' : 'border-stone-300 dark:border-[#1d3f5c]'}`}>
                     {checked && <Check size={12} className="text-white" />}
                   </span>
                   <input
@@ -2440,13 +2440,13 @@ export default function SignUpPage() {
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">{accountType === 'individual' ? 'I Am An' : 'I Am A'}</p>
-                        <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
+                        <p className="text-[10px] font-semibold text-stone-400 dark:text-[#6f93b8] uppercase tracking-wide">{accountType === 'individual' ? 'I Am An' : 'I Am A'}</p>
+                        <div className="inline-flex rounded-lg border border-stone-200 dark:border-[#1d3f5c] bg-stone-100 dark:bg-white/5 p-0.5">
                           <button
                             type="button"
                             onClick={() => setAccountType('business')}
                             className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${
-                              accountType === 'business' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 hover:text-stone-700'
+                              accountType === 'business' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 dark:text-[#8fb0cf] hover:text-stone-700 dark:text-[#8fb0cf]'
                             }`}
                           >
                             Business
@@ -2455,7 +2455,7 @@ export default function SignUpPage() {
                             type="button"
                             onClick={handleSwitchToIndividual}
                             className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${
-                              accountType === 'individual' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 hover:text-stone-700'
+                              accountType === 'individual' ? 'bg-amber-500 text-white shadow' : 'text-stone-500 dark:text-[#8fb0cf] hover:text-stone-700 dark:text-[#8fb0cf]'
                             }`}
                           >
                             Individual
@@ -2464,7 +2464,7 @@ export default function SignUpPage() {
                       </div>
                     </div>
 
-                    <p className="text-xs font-normal text-stone-400 mt-1">
+                    <p className="text-xs font-normal text-stone-400 dark:text-[#6f93b8] mt-1">
                       {accountType === 'business' ? '(Fill GST to autofill details)' : '(Owner-operator, no GST needed)'}
                     </p>
                   </div>
@@ -2482,10 +2482,10 @@ export default function SignUpPage() {
                         <CheckCircle2 className="w-[18px] h-[18px] text-orange-600 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
                           <p className="text-[13px] font-semibold text-slate-900 dark:text-white truncate">
-                            {formData.companyName || 'Company'}{formData.gstNo && <span className="text-stone-400 font-normal"> · {formData.gstNo}</span>}
+                            {formData.companyName || 'Company'}{formData.gstNo && <span className="text-stone-400 dark:text-[#6f93b8] font-normal"> · {formData.gstNo}</span>}
                           </p>
                           {formData.address && (
-                            <p className="text-[11.5px] text-stone-500 mt-0.5 truncate">{formData.address} · verified from GST</p>
+                            <p className="text-[11.5px] text-stone-500 dark:text-[#8fb0cf] mt-0.5 truncate">{formData.address} · verified from GST</p>
                           )}
                         </div>
                       </div>
@@ -2503,11 +2503,11 @@ export default function SignUpPage() {
                             the address text if the lookup ever omits it (see effect below). */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
                           <div className="w-full">
-                            <label htmlFor="gstNo" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+                            <label htmlFor="gstNo" className="block text-[11px] font-semibold text-stone-500 dark:text-[#8fb0cf] uppercase tracking-wide mb-1.5">
                               GST Number<span className="text-red-500 ml-1">*</span>
                             </label>
                             <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-[#6f93b8] pointer-events-none flex items-center justify-center">
                                 <Hash size={16} />
                               </span>
                               <input
@@ -2520,9 +2520,9 @@ export default function SignUpPage() {
                                 required
                                 placeholder="GST Number"
                                 className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-                                bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400
+                                bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400 dark:text-[#6f93b8]
                                 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-                                ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
+                                ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200 dark:border-[#1d3f5c]'}`}
                                 aria-invalid={!!(touched.gstNo && errors.gstNo)}
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -2674,9 +2674,9 @@ export default function SignUpPage() {
                               <button
                                 type="button"
                                 onClick={() => setShowLogoUpload(true)}
-                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 dark:text-[#8fb0cf] hover:text-amber-600 transition-colors"
                               >
-                                <Plus size={15} /> Add company logo <span className="text-stone-400 font-normal">(optional)</span>
+                                <Plus size={15} /> Add company logo <span className="text-stone-400 dark:text-[#6f93b8] font-normal">(optional)</span>
                               </button>
                             )}
                           </div>
@@ -2685,9 +2685,9 @@ export default function SignUpPage() {
                               <button
                                 type="button"
                                 onClick={() => setShowEmployeeDetails(true)}
-                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 dark:text-[#8fb0cf] hover:text-amber-600 transition-colors"
                               >
-                                <Plus size={15} /> Add employee details <span className="text-stone-400 font-normal">(optional)</span>
+                                <Plus size={15} /> Add employee details <span className="text-stone-400 dark:text-[#6f93b8] font-normal">(optional)</span>
                               </button>
                             )}
                           </div>
@@ -2756,16 +2756,16 @@ export default function SignUpPage() {
                         renders the expanded panel once the user opts in. Individual accounts
                         have no company branding, so this is dropped entirely. */}
                     {accountType === 'business' && (showLogoUpload || logoFile) && (
-                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white dark:bg-[#0d2438] p-3.5">
+                    <div className="mt-2 rounded-[10px] border border-stone-200 dark:border-[#1d3f5c] bg-white dark:bg-[#0d2438] p-3.5">
                       <div className="flex items-center justify-between mb-2">
-                        <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
-                          Company Logo <span className="text-stone-400 normal-case font-normal">(optional)</span>
+                        <label className="block text-[11px] font-semibold text-stone-500 dark:text-[#8fb0cf] uppercase tracking-wide">
+                          Company Logo <span className="text-stone-400 dark:text-[#6f93b8] normal-case font-normal">(optional)</span>
                         </label>
                         {!logoFile && (
                           <button
                             type="button"
                             onClick={() => setShowLogoUpload(false)}
-                            className="text-stone-400 hover:text-stone-600 transition-colors"
+                            className="text-stone-400 dark:text-[#6f93b8] hover:text-stone-600 dark:text-[#8fb0cf] transition-colors"
                             aria-label="Hide logo upload"
                           >
                             <XCircle size={16} />
@@ -2773,13 +2773,13 @@ export default function SignUpPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <div className="w-12 h-12 rounded-lg border border-stone-200 bg-white dark:bg-[#0d2438] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg border border-stone-200 dark:border-[#1d3f5c] bg-white dark:bg-[#0d2438] flex items-center justify-center overflow-hidden flex-shrink-0">
                           {logoPreview
                             ? <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain" />
-                            : <ImageIcon size={18} className="text-stone-300" />}
+                            : <ImageIcon size={18} className="text-stone-300 dark:text-[#5c7c9a]" />}
                         </div>
-                        <label htmlFor="logoUpload" className="inline-flex items-center gap-1.5 px-3 h-[38px] border border-stone-200 rounded-lg text-[12.5px] font-medium text-stone-600 bg-white dark:bg-[#0d2438] hover:bg-stone-50 cursor-pointer transition-colors">
-                          <UploadCloud size={15} className="text-stone-400" />
+                        <label htmlFor="logoUpload" className="inline-flex items-center gap-1.5 px-3 h-[38px] border border-stone-200 dark:border-[#1d3f5c] rounded-lg text-[12.5px] font-medium text-stone-600 dark:text-[#8fb0cf] bg-white dark:bg-[#0d2438] hover:bg-stone-50 dark:bg-[#08141f] cursor-pointer transition-colors">
+                          <UploadCloud size={15} className="text-stone-400 dark:text-[#6f93b8]" />
                           {logoFile ? 'Change logo' : 'Upload logo'}
                         </label>
                         <input
@@ -2801,12 +2801,12 @@ export default function SignUpPage() {
                           <button
                             type="button"
                             onClick={() => { setLogoFile(null); setLogoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); }}
-                            className="inline-flex items-center gap-1 text-[12px] text-stone-500 hover:text-red-500 transition-colors"
+                            className="inline-flex items-center gap-1 text-[12px] text-stone-500 dark:text-[#8fb0cf] hover:text-red-500 transition-colors"
                           >
                             <Trash2 size={14} /> Remove
                           </button>
                         )}
-                        <span className="text-[11px] text-stone-400">PNG, JPG, WEBP or SVG · max 2MB</span>
+                        <span className="text-[11px] text-stone-400 dark:text-[#6f93b8]">PNG, JPG, WEBP or SVG · max 2MB</span>
                       </div>
                     </div>
                     )}
@@ -2820,26 +2820,26 @@ export default function SignUpPage() {
                         Individual accounts have no separate on-ground employee, so this is
                         dropped entirely. */}
                     {accountType === 'business' && showEmployeeDetails && (
-                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white dark:bg-[#0d2438] p-3.5 space-y-3">
+                    <div className="mt-2 rounded-[10px] border border-stone-200 dark:border-[#1d3f5c] bg-white dark:bg-[#0d2438] p-3.5 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <h3 className="text-[12.5px] font-semibold text-stone-700 flex items-center gap-1.5">
-                          <Building size={15} className="text-stone-400" /> Employee Details
+                        <h3 className="text-[12.5px] font-semibold text-stone-700 dark:text-[#8fb0cf] flex items-center gap-1.5">
+                          <Building size={15} className="text-stone-400 dark:text-[#6f93b8]" /> Employee Details
                         </h3>
                         <div className="flex items-center gap-3">
-                          <label htmlFor="employeeSameAsCompany" className="flex items-center gap-1.5 text-[11.5px] text-stone-500 cursor-pointer">
+                          <label htmlFor="employeeSameAsCompany" className="flex items-center gap-1.5 text-[11.5px] text-stone-500 dark:text-[#8fb0cf] cursor-pointer">
                             <input
                               type="checkbox"
                               id="employeeSameAsCompany"
                               checked={employeeSameAsCompany}
                               onChange={(e) => setEmployeeSameAsCompany(e.target.checked)}
-                              className="h-3.5 w-3.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-stone-300 dark:border-[#1d3f5c] text-amber-500 focus:ring-amber-400 cursor-pointer"
                             />
                             Same as company details
                           </label>
                           <button
                             type="button"
                             onClick={() => setShowEmployeeDetails(false)}
-                            className="text-stone-400 hover:text-stone-600 transition-colors"
+                            className="text-stone-400 dark:text-[#6f93b8] hover:text-stone-600 dark:text-[#8fb0cf] transition-colors"
                             aria-label="Hide employee details"
                           >
                             <XCircle size={16} />
@@ -2852,11 +2852,11 @@ export default function SignUpPage() {
                         <InputField id="employeePhone" label="Employee Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit phone number" value={formData.employeePhone} onChange={handleFormChange} onBlur={handleBlur} disabled={employeeSameAsCompany} error={touched.employeePhone ? errors.employeePhone : undefined} />
 
                         <div className="w-full">
-                          <label htmlFor="employeeAddress" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+                          <label htmlFor="employeeAddress" className="block text-[11px] font-semibold text-stone-500 dark:text-[#8fb0cf] uppercase tracking-wide mb-1.5">
                             Employee Office Address
                           </label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-[#6f93b8] pointer-events-none flex items-center justify-center">
                               <MapPin size={16} />
                             </span>
                             <input
@@ -2868,9 +2868,9 @@ export default function SignUpPage() {
                               maxLength={200}
                               placeholder="Employee's office address"
                               className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-                                bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400
+                                bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400 dark:text-[#6f93b8]
                                 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-                                border-stone-200 disabled:bg-stone-50 disabled:text-stone-400`}
+                                border-stone-200 dark:border-[#1d3f5c] disabled:bg-stone-50 dark:bg-[#08141f] disabled:text-stone-400 dark:text-[#6f93b8]`}
                             />
                             {!employeeSameAsCompany && (
                               <button
@@ -2878,7 +2878,7 @@ export default function SignUpPage() {
                                 onClick={handleUseCurrentLocationForEmployee}
                                 disabled={isLocatingEmployee}
                                 title="Use my current location"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-amber-600 disabled:opacity-50 transition-colors"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-[#6f93b8] hover:text-amber-600 disabled:opacity-50 transition-colors"
                               >
                                 {isLocatingEmployee ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
                               </button>
@@ -2891,7 +2891,7 @@ export default function SignUpPage() {
                       </div>
 
                       {!employeeSameAsCompany && (
-                        <p className="text-[10.5px] text-stone-400 -mt-1">
+                        <p className="text-[10.5px] text-stone-400 dark:text-[#6f93b8] -mt-1">
                           Type the address, or tap the pin icon in the field above to use your current location.
                         </p>
                       )}
@@ -2912,9 +2912,9 @@ export default function SignUpPage() {
                           id="termsAccepted"
                           checked={termsAccepted}
                           onChange={(e) => setTermsAccepted(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          className="mt-0.5 h-4 w-4 rounded border-stone-300 dark:border-[#1d3f5c] text-amber-500 focus:ring-amber-400 cursor-pointer"
                         />
-                        <span className="text-[12.5px] text-stone-500 leading-snug py-0.5">
+                        <span className="text-[12.5px] text-stone-500 dark:text-[#8fb0cf] leading-snug py-0.5">
                           I agree to the{' '}
                           <button type="button" onClick={() => setTermsModalOpen(true)} className="text-orange-600 hover:underline font-semibold">
                             terms and conditions
