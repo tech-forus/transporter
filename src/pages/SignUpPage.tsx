@@ -77,7 +77,7 @@ type FormErrors = Partial<Record<keyof IFormData | 'zones', string>>;
  * A styled card container for sectioning content.
  */
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={`bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 sm:p-8 ${className}`}>
+  <div className={`bg-white dark:bg-[#0d2438] rounded-2xl shadow-lg border border-slate-200 dark:border-[#1d3f5c]/60 p-6 sm:p-8 ${className}`}>
     {children}
   </div>
 );
@@ -112,7 +112,7 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, icon, error, require
           placeholder={props.placeholder ?? ""}
           required={required}
           className={`w-full h-[38px] pl-9 ${isPassword ? 'pr-9' : 'pr-3'} border rounded-lg text-[13px] transition-colors duration-150
-            bg-white text-slate-900 placeholder:text-stone-400
+            bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400
             focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
             ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
             disabled:bg-stone-50 disabled:text-stone-400`}
@@ -170,7 +170,7 @@ const SelectField: React.FC<SelectFieldProps> = ({ id, label, icon, error, requi
         {...props}
         required={required}
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-          bg-white text-slate-900 appearance-none
+          bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white appearance-none
           focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
           ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}
           disabled:bg-stone-50 disabled:text-stone-400`}
@@ -252,7 +252,7 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
         disabled={disabled}
         onClick={() => !disabled && setOpen(o => !o)}
         className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] text-left transition-colors duration-150
-          bg-white text-slate-900 relative
+          bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white relative
           focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
           disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed
           ${error ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
@@ -271,14 +271,14 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
-            className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-stone-200 rounded-lg shadow-lg py-1"
+            className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white dark:bg-[#0d2438] border border-stone-200 rounded-lg shadow-lg py-1"
           >
             {options.map(opt => {
               const checked = value.includes(opt.value);
               return (
                 <label
                   key={opt.value}
-                  className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 hover:bg-amber-50 cursor-pointer"
+                  className="flex items-center gap-2 px-3 py-2 text-[13px] text-slate-700 dark:text-[#8fb0cf] hover:bg-amber-50 cursor-pointer"
                 >
                   <span className={`w-4 h-4 flex items-center justify-center rounded border ${checked ? 'bg-amber-500 border-amber-500' : 'border-stone-300'}`}>
                     {checked && <Check size={12} className="text-white" />}
@@ -314,16 +314,16 @@ const StepIndicator: React.FC<{ currentStep: number; steps: string[] }> = ({ cur
           <li className="relative flex-1 flex items-center justify-center">
             <div className={`flex items-center justify-center h-10 w-10 rounded-full font-medium transition-colors duration-300 z-10
               ${idx < currentStep ? 'bg-blue-600 text-white' : ''}
-              ${idx === currentStep ? 'bg-white border-2 border-blue-600 text-blue-600' : 'bg-slate-200 text-slate-500'}`
+              ${idx === currentStep ? 'bg-white dark:bg-[#0d2438] border-2 border-blue-600 text-blue-600' : 'bg-slate-200 text-slate-500 dark:text-[#8fb0cf]'}`
             }>
               {idx < currentStep ? <CheckCircle className="h-6 w-6" /> : idx + 1}
             </div>
             <p className={`absolute top-12 whitespace-nowrap text-sm font-medium transition-colors
-              ${idx === currentStep ? 'text-blue-600' : 'text-slate-500'}`
+              ${idx === currentStep ? 'text-blue-600' : 'text-slate-500 dark:text-[#8fb0cf]'}`
             }>{step}</p>
           </li>
           {idx < steps.length - 1 && (
-            <div className="flex-1 h-0.5 transition-colors bg-slate-200 relative -ml-2 -mr-2">
+            <div className="flex-1 h-0.5 transition-colors bg-slate-200 dark:bg-[#1d3f5c] relative -ml-2 -mr-2">
               <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: currentStep > idx ? '100%' : '0%' }} />
             </div>
           )}
@@ -2272,7 +2272,7 @@ export default function SignUpPage() {
         {/* ── Progress ── */}
         <div className="px-6 py-3.5" style={{ borderBottom: '1px solid #1e293b' }}>
           <div className="flex justify-between items-center mb-1.5">
-            <span className="text-2xs font-mono font-semibold text-slate-400 uppercase tracking-widest">Extraction Engine</span>
+            <span className="text-2xs font-mono font-semibold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest">Extraction Engine</span>
             <span className="text-xs font-mono font-bold text-blue-400">{status === 'success' ? 100 : aiProgress}%</span>
           </div>
           <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#1e293b' }}>
@@ -2296,7 +2296,7 @@ export default function SignUpPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
               </div>
-              <span className="text-2xs font-mono text-slate-500 ml-1">live extraction terminal</span>
+              <span className="text-2xs font-mono text-slate-500 dark:text-[#8fb0cf] ml-1">live extraction terminal</span>
             </div>
             {status !== 'processing' && (
               <button
@@ -2319,7 +2319,7 @@ export default function SignUpPage() {
             style={{ background: '#060910', border: '1px solid #1e293b' }}
           >
             {extractionLogs.length === 0 ? (
-              <div className="text-slate-600 italic">Waiting for parser connection…</div>
+              <div className="text-slate-600 dark:text-[#8fb0cf] italic">Waiting for parser connection…</div>
             ) : (
               extractionLogs.map((line, idx) => (
                 <div
@@ -2379,10 +2379,10 @@ export default function SignUpPage() {
     <div className="flex items-center gap-2">
       {[0, 1, 2].map((idx) => (
         <React.Fragment key={idx}>
-          {idx > 0 && <div className="h-0.5 w-5 sm:w-6 bg-slate-200 rounded-full" />}
+          {idx > 0 && <div className="h-0.5 w-5 sm:w-6 bg-slate-200 dark:bg-[#1d3f5c] rounded-full" />}
           <span
             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full text-sm sm:text-base font-bold flex items-center justify-center flex-shrink-0 transition-colors
-              ${idx === activeIdx ? 'bg-amber-500 text-white' : idx < activeIdx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}
+              ${idx === activeIdx ? 'bg-amber-500 text-white' : idx < activeIdx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 dark:text-[#8fb0cf]'}`}
           >
             {idx + 1}
           </span>
@@ -2392,11 +2392,11 @@ export default function SignUpPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50/70 py-2 sm:py-3">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#08141f]/70 py-2 sm:py-3">
       <div className="mx-auto px-2 sm:px-4 md:px-6 w-full max-w-[96%] space-y-2">
         <motion.div initial={{ opacity: 0, y: -15 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-center text-slate-900 tracking-tight"></h1>
-          <p className="mt-0.5 text-center text-xs sm:text-sm text-slate-600"></p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-center text-slate-900 dark:text-white tracking-tight"></h1>
+          <p className="mt-0.5 text-center text-xs sm:text-sm text-slate-600 dark:text-[#8fb0cf]"></p>
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -2408,7 +2408,7 @@ export default function SignUpPage() {
               exit={{ opacity: 0, y: -15 }}
               className="max-w-7xl mx-auto"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-7 bg-white shadow-2xl rounded-2xl overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-7 bg-white dark:bg-[#0d2438] shadow-2xl rounded-2xl overflow-hidden">
                 {/* Branding panel — shrunk from 2/5 to 2/7 of the width so the
                     (now wider, multi-column) form below has more horizontal room */}
                 <div className="hidden lg:flex lg:col-span-2 flex-col justify-center p-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
@@ -2431,7 +2431,7 @@ export default function SignUpPage() {
                         clears any entered GST and swaps the merged Company Contact Name
                         field for First/Last Name below. */}
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <h2 className="text-xl font-bold text-slate-800 flex-shrink-0">
+                      <h2 className="text-xl font-bold text-slate-800 dark:text-white flex-shrink-0">
                         Create Your Transporter Account
                       </h2>
 
@@ -2481,7 +2481,7 @@ export default function SignUpPage() {
                       <div className="flex items-start gap-2.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3.5 py-2.5">
                         <CheckCircle2 className="w-[18px] h-[18px] text-orange-600 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-[13px] font-semibold text-slate-900 truncate">
+                          <p className="text-[13px] font-semibold text-slate-900 dark:text-white truncate">
                             {formData.companyName || 'Company'}{formData.gstNo && <span className="text-stone-400 font-normal"> · {formData.gstNo}</span>}
                           </p>
                           {formData.address && (
@@ -2520,7 +2520,7 @@ export default function SignUpPage() {
                                 required
                                 placeholder="GST Number"
                                 className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-                                bg-white text-slate-900 placeholder:text-stone-400
+                                bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400
                                 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
                                 ${(touched.gstNo && errors.gstNo) ? 'border-red-400 ring-1 ring-red-400/30' : 'border-stone-200'}`}
                                 aria-invalid={!!(touched.gstNo && errors.gstNo)}
@@ -2631,13 +2631,13 @@ export default function SignUpPage() {
                               error={touched.whatsapp ? errors.whatsapp : undefined}
                               required
                             />
-                            <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer w-fit">
+                            <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#8fb0cf] cursor-pointer w-fit">
                               <input
                                 type="checkbox"
                                 id="sameAsPhone"
                                 checked={sameAsPhone}
                                 onChange={(e) => setSameAsPhone(e.target.checked)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                className="h-3.5 w-3.5 rounded border-slate-300 dark:border-[#1d3f5c] text-amber-500 focus:ring-amber-400 cursor-pointer"
                               />
                               Same as Mobile Number
                             </label>
@@ -2727,13 +2727,13 @@ export default function SignUpPage() {
                               error={touched.whatsapp ? errors.whatsapp : undefined}
                               required
                             />
-                            <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer w-fit">
+                            <label htmlFor="sameAsPhone" className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#8fb0cf] cursor-pointer w-fit">
                               <input
                                 type="checkbox"
                                 id="sameAsPhone"
                                 checked={sameAsPhone}
                                 onChange={(e) => setSameAsPhone(e.target.checked)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                className="h-3.5 w-3.5 rounded border-slate-300 dark:border-[#1d3f5c] text-amber-500 focus:ring-amber-400 cursor-pointer"
                               />
                               Same as Mobile Number
                             </label>
@@ -2756,7 +2756,7 @@ export default function SignUpPage() {
                         renders the expanded panel once the user opts in. Individual accounts
                         have no company branding, so this is dropped entirely. */}
                     {accountType === 'business' && (showLogoUpload || logoFile) && (
-                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white p-3.5">
+                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white dark:bg-[#0d2438] p-3.5">
                       <div className="flex items-center justify-between mb-2">
                         <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide">
                           Company Logo <span className="text-stone-400 normal-case font-normal">(optional)</span>
@@ -2773,12 +2773,12 @@ export default function SignUpPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <div className="w-12 h-12 rounded-lg border border-stone-200 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg border border-stone-200 bg-white dark:bg-[#0d2438] flex items-center justify-center overflow-hidden flex-shrink-0">
                           {logoPreview
                             ? <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain" />
                             : <ImageIcon size={18} className="text-stone-300" />}
                         </div>
-                        <label htmlFor="logoUpload" className="inline-flex items-center gap-1.5 px-3 h-[38px] border border-stone-200 rounded-lg text-[12.5px] font-medium text-stone-600 bg-white hover:bg-stone-50 cursor-pointer transition-colors">
+                        <label htmlFor="logoUpload" className="inline-flex items-center gap-1.5 px-3 h-[38px] border border-stone-200 rounded-lg text-[12.5px] font-medium text-stone-600 bg-white dark:bg-[#0d2438] hover:bg-stone-50 cursor-pointer transition-colors">
                           <UploadCloud size={15} className="text-stone-400" />
                           {logoFile ? 'Change logo' : 'Upload logo'}
                         </label>
@@ -2820,7 +2820,7 @@ export default function SignUpPage() {
                         Individual accounts have no separate on-ground employee, so this is
                         dropped entirely. */}
                     {accountType === 'business' && showEmployeeDetails && (
-                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white p-3.5 space-y-3">
+                    <div className="mt-2 rounded-[10px] border border-stone-200 bg-white dark:bg-[#0d2438] p-3.5 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <h3 className="text-[12.5px] font-semibold text-stone-700 flex items-center gap-1.5">
                           <Building size={15} className="text-stone-400" /> Employee Details
@@ -2868,7 +2868,7 @@ export default function SignUpPage() {
                               maxLength={200}
                               placeholder="Employee's office address"
                               className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-                                bg-white text-slate-900 placeholder:text-stone-400
+                                bg-white dark:bg-[#0d2438] text-slate-900 dark:text-white placeholder:text-stone-400
                                 focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
                                 border-stone-200 disabled:bg-stone-50 disabled:text-stone-400`}
                             />
@@ -2955,14 +2955,14 @@ export default function SignUpPage() {
               className="max-w-4xl mx-auto"
             >
               <Card className="p-5 sm:p-6 text-center space-y-4 bg-gradient-to-br from-white to-slate-50/50">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-1 gap-2">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#1d3f5c] pb-3 mb-1 gap-2">
                   {/* Returns to the Page 1 form (setCurrentStep(0)), not a real navigation —
                       formData lives in this same component's state, so nothing entered on
                       Page 1 is lost by going back to it from here. */}
                   <button
                     type="button"
                     onClick={() => setCurrentStep(0)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-700 dark:text-[#8fb0cf] font-semibold text-xs rounded-lg transition-colors flex-shrink-0"
                   >
                     <ArrowLeft size={13} /> Back
                   </button>
@@ -2970,7 +2970,7 @@ export default function SignUpPage() {
                     {renderStepper(1)}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs font-semibold text-slate-400">Onboarding Portal</span>
+                    <span className="text-xs font-semibold text-slate-400 dark:text-[#6f93b8]">Onboarding Portal</span>
                     <Truck className="text-blue-600" size={18} />
                   </div>
                 </div>
@@ -2979,11 +2979,11 @@ export default function SignUpPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center justify-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white flex items-center justify-center gap-2">
                     <Sparkles className="text-blue-500 animate-pulse" size={20} />
                     Select Your Onboarding Route
                   </h2>
-                  <p className="text-slate-500 text-xs sm:text-sm max-w-lg mx-auto font-medium">
+                  <p className="text-slate-500 dark:text-[#8fb0cf] text-xs sm:text-sm max-w-lg mx-auto font-medium">
                     Choose how you want to provide your transporter profile, contact, and pricing matrices.
                   </p>
                 </div>
@@ -2993,7 +2993,7 @@ export default function SignUpPage() {
                   <button
                     type="button"
                     onClick={() => setOnboardingMode('ai_upload')}
-                    className="group relative flex flex-col text-left p-5 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 active:scale-98"
+                    className="group relative flex flex-col text-left p-5 bg-white dark:bg-[#0d2438] border border-slate-200 dark:border-[#1d3f5c] rounded-2xl shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 active:scale-98"
                   >
                     <div className="absolute top-4 right-4 p-1 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors">
                       <Sparkles size={14} />
@@ -3001,10 +3001,10 @@ export default function SignUpPage() {
                     <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl w-fit mb-3 group-hover:bg-blue-600 group-hover:text-white transition-all">
                       <UploadCloud size={20} />
                     </div>
-                    <h3 className="text-base font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
+                    <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1 group-hover:text-blue-600 transition-colors">
                       ✨ AI Document Extraction
                     </h3>
-                    <p className="text-slate-500 text-xs leading-relaxed">
+                    <p className="text-slate-500 dark:text-[#8fb0cf] text-xs leading-relaxed">
                       Drop your servicability (ODA if any), zone prices, company info, and charges here. Let our AI build your account automatically!
                     </p>
                     <span className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
@@ -3016,18 +3016,18 @@ export default function SignUpPage() {
                   <button
                     type="button"
                     onClick={resetToManual}
-                    className="group relative flex flex-col text-left p-5 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 active:scale-98"
+                    className="group relative flex flex-col text-left p-5 bg-white dark:bg-[#0d2438] border border-slate-200 dark:border-[#1d3f5c] rounded-2xl shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-300 active:scale-98"
                   >
-                    <div className="p-2.5 bg-slate-50 text-slate-600 rounded-xl w-fit mb-3 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <div className="p-2.5 bg-slate-50 dark:bg-[#08141f] text-slate-600 dark:text-[#8fb0cf] rounded-xl w-fit mb-3 group-hover:bg-blue-600 group-hover:text-white transition-all">
                       <Building size={20} />
                     </div>
-                    <h3 className="text-base font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
+                    <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1 group-hover:text-blue-600 transition-colors">
                       ✍️ Step-by-Step Manual Form
                     </h3>
-                    <p className="text-slate-500 text-xs leading-relaxed">
+                    <p className="text-slate-500 dark:text-[#8fb0cf] text-xs leading-relaxed">
                       Key in your details in our clean forms.
                     </p>
-                    <span className="mt-4 text-xs font-bold text-slate-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    <span className="mt-4 text-xs font-bold text-slate-600 dark:text-[#8fb0cf] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                       Fill Manually <ArrowRight size={12} />
                     </span>
                   </button>
@@ -3046,22 +3046,22 @@ export default function SignUpPage() {
 
                 {/* LEFT COLUMN: Upload flow — stays put; progress slider appears below it */}
                 <div className="lg:col-span-7 space-y-4">
-                  <Card className="p-4 sm:p-5 space-y-3 bg-white shadow-sm border border-slate-200/80">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <Card className="p-4 sm:p-5 space-y-3 bg-white dark:bg-[#0d2438] shadow-sm border border-slate-200 dark:border-[#1d3f5c]/80">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#1d3f5c] pb-3">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
                           <Sparkles size={20} />
                         </div>
                         <div>
-                          <h2 className="text-xl font-bold text-slate-800">Upload Your Documents</h2>
-                          <p className="text-xs text-slate-500 mt-0.5">We'll read your files and fill in your details for you — no typing needed.</p>
+                          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Upload Your Documents</h2>
+                          <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mt-0.5">We'll read your files and fill in your details for you — no typing needed.</p>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => setOnboardingMode('selection')}
                         disabled={onboardingMode === 'ai_processing'}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-700 dark:text-[#8fb0cf] font-bold text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ArrowLeft size={14} /> Go Back
                       </button>
@@ -3078,7 +3078,7 @@ export default function SignUpPage() {
                       }}
                       className={`p-3 border-2 border-dashed rounded-xl text-center transition-all duration-300 ${(aiFiles.length >= MAX_AI_FILES || onboardingMode === 'ai_processing') ? 'opacity-50 pointer-events-none' : 'cursor-pointer'} ${isAiDragging
                         ? 'border-blue-500 bg-blue-50/50 scale-102 shadow-inner'
-                        : 'border-slate-300 bg-slate-50/50 hover:border-blue-400'
+                        : 'border-slate-300 dark:border-[#1d3f5c] bg-slate-50 dark:bg-[#08141f]/50 hover:border-blue-400'
                         }`}
                     >
                       <input
@@ -3091,10 +3091,10 @@ export default function SignUpPage() {
                         accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.docx,.doc,.pptx,.ppt,.json,.tiff,.bmp,.webp"
                       />
                       <label htmlFor="ai-file-picker" className="flex items-center justify-center gap-3 cursor-pointer">
-                        <UploadCloud className={`w-6 h-6 shrink-0 transition-colors ${isAiDragging ? 'text-blue-600' : 'text-slate-400'}`} strokeWidth={1.5} />
+                        <UploadCloud className={`w-6 h-6 shrink-0 transition-colors ${isAiDragging ? 'text-blue-600' : 'text-slate-400 dark:text-[#6f93b8]'}`} strokeWidth={1.5} />
                         <span className="text-left">
-                          <p className="font-semibold text-sm text-slate-700 leading-tight">Drop your files here, or click to pick them from your computer</p>
-                          <p className="text-2xs text-slate-400 leading-tight">Up to {MAX_AI_FILES} files &middot; PDF, Excel, Word, Photo, or JSON &middot; 10 MB max per file</p>
+                          <p className="font-semibold text-sm text-slate-700 dark:text-[#8fb0cf] leading-tight">Drop your files here, or click to pick them from your computer</p>
+                          <p className="text-2xs text-slate-400 dark:text-[#6f93b8] leading-tight">Up to {MAX_AI_FILES} files &middot; PDF, Excel, Word, Photo, or JSON &middot; 10 MB max per file</p>
                         </span>
                       </label>
                     </div>
@@ -3102,14 +3102,14 @@ export default function SignUpPage() {
                     {/* Uploaded Files List */}
                     {aiFiles.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Your Files ({aiFiles.length} of {MAX_AI_FILES})</h3>
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-[#8fb0cf] uppercase tracking-wider">Your Files ({aiFiles.length} of {MAX_AI_FILES})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                           {aiFiles.map((gf) => (
-                            <div key={gf.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-sm">
+                            <div key={gf.id} className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c]/80 rounded-xl text-sm">
                               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 <FileSpreadsheet className="text-blue-600 flex-shrink-0" size={18} />
-                                <span className="font-medium text-slate-700 truncate" title={gf.file.name}>{gf.file.name}</span>
-                                <span className="text-2xs text-slate-400">({(gf.file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                                <span className="font-medium text-slate-700 dark:text-[#8fb0cf] truncate" title={gf.file.name}>{gf.file.name}</span>
+                                <span className="text-2xs text-slate-400 dark:text-[#6f93b8]">({(gf.file.size / 1024 / 1024).toFixed(2)} MB)</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <select
@@ -3119,7 +3119,7 @@ export default function SignUpPage() {
                                     const cat = e.target.value as any;
                                     setAiFiles(prev => prev.map(f => f.id === gf.id ? { ...f, category: cat } : f));
                                   }}
-                                  className="text-xs bg-white border border-slate-200/80 text-slate-700 font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="text-xs bg-white dark:bg-[#0d2438] border border-slate-200 dark:border-[#1d3f5c]/80 text-slate-700 dark:text-[#8fb0cf] font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <option value="company_details">This is my Company Info</option>
                                   <option value="charges">This is my Pricing</option>
@@ -3141,7 +3141,7 @@ export default function SignUpPage() {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-4 pt-3 border-t border-slate-100">
+                    <div className="flex items-center gap-4 pt-3 border-t border-slate-100 dark:border-[#1d3f5c]">
                       <button
                         type="button"
                         onClick={() => {
@@ -3152,7 +3152,7 @@ export default function SignUpPage() {
                             setOnboardingMode('selection');
                           }
                         }}
-                        className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-sm"
+                        className="px-6 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-700 dark:text-[#8fb0cf] font-bold rounded-xl transition-colors text-sm"
                       >
                         Cancel
                       </button>
@@ -3188,11 +3188,11 @@ export default function SignUpPage() {
                   <Card className="p-4 sm:p-5">
                     <div className="flex flex-col gap-3">
                       <div>
-                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                           <Download className="text-green-600" size={20} />
                           Don't Have a File Ready?
                         </h3>
-                        <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-[#8fb0cf] leading-relaxed">
                           Download this ready-made Excel sheet, fill in your prices and delivery areas, then upload it above.
                         </p>
                       </div>
@@ -3203,9 +3203,9 @@ export default function SignUpPage() {
                         <Download size={18} /> Download Template
                       </button>
                     </div>
-                    <div className="mt-4 border-t border-slate-200/80 pt-4">
-                      <h4 className="font-semibold text-slate-700 text-sm mb-2">Template Guidelines</h4>
-                      <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+                    <div className="mt-4 border-t border-slate-200 dark:border-[#1d3f5c]/80 pt-4">
+                      <h4 className="font-semibold text-slate-700 dark:text-[#8fb0cf] text-sm mb-2">Template Guidelines</h4>
+                      <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-[#1d3f5c] shadow-sm">
                         <img src={guidlines} alt="Excel template guidelines" className="w-full max-h-56 object-cover object-top" />
                       </div>
                     </div>
@@ -3224,24 +3224,24 @@ export default function SignUpPage() {
               exit={{ opacity: 0, y: -15 }}
               className="max-w-4xl mx-auto space-y-4"
             >
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-4 md:p-5 space-y-4">
+              <div className="bg-white dark:bg-[#0d2438] rounded-2xl shadow-lg border border-slate-200 dark:border-[#1d3f5c]/60 p-4 md:p-5 space-y-4">
 
                 {/* Header */}
-                <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-4 border-b border-slate-100 dark:border-[#1d3f5c] pb-5">
                   <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center ring-2 ring-emerald-100 flex-shrink-0">
                     <CheckCircle className="text-emerald-500" size={26} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-slate-800">AI Extraction Complete</h2>
-                    <p className="text-sm text-slate-500 mt-0.5">Here's what was found in your documents. Review before continuing.</p>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">AI Extraction Complete</h2>
+                    <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-0.5">Here's what was found in your documents. Review before continuing.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                   {/* Company Profile */}
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                  <div className="bg-slate-50 dark:bg-[#08141f] rounded-xl p-4 border border-slate-200 dark:border-[#1d3f5c] space-y-3">
+                    <h3 className="text-xs font-bold text-slate-500 dark:text-[#8fb0cf] uppercase tracking-wider flex items-center gap-2">
                       <Building size={13} /> Company Profile
                     </h3>
                     {aiSummaryData && Object.keys(aiSummaryData.company).length > 0 ? (
@@ -3250,9 +3250,9 @@ export default function SignUpPage() {
                           const fromFile = aiSummaryData.companySource[k] === 'file';
                           return (
                             <div key={k} className="flex items-baseline justify-between gap-2 text-sm">
-                              <span className="text-slate-400 font-medium flex-shrink-0">{k}</span>
+                              <span className="text-slate-400 dark:text-[#6f93b8] font-medium flex-shrink-0">{k}</span>
                               <span className="text-right truncate">
-                                <span className="text-slate-800 font-semibold">{v}</span>
+                                <span className="text-slate-800 dark:text-white font-semibold">{v}</span>
                                 <span
                                   className={`ml-1.5 text-2xs font-bold uppercase tracking-wide ${fromFile ? 'text-emerald-600' : 'text-amber-500'}`}
                                   title={fromFile ? 'Found in the file(s) you just uploaded' : 'Not found in this upload — carried over from earlier'}
@@ -3265,21 +3265,21 @@ export default function SignUpPage() {
                         })}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-400 italic">No company details extracted from documents.</p>
+                      <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">No company details extracted from documents.</p>
                     )}
                   </div>
 
                   {/* Pricing Schedule */}
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                  <div className="bg-slate-50 dark:bg-[#08141f] rounded-xl p-4 border border-slate-200 dark:border-[#1d3f5c] space-y-3">
+                    <h3 className="text-xs font-bold text-slate-500 dark:text-[#8fb0cf] uppercase tracking-wider flex items-center gap-2">
                       <FileText size={13} /> Pricing Schedule
                     </h3>
                     {aiSummaryData?.hasPricingData ? (
                       <div className="space-y-1.5">
                         {Object.entries(aiSummaryData.pricing).map(([k, v]) => (
                           <div key={k} className="flex items-baseline justify-between gap-2 text-sm">
-                            <span className="text-slate-400 font-medium flex-shrink-0">{k}</span>
-                            <span className="text-slate-800 font-semibold font-mono">{v}</span>
+                            <span className="text-slate-400 dark:text-[#6f93b8] font-medium flex-shrink-0">{k}</span>
+                            <span className="text-slate-800 dark:text-white font-semibold font-mono">{v}</span>
                           </div>
                         ))}
                         <p className="text-xs text-emerald-600 font-semibold mt-2 pt-2 border-t border-emerald-100">
@@ -3288,8 +3288,8 @@ export default function SignUpPage() {
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        <p className="text-sm text-slate-400 italic">No pricing schedule detected.</p>
-                        <p className="text-xs text-slate-400">You'll enter charges manually in the Price Configuration step.</p>
+                        <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">No pricing schedule detected.</p>
+                        <p className="text-xs text-slate-400 dark:text-[#6f93b8]">You'll enter charges manually in the Price Configuration step.</p>
                       </div>
                     )}
                   </div>
@@ -3319,12 +3319,12 @@ export default function SignUpPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-4">
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-[#1d3f5c] gap-4">
                   <button
                     type="button"
                     disabled={isLoading}
                     onClick={() => { setOnboardingMode('ai_upload'); setAiProgress(0); setExtractionLogs([]); }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-700 dark:text-[#8fb0cf] font-semibold rounded-xl transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ArrowLeft size={14} /> Re-upload Files
                   </button>
@@ -3374,9 +3374,9 @@ export default function SignUpPage() {
                             <div className="space-y-6">
 
                               {/* Section 1: Company Profile */}
-                              <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-4">
+                              <div className="bg-slate-50 dark:bg-[#08141f]/50 border border-slate-100 dark:border-[#1d3f5c] rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
-                                  <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 tracking-wide uppercase">
+                                  <h3 className="text-sm font-bold text-slate-700 dark:text-[#8fb0cf] flex items-center gap-2 tracking-wide uppercase">
                                     <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-2xs font-extrabold">1</span>
                                     Company Profile
                                   </h3>
@@ -3391,11 +3391,11 @@ export default function SignUpPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                                   {/* GST No. — first, drives autofill */}
                                   <div className="w-full">
-                                    <label htmlFor="gstNo" className="block text-sm font-medium text-slate-700 mb-1">
+                                    <label htmlFor="gstNo" className="block text-sm font-medium text-slate-700 dark:text-[#8fb0cf] mb-1">
                                       GST No.<span className="text-red-500 ml-1">*</span>
                                     </label>
                                     <div className="relative">
-                                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none flex items-center justify-center">
+                                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-[#6f93b8] pointer-events-none flex items-center justify-center">
                                         <Hash size={16} />
                                       </span>
                                       <input
@@ -3406,9 +3406,9 @@ export default function SignUpPage() {
                                         onBlur={(e) => { setGstFocused(false); handleBlur(e); }}
                                         required
                                         className={`w-full pl-11 pr-9 py-2.5 border rounded-lg shadow-sm transition-all duration-300
-                                          bg-slate-50 text-slate-900 placeholder:text-slate-400
+                                          bg-slate-50 dark:bg-[#08141f] text-slate-900 dark:text-white placeholder:text-slate-400 dark:text-[#6f93b8]
                                           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:border-amber-500
-                                          ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300/70'}`}
+                                          ${(touched.gstNo && errors.gstNo) ? 'border-red-500 ring-red-500/50' : 'border-slate-300 dark:border-[#1d3f5c]/70'}`}
                                         aria-invalid={!!(touched.gstNo && errors.gstNo)}
                                       />
                                       {/* Status icon */}
@@ -3427,7 +3427,7 @@ export default function SignUpPage() {
 
                                     {/* Helper text on focus when empty */}
                                     {gstFocused && !formData.gstNo && (
-                                      <p className="mt-1 text-[10px] text-slate-400">
+                                      <p className="mt-1 text-[10px] text-slate-400 dark:text-[#6f93b8]">
                                         Enter your GSTIN to auto-fill company details
                                       </p>
                                     )}
@@ -3457,7 +3457,7 @@ export default function SignUpPage() {
 
                                     {/* Static hint — always visible below the field */}
                                     {gstLookup.status === 'idle' && !gstLookup.successMessage && !gstLookup.errorMessage && (
-                                      <p className="mt-1 text-[10px] text-slate-400 flex items-center gap-1">
+                                      <p className="mt-1 text-[10px] text-slate-400 dark:text-[#6f93b8] flex items-center gap-1">
                                         <Sparkles className="w-3 h-3 text-blue-400 shrink-0" />
                                         Autofill details from GST
                                       </p>
@@ -3469,8 +3469,8 @@ export default function SignUpPage() {
                               </div>
 
                               {/* Section 2: Portal Access & Account Security */}
-                              <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-4">
-                                <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 tracking-wide uppercase">
+                              <div className="bg-slate-50 dark:bg-[#08141f]/50 border border-slate-100 dark:border-[#1d3f5c] rounded-xl p-4 space-y-4">
+                                <h3 className="text-sm font-bold text-slate-700 dark:text-[#8fb0cf] flex items-center gap-2 tracking-wide uppercase">
                                   <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-2xs font-extrabold">2</span>
                                   Portal Access & Account Security
                                 </h3>
@@ -3482,8 +3482,8 @@ export default function SignUpPage() {
                               </div>
 
                               {/* Section 3: Office Location & Timings */}
-                              <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-4">
-                                <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 tracking-wide uppercase">
+                              <div className="bg-slate-50 dark:bg-[#08141f]/50 border border-slate-100 dark:border-[#1d3f5c] rounded-xl p-4 space-y-4">
+                                <h3 className="text-sm font-bold text-slate-700 dark:text-[#8fb0cf] flex items-center gap-2 tracking-wide uppercase">
                                   <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-2xs font-extrabold">3</span>
                                   Office Location & Timings
                                 </h3>
@@ -3493,25 +3493,25 @@ export default function SignUpPage() {
                                   <InputField id="stateName" label="State" icon={<Map size={16} />} value={formData.stateName} onChange={handleFormChange} onBlur={handleBlur} error={touched.stateName ? errors.stateName : undefined} required />
 
                                   <div className="space-y-1">
-                                    <label className="block text-xs font-semibold text-slate-600">Office Timings <span className="text-red-500">*</span></label>
-                                    <div className="flex items-center gap-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
+                                    <label className="block text-xs font-semibold text-slate-600 dark:text-[#8fb0cf]">Office Timings <span className="text-red-500">*</span></label>
+                                    <div className="flex items-center gap-2 h-10 w-full rounded-lg border border-slate-200 dark:border-[#1d3f5c] bg-white dark:bg-[#0d2438] px-3 py-2 text-sm text-slate-800 dark:text-white shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
                                       <input
                                         id="officeStart"
                                         type="time"
                                         value={formData.officeStart}
                                         onChange={handleFormChange}
                                         onBlur={handleBlur}
-                                        className="w-full bg-transparent border-0 p-0 text-slate-800 focus:ring-0 text-sm focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                                        className="w-full bg-transparent border-0 p-0 text-slate-800 dark:text-white focus:ring-0 text-sm focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
                                         required
                                       />
-                                      <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider px-1 shrink-0">to</span>
+                                      <span className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider px-1 shrink-0">to</span>
                                       <input
                                         id="officeEnd"
                                         type="time"
                                         value={formData.officeEnd}
                                         onChange={handleFormChange}
                                         onBlur={handleBlur}
-                                        className="w-full bg-transparent border-0 p-0 text-slate-800 focus:ring-0 text-sm focus:outline-none cursor-pointer"
+                                        className="w-full bg-transparent border-0 p-0 text-slate-800 dark:text-white focus:ring-0 text-sm focus:outline-none cursor-pointer"
                                         required
                                       />
                                     </div>
@@ -3528,8 +3528,8 @@ export default function SignUpPage() {
                               </div>
 
                               {/* Section 4: Logistics & Fleet Capabilities */}
-                              <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 space-y-4">
-                                <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 tracking-wide uppercase">
+                              <div className="bg-slate-50 dark:bg-[#08141f]/50 border border-slate-100 dark:border-[#1d3f5c] rounded-xl p-4 space-y-4">
+                                <h3 className="text-sm font-bold text-slate-700 dark:text-[#8fb0cf] flex items-center gap-2 tracking-wide uppercase">
                                   <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-2xs font-extrabold">4</span>
                                   Logistics & Fleet Capabilities
                                 </h3>
@@ -3568,12 +3568,12 @@ export default function SignUpPage() {
                           // the real Step 1 form above, so it's replaced with the exact
                           // fields collected there instead.
                           <div className="space-y-6">
-                            <div className="flex items-center justify-center border-b border-slate-100 pb-3">
+                            <div className="flex items-center justify-center border-b border-slate-100 dark:border-[#1d3f5c] pb-3">
                               {renderStepper(2)}
                             </div>
 
                             <div className="flex justify-between items-center">
-                              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                              <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <CheckCircle className="text-green-500" size={20} />
                                 Form Information Completed
                               </h3>
@@ -3586,50 +3586,50 @@ export default function SignUpPage() {
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Company Name</p>
-                                <p className="text-slate-800 font-bold mt-1">{formData.companyName}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Company Name</p>
+                                <p className="text-slate-800 dark:text-white font-bold mt-1">{formData.companyName}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">GST No.</p>
-                                <p className="text-slate-800 font-bold mt-1">{formData.gstNo}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">GST No.</p>
+                                <p className="text-slate-800 dark:text-white font-bold mt-1">{formData.gstNo}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Logistics Network</p>
-                                <p className="text-slate-800 font-medium mt-1">
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Logistics Network</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">
                                   {formData.networks.includes('other') ? formData.networkOther : formData.networks.join(', ')}
                                 </p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Company Contact Name</p>
-                                <p className="text-slate-800 font-medium mt-1">{formData.companyContactName}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Company Contact Name</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">{formData.companyContactName}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Company Phone Number</p>
-                                <p className="text-slate-800 font-medium mt-1">{formData.phone}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Company Phone Number</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">{formData.phone}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">WhatsApp Number</p>
-                                <p className="text-slate-800 font-medium mt-1">{formData.whatsapp}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">WhatsApp Number</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">{formData.whatsapp}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Email Address</p>
-                                <p className="text-slate-800 font-medium mt-1 truncate">{formData.email}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Email Address</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1 truncate">{formData.email}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Number of Pincodes Served</p>
-                                <p className="text-slate-800 font-medium mt-1">{formData.pincodesServedRange}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Number of Pincodes Served</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">{formData.pincodesServedRange}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total Fleet Size</p>
-                                <p className="text-slate-800 font-medium mt-1">{formData.numTrucks}</p>
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c]">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Total Fleet Size</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">{formData.numTrucks}</p>
                               </div>
-                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 sm:col-span-2">
-                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Employee Details</p>
-                                <p className="text-slate-800 font-medium mt-1">
+                              <div className="bg-slate-50 dark:bg-[#08141f] p-3 rounded-lg border border-slate-100 dark:border-[#1d3f5c] sm:col-span-2">
+                                <p className="text-slate-400 dark:text-[#6f93b8] text-xs font-semibold uppercase tracking-wider">Employee Details</p>
+                                <p className="text-slate-800 dark:text-white font-medium mt-1">
                                   {formData.employeeName} · {formData.employeePhone}
                                 </p>
-                                <p className="text-slate-500 text-xs mt-1">{formData.employeeAddress}</p>
+                                <p className="text-slate-500 dark:text-[#8fb0cf] text-xs mt-1">{formData.employeeAddress}</p>
                               </div>
                             </div>
                           </div>
@@ -3645,7 +3645,7 @@ export default function SignUpPage() {
                   {/* Top Card: Upload Sheet */}
                   <Card className="p-6">
                     <div className="flex items-start justify-between gap-3 mb-2">
-                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <UploadCloud className="text-blue-600" size={20} />
                         Step 2: Upload Servicability Pincodes
                       </h3>
@@ -3685,30 +3685,30 @@ Notes:
                         <FileSpreadsheet className="w-3.5 h-3.5" />
                         Sample Format
                       </p>
-                      <div className="bg-white rounded-lg border border-blue-200 overflow-hidden shadow-sm">
+                      <div className="bg-white dark:bg-[#0d2438] rounded-lg border border-blue-200 overflow-hidden shadow-sm">
                         <table className="w-full text-xs">
-                          <thead className="bg-slate-100 border-b border-slate-200">
+                          <thead className="bg-slate-100 dark:bg-white/5 border-b border-slate-200 dark:border-[#1d3f5c]">
                             <tr>
-                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700">pincode</th>
-                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700">isOda</th>
-                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700">zone</th>
+                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700 dark:text-[#8fb0cf]">pincode</th>
+                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700 dark:text-[#8fb0cf]">isOda</th>
+                              <th className="px-3 py-1.5 text-left font-semibold text-slate-700 dark:text-[#8fb0cf]">zone</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            <tr className="hover:bg-slate-50">
-                              <td className="px-3 py-1.5 font-mono text-slate-900">110001</td>
-                              <td className="px-3 py-1.5 text-slate-600">FALSE</td>
-                              <td className="px-3 py-1.5 text-slate-600">North</td>
+                            <tr className="hover:bg-slate-50 dark:bg-[#08141f]">
+                              <td className="px-3 py-1.5 font-mono text-slate-900 dark:text-white">110001</td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-[#8fb0cf]">FALSE</td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-[#8fb0cf]">North</td>
                             </tr>
-                            <tr className="hover:bg-slate-50">
-                              <td className="px-3 py-1.5 font-mono text-slate-900">400001</td>
-                              <td className="px-3 py-1.5 text-slate-600">FALSE</td>
-                              <td className="px-3 py-1.5 text-slate-600">West</td>
+                            <tr className="hover:bg-slate-50 dark:bg-[#08141f]">
+                              <td className="px-3 py-1.5 font-mono text-slate-900 dark:text-white">400001</td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-[#8fb0cf]">FALSE</td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-[#8fb0cf]">West</td>
                             </tr>
-                            <tr className="hover:bg-slate-50">
-                              <td className="px-3 py-1.5 font-mono text-slate-900">560001</td>
-                              <td className="px-3 py-1.5 text-slate-600">FALSE</td>
-                              <td className="px-3 py-1.5 text-slate-600">South</td>
+                            <tr className="hover:bg-slate-50 dark:bg-[#08141f]">
+                              <td className="px-3 py-1.5 font-mono text-slate-900 dark:text-white">560001</td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-[#8fb0cf]">FALSE</td>
+                              <td className="px-3 py-1.5 text-slate-600 dark:text-[#8fb0cf]">South</td>
                             </tr>
                           </tbody>
                         </table>
@@ -3717,10 +3717,10 @@ Notes:
 
                     {currentStep === 0 ? (
                       // Locked State during Step 1
-                      <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                        <Lock className="mx-auto w-8 h-8 text-slate-400 mb-2" />
-                        <p className="text-sm font-semibold text-slate-600">File Upload Locked</p>
-                        <p className="text-xs text-slate-400 mt-1 px-4">
+                      <div className="text-center py-8 bg-slate-50 dark:bg-[#08141f] border border-dashed border-slate-200 dark:border-[#1d3f5c] rounded-xl">
+                        <Lock className="mx-auto w-8 h-8 text-slate-400 dark:text-[#6f93b8] mb-2" />
+                        <p className="text-sm font-semibold text-slate-600 dark:text-[#8fb0cf]">File Upload Locked</p>
+                        <p className="text-xs text-slate-400 dark:text-[#6f93b8] mt-1 px-4">
                           Please complete and submit the registration details in Step 1 to unlock pricing uploads.
                         </p>
                       </div>
@@ -3741,7 +3741,7 @@ Notes:
                             onDrop={handleDrop}
                             className={`p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all duration-300 ${isDragging
                               ? 'border-blue-500 bg-blue-50/50 scale-102 shadow-inner'
-                              : 'border-slate-300 bg-slate-50/50 hover:border-blue-400'
+                              : 'border-slate-300 dark:border-[#1d3f5c] bg-slate-50 dark:bg-[#08141f]/50 hover:border-blue-400'
                               }`}
                           >
                             <input
@@ -3752,9 +3752,9 @@ Notes:
                               id="file-upload"
                             />
                             <label htmlFor="file-upload" className="flex flex-col items-center justify-center space-y-2 cursor-pointer">
-                              <UploadCloud className={`w-10 h-10 mx-auto transition-colors ${isDragging ? 'text-blue-600' : 'text-slate-400'}`} strokeWidth={1.5} />
-                              <p className="font-semibold text-sm text-slate-700">Click to upload or drag file here</p>
-                              <p className="text-xs text-slate-500">Excel spreadsheet (.xlsx format only)</p>
+                              <UploadCloud className={`w-10 h-10 mx-auto transition-colors ${isDragging ? 'text-blue-600' : 'text-slate-400 dark:text-[#6f93b8]'}`} strokeWidth={1.5} />
+                              <p className="font-semibold text-sm text-slate-700 dark:text-[#8fb0cf]">Click to upload or drag file here</p>
+                              <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">Excel spreadsheet (.xlsx format only)</p>
                             </label>
                           </div>
                         )}
@@ -3779,7 +3779,7 @@ Notes:
                               untouched, and only flip onboardingMode back to 'selection'. */}
                           <button
                             onClick={() => setOnboardingMode('selection')}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition-colors focus:outline-none"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-200 text-slate-800 dark:text-white font-semibold rounded-lg hover:bg-slate-300 transition-colors focus:outline-none"
                           >
                             <ArrowLeft size={16} />Back
                           </button>
@@ -3833,19 +3833,19 @@ Notes:
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+              className="relative bg-white dark:bg-[#0d2438] rounded-2xl shadow-2xl w-full max-w-md p-6"
             >
-              <h3 className="text-lg font-bold text-slate-800">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">
                 {missingFieldsModal.fields.length} more detail{missingFieldsModal.fields.length === 1 ? '' : 's'} needed
               </h3>
-              <p className="text-sm text-slate-500 mt-1 mb-4">
+              <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-1 mb-4">
                 We couldn't pull these from your GST number or documents — mind filling them in?
               </p>
 
               <div className="space-y-4">
                 {missingFieldsModal.fields.map((field, idx) => (
                   <div key={field.id}>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-[#8fb0cf] uppercase tracking-wider mb-1">
                       {field.label} <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -3858,7 +3858,7 @@ Notes:
                       }))}
                       maxLength={field.maxLength}
                       placeholder={field.placeholder}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-md bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2.5 border border-slate-300 dark:border-[#1d3f5c] rounded-md bg-slate-50 dark:bg-[#08141f] text-slate-800 dark:text-white placeholder:text-slate-400 dark:text-[#6f93b8] focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 ))}
@@ -3868,7 +3868,7 @@ Notes:
                 <button
                   type="button"
                   onClick={() => setMissingFieldsModal(prev => ({ ...prev, open: false }))}
-                  className="px-4 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                  className="px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-[#8fb0cf] bg-slate-100 dark:bg-white/5 rounded-lg hover:bg-slate-200 transition-colors"
                 >
                   Back
                 </button>
