@@ -1164,7 +1164,16 @@ export default function AddPrice() {
                 Title alone always fits at any width; the company name is
                 still available via the title="" tooltip attribute below. */}
             <div className="flex items-baseline gap-1.5 min-w-0" title={transporterName || undefined}>
-              <h1 className="text-base font-semibold text-slate-900 whitespace-nowrap">Price Configuration</h1>
+              {/* whitespace-nowrap alone (no truncate) let the title render at
+                  full width regardless of how little space the flex row left
+                  it — fine against the short "Next" button this was tuned
+                  against, but "Save & Continue" (the last step's button,
+                  longer text) leaves less room and the title visibly
+                  overlapped it. Reported live 2026-09-22 with a screenshot:
+                  "save and continue is getting iced with price config...
+                  just below header". truncate+min-w-0 lets it ellipsis
+                  instead of overflowing when space is actually tight. */}
+              <h1 className="text-base font-semibold text-slate-900 truncate min-w-0">Price Configuration</h1>
               <span className="hidden sm:inline text-sm text-slate-300 flex-shrink-0">—</span>
               <span className="hidden sm:inline text-base text-slate-500 truncate">
                 for <span className="font-bold text-blue-600">{transporterName || "your new transporter"}</span>
