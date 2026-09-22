@@ -220,6 +220,12 @@ export default function AddPrice() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [gapReport, setGapReport] = useState<{ missingCharges: string[]; zoneNote: string | null } | null>(null);
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
+  // The zone-matrix step's compact upload panel is a SEPARATE mount from the
+  // full upload-first screen (that screen's own <input> only exists while
+  // showUploadStep is true) — reusing uploadFileInputRef there pointed at an
+  // unmounted input (.current === null), so tapping it silently did nothing.
+  // Reported live 2026-09-22: "tap to choose files stopped working".
+  const zoneUploadFileInputRef = useRef<HTMLInputElement>(null);
 
   const [wasAiPrefilled, setWasAiPrefilled] = useState<boolean>(() => {
     const hasManuallySaved = !!localStorage.getItem('transporter_price_rate');
@@ -1478,12 +1484,20 @@ export default function AddPrice() {
                           </div>
                           <div
                             className="border-2 border-dashed border-slate-300 dark:border-[#1d3f5c] rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
-                            onClick={() => uploadFileInputRef.current?.click()}
+                            onClick={() => zoneUploadFileInputRef.current?.click()}
                             onDragOver={e => e.preventDefault()}
                             onDrop={e => { e.preventDefault(); if (e.dataTransfer.files) addUploadFiles(e.dataTransfer.files); }}
                           >
                             <Upload size={20} className="mx-auto text-slate-400 dark:text-[#6f93b8]" />
                             <p className="mt-1.5 text-sm font-semibold text-slate-700 dark:text-white">Tap to choose files, or drag them here</p>
+                            <input
+                              ref={zoneUploadFileInputRef}
+                              type="file"
+                              multiple
+                              className="hidden"
+                              accept={Array.from(ACCEPTED_EXTENSIONS).join(',')}
+                              onChange={e => { if (e.target.files) addUploadFiles(e.target.files); e.target.value = ''; }}
+                            />
                           </div>
                           {uploadFiles.length > 0 && (
                             <div className="mt-2 space-y-1.5">
