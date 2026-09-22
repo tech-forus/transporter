@@ -28,8 +28,9 @@ import { useReportIframeHeight } from "../hooks/useReportIframeHeight";
 import {
   ACCEPTED_EXTENSIONS, MAX_UPLOAD_FILES, MAX_FILE_SIZE, guessCategory,
   runUtsfExtraction, parseUtsfOutput,
-  type UploadItem, type DocCategory,
+  type UploadItem, type DocCategory, type ParsedUtsfResult,
 } from "../lib/standaloneUtsfExtraction";
+import { tryParseExcelClientSide } from "../lib/clientExcelParser";
 import { Upload, X, CheckCircle2 } from "lucide-react";
 
 // --- Type Definitions ---
@@ -160,6 +161,64 @@ const DEFAULT_UNIT_MODE: Record<string, 'FLAT' | 'PER KG' | '% ON BASE'> = {
   fmCharges: 'FLAT',
   appointmentCharges: 'FLAT',
 };
+
+// A field counts as "already filled" if it's non-zero — extraction (client-
+// side or backend) only ever adds to a blank field, never overwrites a
+// value the transporter (or an earlier upload round) already set.
+const isBlankCharge = (v: any): boolean =>
+  v == null || (typeof v === 'number' ? v === 0 : !(v.fixed > 0) && !(v.variable > 0));
+
+// Pure merge helpers shared by runExtractionAndApply — used once per parsed
+// result (there can be several: some files read client-side, others via the
+// backend, in one upload round), so extracting these avoids writing the
+// same merge logic twice.
+function mergePricingInto(prev: PriceRate, p: import('../lib/standaloneUtsfExtraction').ParsedPricing): PriceRate {
+  const next = { ...prev };
+  if (isBlankCharge(prev.minWeight) && p.minWeight > 0) next.minWeight = p.minWeight;
+  if (isBlankCharge(prev.docketCharges.fixed) && p.docketCharges > 0) next.docketCharges = { variable: 0, fixed: p.docketCharges };
+  if (isBlankCharge(prev.fuel.variable) && p.fuel > 0) next.fuel = { variable: p.fuel, fixed: 0 };
+  if (isBlankCharge(prev.minCharges) && p.minCharges > 0) next.minCharges = { variable: 0, fixed: p.minCharges };
+  if (isBlankCharge(prev.rovCharges) && (p.rovCharges.variable > 0 || p.rovCharges.fixed > 0)) next.rovCharges = p.rovCharges;
+  if (isBlankCharge(prev.odaCharges) && (p.odaCharges.variable > 0 || p.odaCharges.fixed > 0)) next.odaCharges = p.odaCharges;
+  if (isBlankCharge(prev.handlingCharges) && (p.handlingCharges.variable > 0 || p.handlingCharges.fixed > 0))
+    next.handlingCharges = { variable: p.handlingCharges.variable, fixed: p.handlingCharges.fixed, threshholdweight: p.handlingCharges.thresholdWeight };
+  if (isBlankCharge(prev.greenTax) && p.greenTax > 0) next.greenTax = { variable: 0, fixed: p.greenTax };
+  if (isBlankCharge(prev.miscellanousCharges) && p.miscellanousCharges > 0) next.miscellanousCharges = { variable: 0, fixed: p.miscellanousCharges };
+  if (isBlankCharge(prev.topayCharges) && (p.topayCharges.variable > 0 || p.topayCharges.fixed > 0)) next.topayCharges = p.topayCharges;
+  if (isBlankCharge(prev.codCharges) && (p.codCharges.variable > 0 || p.codCharges.fixed > 0)) next.codCharges = p.codCharges;
+  if (isBlankCharge(prev.daccCharges) && p.daccCharges > 0) next.daccCharges = { variable: 0, fixed: p.daccCharges };
+  if (isBlankCharge(prev.insuaranceCharges) && (p.insuranceCharges.variable > 0 || p.insuranceCharges.fixed > 0)) next.insuaranceCharges = p.insuranceCharges;
+  if (isBlankCharge(prev.prepaidCharges) && (p.prepaidCharges.variable > 0 || p.prepaidCharges.fixed > 0)) next.prepaidCharges = p.prepaidCharges;
+  if (isBlankCharge(prev.fmCharges) && (p.fmCharges.variable > 0 || p.fmCharges.fixed > 0)) next.fmCharges = p.fmCharges;
+  if (isBlankCharge(prev.appointmentCharges) && (p.appointmentCharges.variable > 0 || p.appointmentCharges.fixed > 0)) next.appointmentCharges = p.appointmentCharges;
+  return next;
+}
+
+function mergeZonesInto(
+  prevLabels: string[], prevRates: number[][], newLabels: string[], newMatrix: number[][],
+): { labels: string[]; rates: number[][] } {
+  if (newLabels.length === 0) return { labels: prevLabels, rates: prevRates };
+  const mergedLabels = Array.from(new Set([...prevLabels, ...newLabels]));
+  const idx = (label: string) => mergedLabels.indexOf(label);
+  const merged = mergedLabels.map(() => mergedLabels.map(() => 0));
+  prevLabels.forEach((from, i) => prevLabels.forEach((to, j) => {
+    merged[idx(from)][idx(to)] = prevRates[i]?.[j] || 0;
+  }));
+  if (newMatrix.length > 0) {
+    newLabels.forEach((from, i) => newLabels.forEach((to, j) => {
+      const v = newMatrix[i]?.[j] || 0;
+      if (v > 0) merged[idx(from)][idx(to)] = v;
+    }));
+  }
+  return { labels: mergedLabels, rates: merged };
+}
+
+function mergeServiceInto<T extends { pincode: number }>(prev: T[], newService: T[]): T[] {
+  if (newService.length === 0) return prev;
+  const byPincode = new Map(prev.map(e => [e.pincode, e]));
+  for (const entry of newService) byPincode.set(entry.pincode, entry);
+  return Array.from(byPincode.values());
+}
 
 // --- Styled & Reusable Components ---
 const Card = ({ children, className }: { children: React.ReactNode; className?: string; }) => (
@@ -541,71 +600,79 @@ export default function AddPrice() {
     const appendLog = (l: string) => setUploadLogs(prev => [...prev, l]);
 
     try {
-      const utsf = await runUtsfExtraction(uploadFiles, transporterName || 'transporter', appendLog);
-      const parsed = parseUtsfOutput(utsf);
+      // Excel/CSV files are tried client-side FIRST — entirely in the
+      // browser, no backend round-trip — and only fall back to the backend
+      // AI pipeline for the ones that don't confidently match. Photos and
+      // PDFs never attempt a client-side parse at all; they always go
+      // straight to the backend, same as before. Asked for live 2026-09-22:
+      // "if the files are plain excel it doesnt need backend at all if its
+      // properly readable...if its complex send it back...same like pics
+      // and pdfs".
+      const EXCEL_EXTS = new Set(['.xlsx', '.xls', '.csv']);
+      const extOf = (name: string) => '.' + name.split('.').pop()!.toLowerCase();
+      const excelFiles = uploadFiles.filter(f => EXCEL_EXTS.has(extOf(f.file.name)));
+      const otherFiles = uploadFiles.filter(f => !EXCEL_EXTS.has(extOf(f.file.name)));
 
-      if (parsed.companyName && !transporterName) setTransporterName(parsed.companyName);
+      const localResults: ParsedUtsfResult[] = [];
+      const needsBackend: UploadItem[] = [...otherFiles];
 
-      // Charges: fill only blank (zero) fields, same "AI only adds, never
-      // erases" rule the signup flow follows.
-      const isBlankCharge = (v: any) => v == null || (typeof v === 'number' ? v === 0 : !(v.fixed > 0) && !(v.variable > 0));
-      setPriceRate(prev => {
-        const next = { ...prev };
-        const p = parsed.pricing;
-        if (isBlankCharge(prev.minWeight) && p.minWeight > 0) next.minWeight = p.minWeight;
-        if (isBlankCharge(prev.docketCharges.fixed) && p.docketCharges > 0) next.docketCharges = { variable: 0, fixed: p.docketCharges };
-        if (isBlankCharge(prev.fuel.variable) && p.fuel > 0) next.fuel = { variable: p.fuel, fixed: 0 };
-        if (isBlankCharge(prev.minCharges) && p.minCharges > 0) next.minCharges = { variable: 0, fixed: p.minCharges };
-        if (isBlankCharge(prev.rovCharges) && (p.rovCharges.variable > 0 || p.rovCharges.fixed > 0)) next.rovCharges = p.rovCharges;
-        if (isBlankCharge(prev.odaCharges) && (p.odaCharges.variable > 0 || p.odaCharges.fixed > 0)) next.odaCharges = p.odaCharges;
-        if (isBlankCharge(prev.handlingCharges) && (p.handlingCharges.variable > 0 || p.handlingCharges.fixed > 0))
-          next.handlingCharges = { variable: p.handlingCharges.variable, fixed: p.handlingCharges.fixed, threshholdweight: p.handlingCharges.thresholdWeight };
-        if (isBlankCharge(prev.greenTax) && p.greenTax > 0) next.greenTax = { variable: 0, fixed: p.greenTax };
-        if (isBlankCharge(prev.miscellanousCharges) && p.miscellanousCharges > 0) next.miscellanousCharges = { variable: 0, fixed: p.miscellanousCharges };
-        if (isBlankCharge(prev.topayCharges) && (p.topayCharges.variable > 0 || p.topayCharges.fixed > 0)) next.topayCharges = p.topayCharges;
-        if (isBlankCharge(prev.codCharges) && (p.codCharges.variable > 0 || p.codCharges.fixed > 0)) next.codCharges = p.codCharges;
-        if (isBlankCharge(prev.daccCharges) && p.daccCharges > 0) next.daccCharges = { variable: 0, fixed: p.daccCharges };
-        if (isBlankCharge(prev.insuaranceCharges) && (p.insuranceCharges.variable > 0 || p.insuranceCharges.fixed > 0)) next.insuaranceCharges = p.insuranceCharges;
-        if (isBlankCharge(prev.prepaidCharges) && (p.prepaidCharges.variable > 0 || p.prepaidCharges.fixed > 0)) next.prepaidCharges = p.prepaidCharges;
-        if (isBlankCharge(prev.fmCharges) && (p.fmCharges.variable > 0 || p.fmCharges.fixed > 0)) next.fmCharges = p.fmCharges;
-        if (isBlankCharge(prev.appointmentCharges) && (p.appointmentCharges.variable > 0 || p.appointmentCharges.fixed > 0)) next.appointmentCharges = p.appointmentCharges;
-        return next;
-      });
-
-      // Zones: merge label sets and matrices — a fresh extraction with new
-      // zone labels not seen before gets appended; overlapping cells from the
-      // new upload win (it's the more recent document).
-      if (parsed.zoneLabels.length > 0) {
-        setZoneLabels(prevLabels => {
-          const mergedLabels = Array.from(new Set([...prevLabels, ...parsed.zoneLabels]));
-          setZoneRates(prevRates => {
-            const idx = (label: string) => mergedLabels.indexOf(label);
-            const merged = mergedLabels.map(() => mergedLabels.map(() => 0));
-            prevLabels.forEach((from, i) => prevLabels.forEach((to, j) => {
-              merged[idx(from)][idx(to)] = prevRates[i]?.[j] || 0;
-            }));
-            if (parsed.zoneMatrix.length > 0) {
-              parsed.zoneLabels.forEach((from, i) => parsed.zoneLabels.forEach((to, j) => {
-                const v = parsed.zoneMatrix[i]?.[j] || 0;
-                if (v > 0) merged[idx(from)][idx(to)] = v;
-              }));
-            }
-            return merged;
-          });
-          return mergedLabels;
-        });
+      for (const item of excelFiles) {
+        appendLog(`[INFO] Checking "${item.file.name}" locally...`);
+        const outcome = await tryParseExcelClientSide(item.file, zoneLabels);
+        if (outcome.handled && outcome.result) {
+          appendLog(`[OK] Read "${item.file.name}" directly — no server round-trip needed.`);
+          localResults.push(outcome.result);
+        } else {
+          appendLog(`[INFO] "${item.file.name}" needs a closer read — sending to the document processor.`);
+          needsBackend.push(item);
+        }
       }
 
-      // Service/serviceability — accumulate across upload rounds (a second
-      // file covering different pincodes must not drop the first round's).
-      if (parsed.service.length > 0) {
-        setZonePincodeData(prev => {
-          const byPincode = new Map(prev.map(e => [e.pincode, e]));
-          for (const entry of parsed.service) byPincode.set(entry.pincode, entry as ZonePincodeEntry);
-          return Array.from(byPincode.values());
-        });
+      const allResults: ParsedUtsfResult[] = [...localResults];
+      if (needsBackend.length > 0) {
+        const utsf = await runUtsfExtraction(needsBackend, transporterName || 'transporter', appendLog);
+        allResults.push(parseUtsfOutput(utsf));
+      }
+      if (allResults.length === 0) {
+        throw new Error('Could not read any of the uploaded documents.');
       }
 
+      let workingPriceRate = priceRate;
+      let workingZoneLabels = zoneLabels;
+      let workingZoneRates = zoneRates;
+      let workingZonePincodeData = zonePincodeData;
+      const allSourcedFields: string[] = [];
+      let anyCompanyName = '';
+      let anyGstPct: number | null = null;
+
+      for (const parsed of allResults) {
+        workingPriceRate = mergePricingInto(workingPriceRate, parsed.pricing);
+        const zm = mergeZonesInto(workingZoneLabels, workingZoneRates, parsed.zoneLabels, parsed.zoneMatrix);
+        workingZoneLabels = zm.labels;
+        workingZoneRates = zm.rates;
+        workingZonePincodeData = mergeServiceInto(workingZonePincodeData, parsed.service as unknown as ZonePincodeEntry[]);
+        for (const f of parsed.sourcedFields) {
+          if (f === 'gstPct') continue; // synthetic marker from the client parser, handled separately below
+          if (!allSourcedFields.includes(f)) allSourcedFields.push(f);
+        }
+        if (parsed.companyName && !anyCompanyName) anyCompanyName = parsed.companyName;
+        const gst = (parsed as any)._gstPct;
+        if (gst != null && anyGstPct == null) anyGstPct = gst;
+      }
+
+      // gstPct isn't a ParsedPricing field (the real PriceRate stores it as
+      // {variable,fixed} directly, not via the shared merge helper above) —
+      // the client parser surfaces it separately as _gstPct.
+      if (anyGstPct != null && isBlankCharge(workingPriceRate.gstPct)) {
+        workingPriceRate = { ...workingPriceRate, gstPct: { variable: anyGstPct, fixed: 0 } };
+        allSourcedFields.push('gstPct');
+      }
+
+      if (anyCompanyName && !transporterName) setTransporterName(anyCompanyName);
+      setPriceRate(workingPriceRate);
+      setZoneLabels(workingZoneLabels);
+      setZoneRates(workingZoneRates);
+      setZonePincodeData(workingZonePincodeData);
       setWasAiPrefilled(true);
       setUploadStatus('success');
 
@@ -613,15 +680,14 @@ export default function AddPrice() {
       // everything below." MANDATORY_CHARGE_FIELDS is the same list Save
       // itself requires filled.
       const missingCharges = MANDATORY_CHARGE_FIELDS
-        .filter(({ key }) => !parsed.sourcedFields.includes(key as string))
+        .filter(({ key }) => !allSourcedFields.includes(key as string))
         .map(f => f.label);
+      const zoneCount = workingZoneLabels.length;
       let zoneNote: string | null = null;
-      if (parsed.zoneCount === 0) {
+      if (zoneCount === 0) {
         zoneNote = "We couldn't find any service zones or pincodes in your documents.";
-      } else if (parsed.zoneMatrix.length > 0 && parsed.zoneMatrix.some(row => row.every(v => v === 0))) {
-        zoneNote = `We found ${parsed.zoneCount} service zone${parsed.zoneCount === 1 ? '' : 's'}, but rates for some zone-to-zone pairs are still missing.`;
-      } else if (parsed.zoneMatrix.length === 0) {
-        zoneNote = `We found ${parsed.zoneCount} service zone${parsed.zoneCount === 1 ? '' : 's'}, but no zone-to-zone rate matrix — you'll need to fill that in.`;
+      } else if (workingZoneRates.some(row => row.every(v => v === 0))) {
+        zoneNote = `We found ${zoneCount} service zone${zoneCount === 1 ? '' : 's'}, but rates for some zone-to-zone pairs are still missing.`;
       }
       setGapReport(missingCharges.length > 0 || zoneNote ? { missingCharges, zoneNote } : null);
 
