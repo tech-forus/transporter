@@ -5,12 +5,13 @@ import axios from 'axios'
 import { Link } from 'react-router-dom'
 import {
   RefreshCw, Clock, MapPin, Package, IndianRupee, ArrowRight,
-  Sparkles, X, ShieldCheck, Zap, Bell,
+  Sparkles, X, ShieldCheck, Zap, Bell, Map as MapIcon, Truck as TruckIcon,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { API_BASE_URL } from '../config/apiConfig'
 import { resolveTransporterLogo } from '../utils/transporterLogo'
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight'
+import http from '../lib/http'
 
 // ensure your authToken cookie is sent on every request
 axios.defaults.withCredentials = true
@@ -164,6 +165,20 @@ const Dashboard: React.FC = () => {
     if (isAuthenticated) fetchBids()
   }, [isAuthenticated, user?._id])
 
+  // "Your Setup" summary card — asked for live 2026-09-22: "why is the
+  // first thing here bids... should also be my routes my rates". The
+  // underlying zone/rate data already existed (AddPrice.tsx writes it) but
+  // nothing anywhere ever read it back, so a transporter had no way to see
+  // their own setup without re-opening the full editor. This is a light
+  // summary, not the full matrix — see backend price-summary endpoint.
+  const [priceSummary, setPriceSummary] = useState<{ hasPriceCard: boolean; originZoneCount?: number; destinationRateCount?: number } | null>(null)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    http.get('/api/transporter/auth/price-summary')
+      .then((res) => { if (res.data?.success) setPriceSummary(res.data) })
+      .catch(() => setPriceSummary(null))
+  }, [isAuthenticated])
+
   // Every OTHER page in this app (SignIn/SignUp/VerifyOtp/AddPrice) calls
   // this so the parent FreightCompare app can size the embedding iframe to
   // fit real content — this page never did, so after logging in the iframe
@@ -172,7 +187,7 @@ const Dashboard: React.FC = () => {
   // as "chopped crop, hidden UI". Deps cover every state that changes this
   // page's rendered height: which of the four return branches is active,
   // the welcome banner, and the bid counts/list length.
-  useReportIframeHeight([isAuthenticated, loading, error, showWelcome, openBids.length, limitedBids.length, semiLimitedBids.length])
+  useReportIframeHeight([isAuthenticated, loading, error, showWelcome, priceSummary, openBids.length, limitedBids.length, semiLimitedBids.length])
 
   if (!isAuthenticated) {
     return (
@@ -296,6 +311,48 @@ const Dashboard: React.FC = () => {
   return (
     <div className="bg-slate-50 min-h-screen">
       <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        {/* Your Setup — routes/zones + rate card + fleet size, with a real
+            edit path. Deliberately first, above the welcome banner and
+            Available Bids: this IS the transporter's own operation, bids
+            are what comes TO them because of it, not the other way round. */}
+        <div className="mb-6 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <h2 className="text-sm font-bold text-slate-800 mb-3">Your Setup</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+            <div className="rounded-xl bg-slate-50 p-3">
+              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-1">
+                <MapIcon size={12} /> Routes covered
+              </div>
+              <p className="text-lg font-black text-slate-900">
+                {priceSummary?.hasPriceCard ? priceSummary.destinationRateCount ?? 0 : '—'}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-1">
+                <ShieldCheck size={12} /> Rate card
+              </div>
+              <p className="text-lg font-black text-slate-900">
+                {priceSummary === null ? '—' : priceSummary.hasPriceCard ? 'Set up' : 'Not started'}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-1">
+                <TruckIcon size={12} /> Fleet
+              </div>
+              <p className="text-lg font-black text-slate-900">
+                {user?.noOfTrucks ? `${user.noOfTrucks} trucks` : '—'}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/addprice" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 hover:bg-amber-100 transition-colors">
+              <MapIcon size={13} /> {priceSummary?.hasPriceCard ? 'Edit routes & rates' : 'Add your routes & rates'}
+            </Link>
+            <Link to="/profile" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5 hover:bg-slate-100 transition-colors">
+              <Zap size={13} /> View full profile
+            </Link>
+          </div>
+        </div>
 
         {/* First-login welcome banner */}
         {showWelcome && (
