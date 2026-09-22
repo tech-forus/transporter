@@ -229,7 +229,16 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
             {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
           </div>
         )}
-        <div className="flex flex-wrap gap-1.5 flex-shrink-0 ml-auto">
+        {/* flex-shrink-0 here forbade the browser from ever compressing this
+            group below its natural (every button on one row) width, so
+            flex-wrap never actually got a chance to wrap anything — the row
+            just overflowed the card/screen instead, clipping "Copy All"/
+            "Clear All". Reported live 2026-09-22 with a screenshot, surfaced
+            by the new zone-upload feature making a 7-zone "Show all 7
+            zones" button (long text) reachable more often. min-w-0 lets it
+            actually shrink to the available width so flex-wrap can do its
+            job. */}
+        <div className="flex flex-wrap gap-1.5 min-w-0 ml-auto">
           {hideEmptyRowsByDefault && visibleRowIndices.length < zoneLabels.length && (
             <button
               type="button"
