@@ -1660,7 +1660,6 @@ export default function AddPrice() {
                   onRatesChange={setZoneRates}
                   title="Zone-to-Zone Rates"
                   subtitle={<>Per-kilogram rate between each zone — use <strong>Bulk Paste</strong> to import from Excel.</>}
-                  hideEmptyRowsByDefault={wasAiPrefilled && zoneRatesPartiallyPopulated}
                 />
               </Card>
             </motion.div>
