@@ -6,11 +6,18 @@ interface ZoneRateMatrixProps {
   zoneLabels: string[];
   zoneRates: number[][];
   onRatesChange: (rates: number[][]) => void;
+  // Zones only ever get ADDED to zoneLabels (every document upload unions its
+  // zone labels into what's already there — see AddPrice.tsx's
+  // mergeZonesInto) — optional so callers that don't manage zone identity
+  // (e.g. a future read-only usage) aren't forced to wire it, but every real
+  // usage today passes it so a bad AI-read zone or an unwanted duplicate can
+  // actually be removed instead of being stuck forever.
+  onRemoveZone?: (index: number) => void;
   title?: string;
   subtitle?: React.ReactNode;
 }
 
-export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, title, subtitle }: ZoneRateMatrixProps) {
+export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, onRemoveZone, title, subtitle }: ZoneRateMatrixProps) {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [pasteData, setPasteData] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
@@ -466,8 +473,24 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
               const row = zoneRates[i];
               return (
               <tr key={i} className="border-t border-slate-200">
-                <td className="p-1 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-10 border-r border-slate-200 truncate">
-                  {zoneLabels[i]}
+                <td className="p-1 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-10 border-r border-slate-200">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="truncate">{zoneLabels[i]}</span>
+                    {onRemoveZone && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Remove zone "${zoneLabels[i]}"? This deletes its rates in both directions.`)) {
+                            onRemoveZone(i);
+                          }
+                        }}
+                        className="ml-auto flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors"
+                        aria-label={`Remove zone ${zoneLabels[i]}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
                 </td>
                 {activeZoneIndices.map(j => {
                   const val = row[j];

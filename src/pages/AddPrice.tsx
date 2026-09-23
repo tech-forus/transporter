@@ -213,6 +213,24 @@ function mergeZonesInto(
   return { labels: mergedLabels, rates: merged };
 }
 
+// Zones only ever get ADDED via mergeZonesInto above (every upload unions its
+// zone labels into whatever's already there — a bad AI read or a re-upload
+// with a differently-spelled zone name has no way to be undone). This is the
+// one place a zone label leaves the list. Removes the zone from both the
+// matrix dimension (row + column) and any per-pincode service entries tagged
+// with it, so a removed zone doesn't linger as an orphaned pincode->zone
+// mapping that would just get pulled back in via mergeServiceInto next merge.
+function removeZoneAt(
+  index: number, labels: string[], rates: number[][], pincodeData: ZonePincodeEntry[],
+): { labels: string[]; rates: number[][]; pincodeData: ZonePincodeEntry[] } {
+  const removedLabel = labels[index];
+  return {
+    labels: labels.filter((_, i) => i !== index),
+    rates: rates.filter((_, i) => i !== index).map(row => row.filter((_, j) => j !== index)),
+    pincodeData: pincodeData.filter(e => e.zone !== removedLabel),
+  };
+}
+
 function mergeServiceInto<T extends { pincode: number }>(prev: T[], newService: T[]): T[] {
   if (newService.length === 0) return prev;
   const byPincode = new Map(prev.map(e => [e.pincode, e]));
@@ -752,6 +770,18 @@ export default function AddPrice() {
         ? { ...prev, [section]: { ...(typeof prev[section] === "object" && prev[section] !== null ? prev[section] : {}), [field]: val } }
         : { ...prev, [section]: val }
     );
+  };
+
+  // Zones only ever get ADDED (every document upload unions its zone labels
+  // into the existing list, see mergeZonesInto) — this is the one removal
+  // path, wired to a per-zone delete button on ZoneRateMatrix.
+  const handleRemoveZone = (index: number) => {
+    const removedLabel = zoneLabels[index];
+    const next = removeZoneAt(index, zoneLabels, zoneRates, zonePincodeData);
+    setZoneLabels(next.labels);
+    setZoneRates(next.rates);
+    setZonePincodeData(next.pincodeData);
+    toast.success(`Removed zone "${removedLabel}"`);
   };
 
   // Creates the transporter record itself — the same call SignUpPage used to
@@ -1658,6 +1688,7 @@ export default function AddPrice() {
                   zoneLabels={zoneLabels}
                   zoneRates={zoneRates}
                   onRatesChange={setZoneRates}
+                  onRemoveZone={handleRemoveZone}
                   title="Zone-to-Zone Rates"
                   subtitle={<>Per-kilogram rate between each zone — use <strong>Bulk Paste</strong> to import from Excel.</>}
                 />
