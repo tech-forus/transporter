@@ -6,18 +6,10 @@ import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
-import { Truck, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import loginImg from "../assets/login-illustration-amber.svg"
 
-// Mirrors the shipper SignInPage's BrandLogo, in the transporter's amber theme.
-const BrandLogo = () => (
-  <div className="flex items-center gap-3 text-2xl font-bold text-slate-800 dark:text-white">
-    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-      <Truck className="w-6 h-6 text-white" />
-    </div>
-    <span>Freight Compare</span>
-  </div>
-);
+const fieldCls = "w-full h-14 flex items-center rounded-xl border border-slate-300 dark:border-[#1d3f5c] bg-white dark:bg-[#0d2438] focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/30 transition";
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
@@ -63,7 +55,7 @@ export default function SignInPage() {
     // the viewport, not to this page's own (shorter) content height — the
     // leftover iframe area below the form had no background of its own at
     // all, so it fell through to the browser's plain white default.
-    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 font-sans bg-slate-100 dark:bg-[#08141f]">
+    <div className="w-full min-h-screen lg:grid lg:grid-cols-2 font-sans bg-white lg:bg-slate-100 dark:bg-[#08141f]">
       {/* Left Column: Branding & Image */}
       <div className="relative hidden lg:flex flex-col items-center justify-center bg-slate-100 dark:bg-[#08141f] p-12">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}>
@@ -83,116 +75,76 @@ export default function SignInPage() {
         </motion.div>
       </div>
 
-      {/* Right Column: Sign In Form */}
-      <div className="flex items-center justify-center p-6 sm:p-12 bg-slate-100 dark:bg-[#08141f]">
+      {/* Right Column: Sign In Form — same layout as the shipper SignInPage
+          (main app) so switching Shipper/Transporter doesn't jump: full-width
+          switch at the top, one short title, tall rounded fields. Orange
+          stays the transporter accent. */}
+      <div className="min-h-screen flex justify-center px-6 pt-8 pb-28 sm:pt-16 bg-white lg:bg-slate-100 dark:bg-[#08141f]">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-          className="w-full max-w-md"
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="w-full max-w-sm"
         >
-          <div className="lg:hidden mb-8 flex justify-center">
-            <BrandLogo />
+          <div className="grid grid-cols-2 rounded-xl bg-slate-100 dark:bg-[#0d2438] p-1 text-sm font-semibold">
+            <button type="button" onClick={goToShipperLogin} className="rounded-lg py-2 text-slate-500 dark:text-[#8fb0cf]">
+              Shipper
+            </button>
+            <button type="button" className="rounded-lg py-2 bg-white dark:bg-[#1d3f5c] text-slate-900 dark:text-white shadow-sm">
+              Transporter
+            </button>
           </div>
 
-          {/* flex-col on mobile — the nowrap heading + toggle pill together are
-              wider than a narrow phone viewport, and since "Transporter" is one
-              unbreakable word the pill can't shrink to fit, so it ran off the
-              right edge of the screen entirely. Stacked there instead; sm+ keeps
-              the original single-row layout where there's room for both. */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white whitespace-nowrap">Transporter Login</h1>
-            {/* Shipper/Transporter switch — faded so it doesn't compete with the
-                heading, but still reachable for a shipper who landed here by mistake. */}
-            <div className="inline-flex self-start sm:self-auto rounded-lg border border-slate-200 dark:border-[#1d3f5c] bg-slate-100/70 dark:bg-white/5 p-0.5 opacity-70 hover:opacity-100 transition-opacity">
-              <button
-                type="button"
-                onClick={goToShipperLogin}
-                className="px-3 py-1 text-xs font-semibold rounded-md text-slate-500 dark:text-[#8fb0cf] hover:text-slate-700 dark:hover:text-white transition-colors"
-              >
-                Shipper
+          <h1 className="mt-8 text-2xl font-bold text-slate-900 dark:text-white">Log in</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-[#8fb0cf]">Your transporter account.</p>
+
+          <form className="mt-6 space-y-3" onSubmit={handleSubmit} noValidate>
+            <div className={fieldCls}>
+              <input id="email-address" name="email" type="email" autoComplete="email" required disabled={isLoading}
+                aria-label="Email"
+                className="h-full w-full min-w-0 bg-transparent px-4 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#5c7c9a] outline-none"
+                placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            {/* No transporter password-reset flow exists yet, so no "Forgot?" link. */}
+            <div className={fieldCls}>
+              <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required disabled={isLoading}
+                aria-label="Password"
+                className="h-full w-full min-w-0 bg-transparent px-4 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#5c7c9a] outline-none"
+                placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
+              />
+              <button type="button" tabIndex={-1} onClick={() => setShowPassword(!showPassword)} disabled={isLoading}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="px-4 text-slate-400 dark:text-[#5c7c9a]">
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
-              <button
-                type="button"
-                className="px-3 py-1 text-xs font-semibold rounded-md bg-white dark:bg-[#0d2438] text-orange-600 dark:text-orange-400 shadow-sm"
-              >
-                Transporter
-              </button>
-            </div>
-          </div>
-
-          {/* Main Form */}
-          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-            <div>
-              <label htmlFor="email-address" className="block text-sm font-medium text-slate-700 dark:text-[#8fb0cf] mb-1">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input id="email-address" name="email" type="email" autoComplete="email" required disabled={isLoading}
-                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition disabled:bg-slate-200 dark:disabled:bg-white/5"
-                  placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
             </div>
 
-            <div>
-              {/* No /forgot-password route or backend reset-password endpoint
-                  exists for transporter accounts yet -- a link here would
-                  point at a dead page. Removed rather than shipping a broken
-                  promise; add back once a real reset flow exists. */}
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-[#8fb0cf] mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required disabled={isLoading}
-                  className="w-full pl-10 pr-12 py-2.5 border border-slate-300 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition disabled:bg-slate-200 dark:disabled:bg-white/5"
-                  placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-[#6f93b8] hover:text-slate-600 dark:hover:text-[#8fb0cf] transition-colors"
-                  disabled={isLoading}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <motion.button type="submit" disabled={isLoading}
-                whileHover={{ scale: isLoading ? 1 : 1.02 }}
-                whileTap={{ scale: isLoading ? 1 : 0.98 }}
-                className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:bg-orange-300 disabled:cursor-not-allowed shadow-lg shadow-orange-500/50"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" /> Logging In...
-                  </>
-                ) : 'Login'}
-              </motion.button>
-            </div>
-
-            <p className="text-center text-sm text-slate-600 dark:text-[#8fb0cf]">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  if (window !== window.parent) {
-                    window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
-                  } else {
-                    navigate('/transporter-signup');
-                  }
-                }}
-                className="font-semibold text-orange-600 hover:text-orange-500 transition-colors bg-transparent border-none cursor-pointer p-0 inline"
-              >
-                Create one now
-              </button>
-            </p>
+            <button type="submit" disabled={isLoading}
+              className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-xl text-base font-semibold text-white bg-orange-500 active:bg-orange-600 disabled:bg-orange-300"
+            >
+              {isLoading && <Loader2 className="w-5 h-5 animate-spin" />}
+              Log in
+            </button>
           </form>
+
+          <p className="mt-10 text-center text-sm text-slate-500 dark:text-[#8fb0cf]">
+            New here?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                if (window !== window.parent) {
+                  window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
+                } else {
+                  navigate('/transporter-signup');
+                }
+              }}
+              className="font-semibold text-orange-600 dark:text-orange-400 bg-transparent border-none cursor-pointer p-0 inline"
+            >
+              Create an account
+            </button>
+          </p>
         </motion.div>
       </div>
     </div>
