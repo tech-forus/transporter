@@ -3,6 +3,7 @@ import Cookies from 'js-cookie';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { API_BASE_URL } from '../config/apiConfig';
+import { getStoredReferral } from '../utils/referral';
 
 interface JwtPayload {
   _id: string;
@@ -19,6 +20,11 @@ interface JwtPayload {
   state?: string;
   pincode?: number;
   pickUpAddress?: string[];
+  kycStatus?: string;
+  // Read by useTransporterProfileGate.ts — false only for a Google-signup
+  // account that hasn't completed the mandatory-details gate yet. Every
+  // other login path's JWT carries `true` (the model's schema default).
+  profileComplete?: boolean;
   iat?: number;
   exp?: number;
 }
@@ -48,6 +54,8 @@ interface AuthUser {
   state?: string;
   pincode?: number;
   pickUpAddress?: string[];
+  kycStatus?: string;
+  profileComplete?: boolean;
   iat?: number;
   exp?: number;
 }
@@ -57,7 +65,19 @@ interface AuthContextType {
   user: AuthUser | null;
   login: (email: string, pass: string) => Promise<{ success: boolean;  error?: string }>;
   loginWithToken: (token: string) => void;
+  // "Continue with Google" — login-only. Backend only ever signs in an
+  // EXISTING account matched by verified email; an unrecognized email comes
+  // back as a normal error (EMAIL_NOT_FOUND).
+  loginWithGoogle: (credential: string) => Promise<{ success: boolean; error?: string }>;
+  // "Continue with Google" — SIGNUP variant. Creates a new transporter
+  // account when the email isn't registered yet (falls back to a normal
+  // sign-in otherwise, same as loginWithGoogle).
+  signupWithGoogle: (credential: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  // Merge freshly-saved profile fields into the session snapshot (state +
+  // localStorage) so Header/dashboard don't keep showing the login-time JWT
+  // values after the transporter edits their profile.
+  updateUser: (patch: Partial<AuthUser>) => void;
   loading: boolean;
 }
 
@@ -69,17 +89,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const token = Cookies.get('authToken');
+    // Root cause of "logged out on refresh": the backend's authToken cookie
+    // is deliberately HttpOnly (transporterAuth.js), so it is NEVER visible
+    // to document.cookie — js-cookie's Cookies.get('authToken') always
+    // returns undefined here, no matter how recently the user logged in.
+    // Confirmed with an isolated Playwright repro: a client-side
+    // Cookies.set()/document.cookie write to the same cookie name is
+    // silently dropped by the browser once a same-name/path HttpOnly cookie
+    // already exists (which loginWithToken() below unknowingly attempts on
+    // every login). Gating rehydration on that unreadable cookie meant this
+    // check failed on every single page refresh, even with a perfectly
+    // valid session. localStorage.authUser is the only thing actually
+    // written AND readable by JS, and logout() already clears it reliably,
+    // so it alone is the correct persistence signal here.
     const storedUser = localStorage.getItem('authUser');
 
-    if (token && storedUser) {
+    if (storedUser) {
       try {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         setIsAuthenticated(true);
         setUser(parsedUser);
       } catch (e) {
         console.error("AuthProvider: Failed to parse stored user or token invalid", e);
-        Cookies.remove('authToken');
         localStorage.removeItem('authUser');
       }
     }
@@ -94,6 +125,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(decodedToken);
     Cookies.set('authToken', token, { expires: 7 });
     localStorage.setItem('authUser', JSON.stringify(decodedToken));
+  };
+
+  const loginWithGoogle = async (
+    credential: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/transporter/auth/google-login`, { credential });
+      if (response.data?.token) {
+        loginWithToken(response.data.token);
+        return { success: true };
+      }
+      return { success: false, error: response.data?.message || 'Google sign-in failed.' };
+    } catch (error: any) {
+      console.error("useAuth loginWithGoogle: API call failed.", error.response?.data || error.message);
+      const errorMessage = error.response?.data?.message || error.message || 'Google sign-in failed. Please try again.';
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const signupWithGoogle = async (
+    credential: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/transporter/auth/google-signup`, { credential, referralCode: getStoredReferral() || undefined });
+      if (response.data?.token) {
+        loginWithToken(response.data.token);
+        return { success: true };
+      }
+      return { success: false, error: response.data?.message || 'Google sign-up failed.' };
+    } catch (error: any) {
+      console.error("useAuth signupWithGoogle: API call failed.", error.response?.data || error.message);
+      const errorMessage = error.response?.data?.message || error.message || 'Google sign-up failed. Please try again.';
+      return { success: false, error: errorMessage };
+    }
   };
 
   const login = async (
@@ -130,12 +195,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateUser = (patch: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      try { localStorage.setItem('authUser', JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
+
   const logout = () => {
     Cookies.remove('authToken');
     localStorage.removeItem('authUser');
     setIsAuthenticated(false);
     setUser(null);
   };
+
+  // Session rehydration above is purely local (localStorage), never
+  // re-validated against the backend — so if the account is deleted, the
+  // token expires, or the session is revoked elsewhere, the UI otherwise
+  // stays stuck showing a stale "logged in" shell (header still shows the
+  // company name, gated pages still render) while every API call underneath
+  // silently 401s. `protectTransporter` (backend) already returns 401 for
+  // exactly these cases — no-token, invalid/expired token, and "transporter
+  // not found" (deleted account) — so this single global interceptor is the
+  // one place that needs to react: any 401 from any axios call means this
+  // session is no longer valid, so log out immediately. PrivateRoute then
+  // redirects to /transporter-signin on its own next render, reacting to
+  // isAuthenticated flipping to false — no manual navigation needed here.
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error?.response?.status === 401) {
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptorId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // When this app is embedded in the freight-compare-frontend host (see
   // TransporterSignupPage.tsx / TransporterFrameContext.tsx there), keep the
@@ -162,7 +262,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, loginWithToken, logout, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, loginWithToken, loginWithGoogle, signupWithGoogle, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

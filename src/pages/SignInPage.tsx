@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { useAuth } from '../hooks/useAuth';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { Truck, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
@@ -25,7 +26,7 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   useReportIframeHeight();
@@ -44,6 +45,25 @@ export default function SignInPage() {
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      toast.error('Google sign-in failed. Please try again.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await loginWithGoogle(credentialResponse.credential);
+      if (result.success) {
+        toast.success('Login Successful!');
+        navigate('/dashboard');
+      } else {
+        toast.error(result.error ?? 'Google sign-in failed.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -170,6 +190,25 @@ export default function SignInPage() {
                   </>
                 ) : 'Login'}
               </motion.button>
+            </div>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-slate-100 px-3 text-slate-400 font-medium">OR</span>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => toast.error('Google sign-in failed. Please try again.')}
+                text="continue_with"
+                shape="rectangular"
+                width="336"
+              />
             </div>
 
             <p className="text-center text-sm text-slate-600">

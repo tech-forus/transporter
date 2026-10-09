@@ -24,6 +24,13 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
 
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
+  // A rate card that only priced ONE origin zone leaves every other origin row
+  // empty. Typing into such a row usually means the user mis-clicked, so it
+  // asks "do you also serve from this zone?" first — once confirmed, the row
+  // stays editable. Rows are only gated while some OTHER row already has data.
+  const [confirmedRows, setConfirmedRows] = useState<Set<number>>(new Set());
+  const [pendingRow, setPendingRow] = useState<number | null>(null);
+
   // Matches the Add Vendor charges page's per-cell rate cap.
   const CELL_MAX = 999;
 
@@ -35,6 +42,20 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prevOverflow; };
   }, [showBulkPaste]);
+
+  const rowNeedsConfirm = (i: number) => {
+    if (confirmedRows.has(i)) return false;
+    if ((zoneRates[i] || []).some(v => v > 0)) return false;
+    return zoneRates.some((r, k) => k !== i && r.some(v => v > 0));
+  };
+
+  const confirmPendingRow = () => {
+    if (pendingRow === null) return;
+    const i = pendingRow;
+    setConfirmedRows(prev => new Set(prev).add(i));
+    setPendingRow(null);
+    setTimeout(() => inputRefs.current[i]?.find(el => el)?.focus(), 0);
+  };
 
   const handleCellChange = (i: number, j: number, val: number) => {
     const clamped = Math.min(Math.max(val, 0), CELL_MAX);
@@ -75,17 +96,18 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
         e.preventDefault();
         break;
       }
+      // Excel-style: <input type="number"> reports selectionStart as null, so
+      // the old caret-position checks never fired. Left/Right always move
+      // a cell (the value is selected on arrival, so typing overwrites it).
       case 'ArrowLeft':
-        if ((e.target as HTMLInputElement).selectionStart === 0) {
-          nextJ = Math.max(0, j - 1);
-          e.preventDefault();
-        }
+        nextJ = Math.max(0, j - 1);
+        e.preventDefault();
         break;
       case 'ArrowRight':
-        if ((e.target as HTMLInputElement).selectionStart === (e.target as HTMLInputElement).value.length) {
-          nextJ = Math.min(cols - 1, j + 1);
-          e.preventDefault();
-        }
+      case 'Tab':
+        if (e.key === 'Tab') return;
+        nextJ = Math.min(cols - 1, j + 1);
+        e.preventDefault();
         break;
       default:
         return;
@@ -395,18 +417,57 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
         </div>
       )}
 
+      {pendingRow !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setPendingRow(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-2 text-amber-600">
+              <AlertCircle size={22} />
+              <h3 className="text-lg font-bold text-slate-900">Do you also pick up from {zoneLabels[pendingRow]}?</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-5">
+              Your rate card only had rates for one starting zone. Only continue if you also send
+              shipments <b>from {zoneLabels[pendingRow]}</b> to other zones.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={confirmPendingRow}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+              >
+                Yes, I serve from {zoneLabels[pendingRow]}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingRow(null)}
+                className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Matrix Table */}
       <div className="overflow-x-auto border border-slate-200 rounded-lg">
-        <table className="w-full text-xs border-collapse table-fixed">
+        <table className="w-full text-base border-collapse table-fixed">
           <thead className="bg-slate-100">
             <tr>
-              <th className="p-1 font-semibold text-slate-600 text-left border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-11">
+              <th className="p-2 font-semibold text-slate-600 text-left border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-16">
                 From\To
               </th>
               {zoneLabels.map(label => (
                 <th
                   key={label}
-                  className="p-1 text-center font-semibold text-slate-600 border-r border-slate-200 last:border-r-0"
+                  className="p-2 text-center font-semibold text-slate-700 border-r border-slate-200 last:border-r-0"
                 >
                   {label}
                 </th>
@@ -418,7 +479,7 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
               const row = zoneRates[i];
               return (
               <tr key={i} className="border-t border-slate-200">
-                <td className="p-1 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-10 border-r border-slate-200 truncate">
+                <td className="p-2 font-bold text-slate-800 bg-slate-50 sticky left-0 z-10 border-r border-slate-200 truncate">
                   {zoneLabels[i]}
                 </td>
                 {row.map((val, j) => (
@@ -440,8 +501,15 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
                       value={val || ''}
                       onChange={(e) => handleCellChange(i, j, e.target.valueAsNumber || 0)}
                       onKeyDown={(e) => handleKeyDown(i, j, e)}
-                      onFocus={(e) => e.target.select()}
-                      className={`w-full p-1 text-center text-xs rounded border transition-colors
+                      onFocus={(e) => {
+                        if (!val && rowNeedsConfirm(i)) {
+                          e.target.blur();
+                          setPendingRow(i);
+                          return;
+                        }
+                        e.target.select();
+                      }}
+                      className={`w-full py-2 px-1 text-center text-base font-medium rounded border transition-colors
                         ${val ? 'bg-white border-slate-200' : 'bg-slate-50 border-transparent'}
                         hover:border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none
                         ${i === j ? 'bg-slate-100' : ''}

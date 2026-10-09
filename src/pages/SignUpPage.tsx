@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, ChangeEvent, DragEvent, FormEvent } from 'react';
 import guidlines from '../assets/guidlines.jpg';
+import { getStoredReferral } from '../utils/referral';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -20,6 +21,11 @@ import { GSTConflictPanel } from '../components/GSTConflictPanel';
 import { useAuth } from '../hooks/useAuth';
 import { TermsModal } from '../components/TermsModal';
 import IndividualLaneRatesStep, { type LaneRate } from '../components/IndividualLaneRatesStep';
+import AddressAutosuggest from '../components/AddressAutosuggest';
+import AddressLocationPicker, { type AddressLocationValue } from '../components/AddressLocationPicker';
+import OfficeAddressField from '../components/OfficeAddressField';
+import { clearPricingDraft, preparePricingForNewExtraction } from '../utils/pricingDraft';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 
 // --- Type Definitions for State ---
 interface IFormData {
@@ -67,6 +73,24 @@ interface IFormData {
   employeeName: string;
   employeePhone: string;
   employeeAddress: string;
+  // Structured office/pickup location from the mandatory "Confirm Your
+  // Office Location" gate (AddressLocationPicker) shown right before the
+  // real submit fires — independent of the plain address/stateName/pincode
+  // above (which stay driven by GST lookup / manual entry for Business).
+  // lat/lng/placeId are kept as strings (not number|null) so this interface
+  // stays homogeneous with submitTransporterData's generic
+  // Object.entries(...).forEach(([key, value]) => append(key, String(value)))
+  // loop — an empty string round-trips through String() cleanly, whereas a
+  // bare `null` would serialize as the literal string "null".
+  flatNumber: string;
+  buildingName: string;
+  area: string;
+  landmark: string;
+  city: string;
+  formattedAddress: string;
+  lat: string;
+  lng: string;
+  placeId: string;
 }
 
 type FormErrors = Partial<Record<keyof IFormData | 'zones', string>>;
@@ -220,16 +244,12 @@ const NetworkMultiSelect: React.FC<NetworkMultiSelectProps> = ({ id, label, icon
 
   const toggle = (optValue: string) => {
     if (disabled) return;
-    if (optValue === 'independent') {
-      // "Independent" is mutually exclusive with actual network picks.
-      onChange(['independent']);
-      return;
-    }
-    const withoutIndependent = value.filter(v => v !== 'independent');
-    const wasChecked = withoutIndependent.includes(optValue);
+    // "Independent" can now be ticked alongside actual network picks — no
+    // longer mutually exclusive, just a regular checkbox like the rest.
+    const wasChecked = value.includes(optValue);
     const next = wasChecked
-      ? withoutIndependent.filter(v => v !== optValue)
-      : [...withoutIndependent, optValue];
+      ? value.filter(v => v !== optValue)
+      : [...value, optValue];
     onChange(next.length > 0 ? next : ['independent']);
     // Selecting "Other (specify)" closes the dropdown immediately so the
     // Network Name text field beneath it is revealed right away, instead of
@@ -438,7 +458,7 @@ const getIndianStateByPincode = (pincode: string): { state: string; city: string
 
 // --- Main Page Component ---
 export default function SignUpPage() {
-  const { user } = useAuth();
+  const { user, signupWithGoogle } = useAuth();
   const isUttamGoyal = useMemo(() => {
     if (!user) return false;
     const customer = (user as any)?.customer || (user as any);
@@ -477,6 +497,8 @@ export default function SignUpPage() {
       trackingLink: '', websiteLink: '', maxLoading: '', numTrucks: '', turnover: '', customerNetwork: '', pincodesServedRange: '',
       networks: ['independent'], networkOther: '',
       employeeName: '', employeePhone: '', employeeAddress: '',
+      flatNumber: '', buildingName: '', area: '', landmark: '', city: '',
+      formattedAddress: '', lat: '', lng: '', placeId: '',
     };
   });
 
@@ -497,6 +519,9 @@ export default function SignUpPage() {
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Step 1's pre-submit duplicate-email/phone check (handleNextStep) — kept
+  // separate from isLoading, which drives the final wizard submit.
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
   // Individual/owner-operator Step 2 — lanes + pricing collected via
   // IndividualLaneRatesStep (manual / bulk / area-radius). Kept in a ref
   // (not state) purely so submitTransporterData's closure always reads the
@@ -547,9 +572,7 @@ export default function SignUpPage() {
       // same stale-data leak one layer down instead of fixing it. A fresh
       // upload regenerates both from scratch anyway, so there's no real
       // "cache" benefit lost by clearing them here.
-      localStorage.removeItem('transporter_price_rate');
-      localStorage.removeItem('transporter_extracted_price_rate');
-      localStorage.removeItem('transporter_zone_rates');
+      clearPricingDraft(); // price rate, extracted rate, zone rates + their touched/owner bookkeeping
       return 'selection';
     }
     return (localStorage.getItem('transporter_onboarding_mode') as any) || 'selection';
@@ -615,7 +638,6 @@ export default function SignUpPage() {
   // types employee-specific details from scratch instead of editing a
   // pre-filled copy of the company's.
   const [employeeSameAsCompany, setEmployeeSameAsCompany] = useState(true);
-  const [isLocatingEmployee, setIsLocatingEmployee] = useState(false);
   const wasEmployeeSameAsCompanyRef = useRef(employeeSameAsCompany);
 
   useEffect(() => {
@@ -641,44 +663,6 @@ export default function SignUpPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeSameAsCompany, formData.companyContactName, formData.phone, formData.address]);
 
-  const handleUseCurrentLocationForEmployee = () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by this browser.');
-      return;
-    }
-    setIsLocatingEmployee(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const res = await axios.get(`${API_BASE_URL}/api/transporter/reverse-geocode`, {
-            params: { lat: latitude, lng: longitude },
-          });
-          const address = res.data?.address;
-          if (address) {
-            setFormData(prev => ({ ...prev, employeeAddress: address }));
-            toast.success('Location detected and address filled in.');
-          } else {
-            toast.error('Could not resolve an address for your location.');
-          }
-        } catch (err) {
-          console.error('[reverse-geocode] failed', err);
-          toast.error('Could not fetch address for your location. Please enter it manually.');
-        } finally {
-          setIsLocatingEmployee(false);
-        }
-      },
-      (err) => {
-        setIsLocatingEmployee(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error('Location permission denied. Please enter the address manually.');
-        } else {
-          toast.error('Could not detect your location. Please enter the address manually.');
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  };
 
   useEffect(() => {
     if (sameAsPhone) {
@@ -723,6 +707,19 @@ export default function SignUpPage() {
 
   // ─── GST Autofill ──────────────────────────────────────────────────────────
   const gstLookup = useGSTLookup();
+  // true once the server says this GSTIN already belongs to a registered account
+  const [gstTaken, setGstTaken] = useState(false);
+  // Tell the user on the very first screen — as soon as a full GSTIN is in the
+  // box — that it's already registered, instead of failing at the final Save.
+  useEffect(() => {
+    const gst = formData.gstNo.trim().toUpperCase();
+    if (accountType !== 'business' || gst.length !== 15) { setGstTaken(false); return; }
+    let cancelled = false;
+    axios.get(`${API_BASE_URL}/api/transporter/auth/check-availability?gstNo=${encodeURIComponent(gst)}`)
+      .then(r => { if (!cancelled) setGstTaken(!!r.data?.gstTaken); })
+      .catch(() => { /* best-effort; Continue re-checks */ });
+    return () => { cancelled = true; };
+  }, [formData.gstNo, accountType]);
   const [gstFocused, setGstFocused] = useState(false);
   const appliedGstinRef = useRef<string | null>(null);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
@@ -1071,14 +1068,18 @@ export default function SignUpPage() {
       appendLog(`[OK] Workspace allocated successfully.`);
 
       appendLog(`[INFO] Uploading ${aiFiles.length} files to document intelligence pipeline...`);
+      // Remember the stored-file ids so the created account can show these files later.
+      const uploadedRateFileIds: string[] = [];
       for (const item of aiFiles) {
         const fd = new FormData();
         fd.append('files', item.file);
         fd.append('subfolder', item.category);
 
-        await axios.post(`${API_BASE_URL}/api/utsf-generator/transporter/${safeName}/upload`, fd, { headers: authHeaders, signal: controller.signal });
+        const upRes = await axios.post(`${API_BASE_URL}/api/utsf-generator/transporter/${safeName}/upload`, fd, { headers: authHeaders, signal: controller.signal });
+        (upRes.data?.gridfsFiles || []).forEach((g: { id: string }) => uploadedRateFileIds.push(g.id));
         appendLog(`[OK] Uploaded "${item.file.name}" as [${item.category.replace('_', ' ')}]`);
       }
+      try { localStorage.setItem('transporter_rate_file_ids', JSON.stringify(uploadedRateFileIds)); } catch { /* storage unavailable: files just won't be listed later */ }
       setAiProgress(50);
       appendLog(`[AI] Processing files & running OCR layout extraction...`);
 
@@ -1510,17 +1511,13 @@ export default function SignUpPage() {
       toast.error('Please upload at least one file first.');
       return;
     }
-    // A NEW extraction is genuinely starting right now — clear any pricing/
-    // zone-rate leftovers from whatever the last extraction (possibly a
-    // different company) wrote, regardless of how the user got to this
-    // screen. Relying only on ?new_session=1 at initial page load (see the
-    // onboardingMode initializer above) isn't reliable for every path back
-    // into this screen — e.g. resuming a session, going Back from /addprice,
-    // or re-uploading without a full fresh navigation — all of which skip
-    // that reset entirely and let stale charges/rates bleed into this run.
-    localStorage.removeItem('transporter_price_rate');
-    localStorage.removeItem('transporter_extracted_price_rate');
-    localStorage.removeItem('transporter_zone_rates');
+    // A NEW extraction is genuinely starting right now. Drop the last read's
+    // output and any pricing left by a DIFFERENT company (?new_session=1 alone
+    // isn't reliable for paths like resuming a session or going Back from
+    // /addprice) — but keep what THIS company's user already typed into the
+    // charges table / zone matrix, so a document that then fails to parse
+    // doesn't leave them with an empty table. See utils/pricingDraft.ts.
+    preparePricingForNewExtraction(formData.gstNo);
     localStorage.setItem('transporter_pending_creation', 'true');
     localStorage.setItem('transporter_ai_extraction_status', 'processing');
     startAiExtraction();
@@ -1620,9 +1617,7 @@ export default function SignUpPage() {
       // entry — not on every keystroke while typing/editing a GST already
       // in progress, and not when a resumed draft restores an existing value.
       if (formData.gstNo === '' && value !== '') {
-        localStorage.removeItem('transporter_price_rate');
-        localStorage.removeItem('transporter_extracted_price_rate');
-        localStorage.removeItem('transporter_zone_rates');
+        clearPricingDraft();
       }
     }
 
@@ -1900,12 +1895,32 @@ export default function SignUpPage() {
     return newErrors;
   };
 
-  const handleNextStep = (e: FormEvent) => {
+  const handleGoogleSignupSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      toast.error('Google sign-in failed. Please try again.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await signupWithGoogle(credentialResponse.credential);
+      if (result.success) {
+        toast.success('Account created!');
+        navigate('/dashboard');
+      } else {
+        toast.error(result.error ?? 'Google sign-up failed.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleNextStep = async (e: FormEvent) => {
     e.preventDefault();
     if (!termsAccepted) {
       toast.error('Please accept the Terms & Conditions to continue.');
       return;
     }
+    if (checkingAvailability) return; // guard a fast double-click on Continue
     const newErrors = validateData(formData);
 
     // address/stateName/pincode aren't collected on this page — they're
@@ -1925,11 +1940,48 @@ export default function SignUpPage() {
     });
     setTouched(allTouched);
 
-    if (Object.keys(page1Errors).length === 0) {
-      setCurrentStep(1);
-    } else {
+    if (Object.keys(page1Errors).length > 0) {
       toast.error(Object.values(page1Errors)[0] || 'Please fill all required fields correctly to continue.');
+      return;
     }
+
+    if (accountType === 'business' && gstTaken) {
+      toast.error('This GST number is already registered. Please sign in instead.');
+      return;
+    }
+
+    // Catch an already-registered email/phone right here, before the user
+    // spends time on GST lookup, document upload, or (for Individual) the
+    // whole Delivery Areas lane-entry step — instead of only discovering it
+    // when addtransporter finally runs at the very end of the wizard.
+    setCheckingAvailability(true);
+    try {
+      const params = new URLSearchParams();
+      if (formData.email.trim()) params.set('email', formData.email.trim());
+      if (formData.phone.trim()) params.set('phone', formData.phone.trim());
+      if (accountType === 'business' && formData.gstNo.trim()) params.set('gstNo', formData.gstNo.trim());
+      const { data } = await axios.get(`${API_BASE_URL}/api/transporter/auth/check-availability?${params.toString()}`);
+
+      const dupErrors: FormErrors = {};
+      if (data.gstTaken) { setGstTaken(true); toast.error('This GST number is already registered. Please sign in instead.'); return; }
+      if (data.emailTaken) dupErrors.email = 'This email is already registered. Please log in instead.';
+      if (data.phoneTaken) dupErrors.phone = 'This phone number is already registered. Please log in instead.';
+
+      if (Object.keys(dupErrors).length > 0) {
+        setErrors(prev => ({ ...prev, ...dupErrors }));
+        toast.error(Object.values(dupErrors)[0]);
+        return;
+      }
+    } catch (err) {
+      // Availability check itself failing (network hiccup, etc.) shouldn't
+      // hard-block signup — addtransporter's own duplicate check downstream
+      // is still the source of truth, this is just an earlier warning.
+      console.error('[check-availability] failed:', err);
+    } finally {
+      setCheckingAvailability(false);
+    }
+
+    setCurrentStep(1);
   };
 
   // --- File Handling ---
@@ -1986,7 +2038,7 @@ export default function SignUpPage() {
       return;
     }
 
-    await submitTransporterData();
+    await requireAddressThenSubmit();
   };
 
   const handleMissingFieldsConfirm = async () => {
@@ -2001,7 +2053,7 @@ export default function SignUpPage() {
     });
     setFormData(prev => ({ ...prev, ...overrides }));
     setMissingFieldsModal(prev => ({ ...prev, open: false }));
-    await submitTransporterData(overrides);
+    await requireAddressThenSubmit(overrides);
   };
 
   const submitTransporterData = async (overrides?: { companyName?: string; address?: string; stateName?: string; pincode?: string }) => {
@@ -2049,6 +2101,9 @@ export default function SignUpPage() {
     // "Row 1 (Individual)" in the Step 1 JSX) — tell the backend so it doesn't
     // 400 on gstNo/address/state/pincode/officeStart/officeEnd being blank.
     dataToSubmit.append('accountType', accountType);
+    // Shipper invite link (?ref=) captured on landing — the server re-validates it.
+    const referralCode = getStoredReferral();
+    if (referralCode) dataToSubmit.append('referralCode', referralCode);
 
     dataToSubmit.append('zones', JSON.stringify(zones.filter(z => z.trim()))); // Send non-empty zones
     dataToSubmit.append('networks', JSON.stringify(networks && networks.length > 0 ? networks : ['independent']));
@@ -2060,6 +2115,9 @@ export default function SignUpPage() {
       dataToSubmit.append('sheet', file);
     } else if (extractedService) {
       dataToSubmit.append('service', extractedService);
+      // AI-upload path only: link the files uploaded for it to this account.
+      const rateFileIds = localStorage.getItem('transporter_rate_file_ids');
+      if (rateFileIds) dataToSubmit.append('rateFileIds', rateFileIds);
     }
 
     try {
@@ -2148,6 +2206,38 @@ export default function SignUpPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Mandatory "Confirm Your Office Location" gate — shown right before the
+  // real submit fires, for BOTH account types (Business's existing hidden
+  // GST-driven address/state/pincode trio and Individual's total lack of any
+  // address collection are both left untouched; this only adds the new
+  // structured flatNumber/buildingName/area/landmark/city/lat/lng/placeId
+  // fields, same additive relationship as CompleteTransporterProfileModal.tsx's
+  // step 2). Single funnel point for both of the wizard's real submit call
+  // sites (Business's handleSubmit/handleMissingFieldsConfirm and
+  // Individual's IndividualLaneRatesStep onContinue) — interposed here
+  // instead of threaded into the existing currentStep/onboardingMode
+  // branching, which stays completely untouched.
+  const [addressGateOpen, setAddressGateOpen] = useState(false);
+  const pendingSubmitOverridesRef = useRef<Parameters<typeof submitTransporterData>[0]>(undefined);
+
+  const requireAddressThenSubmit = async (overrides?: Parameters<typeof submitTransporterData>[0]) => {
+    if (formData.lat && (formData.flatNumber || '').trim()) {
+      await submitTransporterData(overrides);
+      return;
+    }
+    pendingSubmitOverridesRef.current = overrides;
+    setAddressGateOpen(true);
+  };
+
+  const handleAddressGateConfirm = async () => {
+    if (!formData.lat || !(formData.flatNumber || '').trim()) {
+      toast.error('Please confirm your office location first.');
+      return;
+    }
+    setAddressGateOpen(false);
+    await submitTransporterData(pendingSubmitOverridesRef.current);
   };
 
   const downloadTemplate = () => {
@@ -2394,10 +2484,6 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen bg-slate-50/70 py-2 sm:py-3">
       <div className="mx-auto px-2 sm:px-4 md:px-6 w-full max-w-[96%] space-y-2">
-        <motion.div initial={{ opacity: 0, y: -15 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-center text-slate-900 tracking-tight"></h1>
-          <p className="mt-0.5 text-center text-xs sm:text-sm text-slate-600"></p>
-        </motion.div>
 
         <AnimatePresence mode="wait">
           {currentStep === 0 ? (
@@ -2423,7 +2509,7 @@ export default function SignUpPage() {
                   </div>
                 </div>
 
-                <div className="col-span-1 lg:col-span-5 p-5 sm:p-6 flex flex-col">
+                <div className="col-span-1 lg:col-span-5 p-4 sm:p-5 flex flex-col">
                   <div className="mb-3">
                     {/* Single row, three columns: heading (left) / 1-2-3 step indicator
                         (center) / Business-Individual toggle (right). GST-autofill
@@ -2469,7 +2555,7 @@ export default function SignUpPage() {
                     </p>
                   </div>
 
-                  <form className="space-y-3" onSubmit={handleNextStep} noValidate>
+                  <form className="space-y-2.5" onSubmit={handleNextStep} noValidate>
                     {/* Verified-from-GST summary banner — sits above the GST Number
                         field once the lookup resolves. Replaces separate Company Name /
                         Company Address boxes with a single soft confirmation card,
@@ -2477,7 +2563,7 @@ export default function SignUpPage() {
                         formData.address stay in state either way (still submitted,
                         still used by the pincode fallback effect) — this is purely how
                         they're displayed. */}
-                    {accountType === 'business' && (formData.companyName || formData.address) && (
+                    {accountType === 'business' && formData.companyName && !formData.address && (
                       <div className="flex items-start gap-2.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3.5 py-2.5">
                         <CheckCircle2 className="w-[18px] h-[18px] text-orange-600 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
@@ -2540,6 +2626,11 @@ export default function SignUpPage() {
                             )}
                             {gstLookup.status === 'loading' && (
                               <p className="mt-1 text-[10.5px] text-amber-600">Looking up…</p>
+                            )}
+                            {gstTaken && (
+                              <p className="mt-1 rounded-md bg-red-50 border border-red-200 px-2 py-1 text-[11.5px] font-semibold text-red-700">
+                                This GST number is already registered. <a href="/transporter-signin" className="underline">Sign in instead</a>
+                              </p>
                             )}
                             {gstLookup.successMessage && (
                               <p className="mt-1 text-[10.5px] text-green-600">{gstLookup.successMessage}</p>
@@ -2606,10 +2697,47 @@ export default function SignUpPage() {
                               )}
                             </AnimatePresence>
                           </div>
+                          {/* Office address — additive, read-only view of the GST address that opens the
+                              map picker on click. Reads formData.address but never writes it (or state/
+                              pincode), so the GST lookup/autofill above is untouched; it only fills the
+                              structured location fields the final "Confirm Your Office Location" gate
+                              uses, and confirming here makes that gate skip itself. */}
+                          {(gstLookup.status === 'success' || gstLookup.status === 'partial' || !!formData.address) && (
+                            <div className="sm:col-span-2 lg:col-span-3">
+                              <OfficeAddressField
+                                gstAddress={formData.address || ''}
+                                value={{
+                                  flatNumber: formData.flatNumber || '',
+                                  buildingName: formData.buildingName || '',
+                                  area: formData.area || '',
+                                  landmark: formData.landmark || '',
+                                  city: formData.city || '',
+                                  lat: formData.lat ? Number(formData.lat) : null,
+                                  lng: formData.lng ? Number(formData.lng) : null,
+                                  placeId: formData.placeId || null,
+                                  formattedAddress: formData.formattedAddress || '',
+                                }}
+                                onSave={(v) => setFormData(prev => ({
+                                  ...prev,
+                                  flatNumber: v.flatNumber,
+                                  buildingName: v.buildingName,
+                                  area: v.area,
+                                  landmark: v.landmark,
+                                  city: v.city,
+                                  lat: v.lat != null ? String(v.lat) : '',
+                                  lng: v.lng != null ? String(v.lng) : '',
+                                  placeId: v.placeId || '',
+                                  formattedAddress: v.formattedAddress,
+                                }))}
+                              />
+                            </div>
+                          )}
                         </div>
 
-                        {/* Row 2 (Business): Contact Person Name + Phone Number + WhatsApp Number */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                        {/* Rows 2-4 (Business) share ONE 4-column grid so the whole form —
+                            and the Continue button — stays on screen after GST autofill:
+                            Contact, Phone, WhatsApp / Email, Pincodes, Fleet / Password + 2 optional add-ons (3 equal columns). */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 items-start">
                           <InputField id="companyContactName" label="Contact Person Name" icon={<Building size={16} />} value={formData.companyContactName} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('phone')} error={touched.companyContactName ? errors.companyContactName : undefined} required />
                           <InputField id="phone" label="Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit mobile number" value={formData.phone} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('whatsapp')(e); handleBackspaceToPrev('companyContactName')(e); }} error={touched.phone ? errors.phone : undefined} required />
                           <div className="w-full">
@@ -2642,10 +2770,7 @@ export default function SignUpPage() {
                               Same as Mobile Number
                             </label>
                           </div>
-                        </div>
 
-                        {/* Row 3 (Business): Email + Pincodes Served + Fleet Size */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
                           <InputField id="email" label="Email Address" icon={<Mail size={16} />} type="email" value={formData.email} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('pincodesServedRange')(e); handleBackspaceToPrev('whatsapp')(e); }} error={touched.email ? errors.email : undefined} required />
                           <SelectField id="pincodesServedRange" label="Number of Pincodes Served" icon={<MapPin size={16} />} value={formData.pincodesServedRange} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext('numTrucks')} error={touched.pincodesServedRange ? errors.pincodesServedRange : undefined} required>
                             <option value="">Select Range</option>
@@ -2661,31 +2786,27 @@ export default function SignUpPage() {
                             has no business supporting. Digits-only filtering already happens
                             in handleFormChange. */}
                           <InputField id="numTrucks" label="Total Fleet Size" icon={<Truck size={16} />} type="text" inputMode="numeric" value={formData.numTrucks} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={(e) => { handleEnterToNext('password')(e); }} error={touched.numTrucks ? errors.numTrucks : undefined} required />
-                        </div>
 
-                        {/* Row 4 (Business): Set Password + Company Logo (optional, collapsed)
-                            + Employee Details (optional, collapsed). The two "+ Add …" toggles
-                            sit inline with Password when collapsed; whichever is expanded
-                            renders its full panel below, spanning the row. */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 items-start">
+                        {/* Optional "+ Add …" toggles sit beside Password when collapsed;
+                            whichever is expanded renders its full panel below the form. */}
                           <InputField id="password" label="Set Password" icon={<KeyRound size={16} />} type="password" maxLength={30} value={formData.password} onChange={handleFormChange} onBlur={handleBlur} onKeyDown={handleEnterToNext()} error={touched.password ? errors.password : undefined} required />
-                          <div className="w-full pt-6">
+                          <div className="w-full pt-[22px]">
                             {!showLogoUpload && !logoFile && (
                               <button
                                 type="button"
                                 onClick={() => setShowLogoUpload(true)}
-                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                                className="w-full h-[38px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 text-[12.5px] font-medium text-stone-500 hover:border-amber-400 hover:text-amber-600 transition-colors"
                               >
                                 <Plus size={15} /> Add company logo <span className="text-stone-400 font-normal">(optional)</span>
                               </button>
                             )}
                           </div>
-                          <div className="w-full pt-6">
+                          <div className="w-full pt-[22px]">
                             {!showEmployeeDetails && (
                               <button
                                 type="button"
                                 onClick={() => setShowEmployeeDetails(true)}
-                                className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-stone-500 hover:text-amber-600 transition-colors"
+                                className="w-full h-[38px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 text-[12.5px] font-medium text-stone-500 hover:border-amber-400 hover:text-amber-600 transition-colors"
                               >
                                 <Plus size={15} /> Add employee details <span className="text-stone-400 font-normal">(optional)</span>
                               </button>
@@ -2852,38 +2973,47 @@ export default function SignUpPage() {
                         <InputField id="employeePhone" label="Employee Phone Number" icon={<Phone size={16} />} type="tel" maxLength={10} placeholder="10-digit phone number" value={formData.employeePhone} onChange={handleFormChange} onBlur={handleBlur} disabled={employeeSameAsCompany} error={touched.employeePhone ? errors.employeePhone : undefined} />
 
                         <div className="w-full">
-                          <label htmlFor="employeeAddress" className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
+                          <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
                             Employee Office Address
                           </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none flex items-center justify-center">
-                              <MapPin size={16} />
-                            </span>
-                            <input
-                              id="employeeAddress"
-                              value={formData.employeeAddress}
-                              onChange={handleFormChange}
-                              onBlur={handleBlur}
-                              disabled={employeeSameAsCompany}
-                              maxLength={200}
-                              placeholder="Employee's office address"
-                              className={`w-full h-[38px] pl-9 pr-9 border rounded-lg text-[13px] transition-colors duration-150
-                                bg-white text-slate-900 placeholder:text-stone-400
-                                focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
-                                border-stone-200 disabled:bg-stone-50 disabled:text-stone-400`}
-                            />
-                            {!employeeSameAsCompany && (
-                              <button
-                                type="button"
-                                onClick={handleUseCurrentLocationForEmployee}
-                                disabled={isLocatingEmployee}
-                                title="Use my current location"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-amber-600 disabled:opacity-50 transition-colors"
-                              >
-                                {isLocatingEmployee ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
-                              </button>
-                            )}
-                          </div>
+                          <AddressAutosuggest
+                            value={formData.employeeAddress}
+                            onChange={(text) => {
+                              // Guards a real race a code review found live: if
+                              // the user re-ticks "same as company" while a
+                              // search pick or current-location fetch is still
+                              // resolving, that late result would otherwise
+                              // land after the sync effect below already copied
+                              // in the company address, silently overwriting it
+                              // with a stale/unrelated value.
+                              if (employeeSameAsCompany) return;
+                              // Exact same sanitization handleFormChange already
+                              // applied for id === 'employeeAddress' — replicated
+                              // here directly since AddressAutosuggest's onChange
+                              // signature is (text: string), not a ChangeEvent, so
+                              // handleFormChange itself can't be reused as-is.
+                              const sanitized = text.replace(/[^a-zA-Z0-9\s,.\-/]/g, '').slice(0, 200);
+                              setFormData(prev => ({ ...prev, employeeAddress: sanitized }));
+                            }}
+                            onResolve={() => {
+                              // No lat/lng/placeId field exists on this form or
+                              // the transporter model for this address (see this
+                              // plan's scope note) — the improved address TEXT,
+                              // via onChange above, is this field's entire
+                              // benefit.
+                            }}
+                            onBlur={() => {
+                              setTouched(prev => ({ ...prev, employeeAddress: true }));
+                              validateData(formData);
+                            }}
+                            disabled={employeeSameAsCompany}
+                            maxLength={200}
+                            placeholder="Employee's office address"
+                            className={`w-full h-[38px] border rounded-lg text-[13px] transition-colors duration-150
+                              bg-white text-slate-900 placeholder:text-stone-400
+                              focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400
+                              border-stone-200 disabled:bg-stone-50 disabled:text-stone-400`}
+                          />
                           {touched.employeeAddress && errors.employeeAddress && (
                             <p className="mt-1 text-[11px] text-red-500">{errors.employeeAddress}</p>
                           )}
@@ -2899,9 +3029,28 @@ export default function SignUpPage() {
                     )}
 
                     <div className="pt-2">
-                      <button type="submit" disabled={!termsAccepted} className="w-full h-11 inline-flex items-center justify-center gap-2 bg-amber-500 text-white text-[14px] font-semibold rounded-[9px] hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
-                        Continue <ArrowRight size={16} />
+                      <button type="submit" disabled={!termsAccepted || checkingAvailability} className="w-full h-11 inline-flex items-center justify-center gap-2 bg-amber-500 text-white text-[14px] font-semibold rounded-[9px] hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                        {checkingAvailability ? 'Checking…' : <>Continue <ArrowRight size={16} /></>}
                       </button>
+                    </div>
+
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                        <div className="w-full border-t border-slate-200" />
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="bg-white px-3 text-slate-400 font-medium">OR</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center">
+                      <GoogleLogin
+                        onSuccess={handleGoogleSignupSuccess}
+                        onError={() => toast.error('Google sign-in failed. Please try again.')}
+                        text="signup_with"
+                        shape="rectangular"
+                        width="336"
+                      />
                     </div>
 
                     {/* T&C — placed below Continue per earlier request */}
@@ -2942,7 +3091,7 @@ export default function SignUpPage() {
                   if (isLoading) return; // guards a fast double-click racing two submits (see IndividualLaneRatesStep's `submitting` prop doc)
                   individualLaneRatesRef.current = lanes;
                   sessionStorage.setItem('transporter_individual_lane_rates', JSON.stringify(lanes));
-                  submitTransporterData();
+                  requireAddressThenSubmit();
                 }}
               />
             </motion.div>
@@ -3555,8 +3704,8 @@ export default function SignUpPage() {
                             </div>
 
                             <div className="pt-4 flex justify-end">
-                              <button type="submit" className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                Next <ArrowRight size={18} />
+                              <button type="submit" disabled={checkingAvailability} className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                {checkingAvailability ? 'Checking…' : <>Next <ArrowRight size={18} /></>}
                               </button>
                             </div>
                           </form>
@@ -3877,6 +4026,92 @@ Notes:
                   onClick={handleMissingFieldsConfirm}
                   disabled={isLoading}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
+                >
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                  {isLoading ? "Submitting..." : "Confirm & Continue"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mandatory "Confirm Your Office Location" gate — see
+          requireAddressThenSubmit's comment above for why this sits here
+          instead of inside the currentStep/onboardingMode wizard. Shown for
+          BOTH account types, right before the real submit fires. */}
+      <AnimatePresence>
+        {addressGateOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 my-8"
+            >
+              <h3 className="text-lg font-bold text-slate-800">Confirm Your Office Location</h3>
+              <p className="text-sm text-slate-500 mt-1 mb-4">
+                One last required detail — pinpoint your office so pickups get routed right.
+              </p>
+
+              <AddressLocationPicker
+                value={{
+                  flatNumber: formData.flatNumber || '',
+                  buildingName: formData.buildingName || '',
+                  area: formData.area || '',
+                  landmark: formData.landmark || '',
+                  city: formData.city || '',
+                  lat: formData.lat ? Number(formData.lat) : null,
+                  lng: formData.lng ? Number(formData.lng) : null,
+                  placeId: formData.placeId || null,
+                  formattedAddress: formData.formattedAddress || '',
+                }}
+                initialSearchAddress={accountType === 'business' ? (formData.address || '') : ''}
+                onChange={(v: AddressLocationValue) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    flatNumber: v.flatNumber,
+                    buildingName: v.buildingName,
+                    area: v.area,
+                    landmark: v.landmark,
+                    city: v.city,
+                    lat: v.lat != null ? String(v.lat) : '',
+                    lng: v.lng != null ? String(v.lng) : '',
+                    placeId: v.placeId || '',
+                    formattedAddress: v.formattedAddress,
+                  }));
+                }}
+                onResolvedRegion={(r) => {
+                  // Individual accounts have no State input anywhere in this
+                  // wizard — derive it from the resolved place instead.
+                  // Business already gets `stateName` from GST lookup (or
+                  // manual entry via the missing-fields modal), so only
+                  // fill in here when it's still blank — never overwrite
+                  // either of those.
+                  if (r.state) setFormData(prev => (prev.stateName ? prev : { ...prev, stateName: r.state }));
+                }}
+              />
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAddressGateOpen(false)}
+                  disabled={isLoading}
+                  className="px-4 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddressGateConfirm}
+                  disabled={isLoading || !formData.lat || !(formData.flatNumber || '').trim()}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
                 >
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                   {isLoading ? "Submitting..." : "Confirm & Continue"}

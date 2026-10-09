@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, ChangeEvent, FormEvent } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { API_BASE_URL } from "../config/apiConfig";
+import { getStoredReferral } from "../utils/referral";
 import { useNavigate } from "react-router-dom";
 import {
   DollarSign,
@@ -25,6 +26,12 @@ import Cookies from "js-cookie";
 import ZoneRateMatrix from "../components/ZoneRateMatrix";
 import ZoneSummaryPanel, { type ZonePincodeEntry } from "../components/ZoneSummaryPanel";
 import { useReportIframeHeight } from "../hooks/useReportIframeHeight";
+import {
+  DEFAULT_PRICE_RATE as SHARED_DEFAULT_PRICE_RATE,
+  markPriceFieldTouched,
+  rememberPricingOwner,
+  clearPricingDraft,
+} from "../utils/pricingDraft";
 
 // --- Type Definitions ---
 interface VariableFixed { variable: number; fixed: number; }
@@ -106,31 +113,8 @@ type PriceRate = {
   chequeHandlingCharges: number;
 };
 
-const DEFAULT_PRICE_RATE: PriceRate = {
-  minWeight: 0,
-  docketCharges: { variable: 0, fixed: 0 },
-  fuel: { variable: 0, fixed: 0 },
-  gstPct: { variable: 0, fixed: 0 },
-  minCharges: { variable: 0, fixed: 0 },
-  rovCharges: { variable: 0, fixed: 0 },
-  odaCharges: { variable: 0, fixed: 0 },
-  handlingCharges: { variable: 0, fixed: 0, threshholdweight: 0 },
-  greenTax: { variable: 0, fixed: 0 },
-  hamaliCharges: { variable: 0, fixed: 0 },
-  miscellanousCharges: { variable: 0, fixed: 0 },
-  topayCharges: { variable: 0, fixed: 0 },
-  codCharges: { variable: 0, fixed: 0 },
-  daccCharges: { variable: 0, fixed: 0 },
-  insuaranceCharges: { variable: 0, fixed: 0 },
-  prepaidCharges: { variable: 0, fixed: 0 },
-  fmCharges: { variable: 0, fixed: 0 },
-  appointmentCharges: { variable: 0, fixed: 0 },
-  // Matches the schema defaults (model/priceModel.js) — kFactor/divisor drive
-  // volumetric-weight calculations elsewhere, so 0 would be actively wrong.
-  divisor: 5000,
-  kFactor: 5000,
-  chequeHandlingCharges: 0,
-};
+// Defaults live in utils/pricingDraft.ts so SignUpPage's re-upload handling resets fields to the same values.
+const DEFAULT_PRICE_RATE: PriceRate = SHARED_DEFAULT_PRICE_RATE;
 
 // Default billing mode per charge row — Fuel/GST default to a % rate, the rest
 // default to a flat ₹ amount. Selecting "% ON BASE" in the row's unit dropdown
@@ -252,6 +236,10 @@ export default function AddPrice() {
   // Persist price rate edits to localStorage
   useEffect(() => {
     localStorage.setItem('transporter_price_rate', JSON.stringify(priceRate));
+    // Tag the draft with the company it belongs to, so a re-upload keeps it only for that same company.
+    try {
+      rememberPricingOwner(JSON.parse(localStorage.getItem('transporter_onboarding_form_data') || '{}').gstNo || '');
+    } catch { /* draft form data unreadable — the draft just won't be tagged, and gets cleared on re-upload */ }
   }, [priceRate]);
 
   // Persist zone rates to localStorage, paired with the exact zone labels
@@ -447,6 +435,7 @@ export default function AddPrice() {
   ) => {
     const raw = e.target.valueAsNumber || 0;
     const val = Math.min(Math.max(raw, 0), max);
+    markPriceFieldTouched(section); // typed by the user — must survive a re-upload (see utils/pricingDraft.ts)
     setPriceRate(prev =>
       field
         ? { ...prev, [section]: { ...(typeof prev[section] === "object" && prev[section] !== null ? prev[section] : {}), [field]: val } }
@@ -501,8 +490,12 @@ export default function AddPrice() {
       dataToSubmit.append(key, String(value));
     });
     dataToSubmit.append('zones', JSON.stringify(zoneLabels.filter(z => z.trim())));
+    const referralCode = getStoredReferral();
+    if (referralCode) dataToSubmit.append('referralCode', referralCode);
     dataToSubmit.append('networks', JSON.stringify(Array.isArray(networks) && networks.length > 0 ? networks : ['independent']));
     dataToSubmit.append('service', extractedService);
+    const rateFileIds = localStorage.getItem('transporter_rate_file_ids');
+    if (rateFileIds) dataToSubmit.append('rateFileIds', rateFileIds);
 
     try {
       await axios.post(`${API_BASE_URL}/api/transporter/auth/addtransporter`, dataToSubmit, {
@@ -561,23 +554,26 @@ export default function AddPrice() {
       zr[from] = {};
       zoneLabels.forEach((to, j) => (zr[from][to] = zoneRates[i]?.[j] || 0));
     });
-    const payload = { companyName: companyNameForSubmit, priceRate, zoneRates: zr };
+    // Backend's Redis cache from the addtransporter step is keyed by email,
+    // not companyName (company names aren't unique across accounts) — send
+    // it along so /addprice finds the right cached payload.
+    const signupEmail = sessionStorage.getItem('transporter_signup_email') || '';
+    const payload = { companyName: companyNameForSubmit, priceRate, zoneRates: zr, email: signupEmail };
     try {
       await axios.post(`${API_BASE_URL}/api/transporter/auth/addprice`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
       toast.success("Price configuration saved successfully!");
       // Clear all onboarding cache
-      localStorage.removeItem('transporter_price_rate');
-      localStorage.removeItem('transporter_zone_rates');
+      clearPricingDraft(); // price rate, zone rates, extracted rate, and the touched/owner bookkeeping
       localStorage.removeItem('transporter_onboarding_active_route');
-      localStorage.removeItem('transporter_extracted_price_rate');
       localStorage.removeItem('transporter_onboarding_form_data');
       localStorage.removeItem('transporter_onboarding_current_step');
       localStorage.removeItem('transporter_onboarding_mode');
       localStorage.removeItem('transporter_pending_creation');
       localStorage.removeItem('transporter_ai_extraction_status');
       localStorage.removeItem('transporter_extracted_service');
+      localStorage.removeItem('transporter_rate_file_ids');
 
       const email = sessionStorage.getItem('transporter_signup_email');
       const phone = sessionStorage.getItem('transporter_signup_phone');
@@ -677,12 +673,12 @@ export default function AddPrice() {
   // ₹ amount) — only "% ON BASE" switches the row over to Variable.
   const UnitSelect = ({ value, onChange, readOnly }: { value: string; onChange?: (v: string) => void; readOnly?: boolean }) => (
     readOnly ? (
-      <span className="block text-center text-slate-400 font-semibold text-[11px]">{value}</span>
+      <span className="block text-center text-slate-400 font-semibold text-sm">{value}</span>
     ) : (
       <select
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
-        className="w-full bg-transparent text-slate-500 font-semibold text-[11px] border border-transparent hover:border-slate-200 rounded py-1 px-0 text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+        className="w-full bg-transparent text-slate-500 font-semibold text-sm border border-transparent hover:border-slate-200 rounded py-1.5 px-0 text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
         style={{ textAlignLast: 'center' }}
       >
         <option value="FLAT">FLAT</option>
@@ -699,8 +695,8 @@ export default function AddPrice() {
   // out/disabled. The active column is still distinguished from the inactive
   // one purely by the inactive side collapsing to a plain dash below.
   const cellInputClass =
-    "w-16 mx-auto block p-0.5 text-center border border-slate-200 rounded-md font-medium transition-colors text-xs bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-500";
-  const inactiveCell = <span className="block text-center text-slate-300 text-xs">—</span>;
+    "w-28 mx-auto block py-1.5 px-1 text-center border border-slate-200 rounded-md font-semibold transition-colors text-base bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-500";
+  const inactiveCell = <span className="block text-center text-slate-300 text-base">—</span>;
 
   // Shared row renderer for every FLAT/PER KG/%-ON-BASE charge — only the
   // column matching the row's selected unit is editable.
@@ -717,11 +713,11 @@ export default function AddPrice() {
     const isMissing = showValidationErrors && isMandatory && missingMandatoryFields.some(f => f.key === key);
     return (
       <tr key={key as string} className={`hover:bg-slate-50/50 transition-colors ${isMissing ? 'bg-red-50/60' : ''}`}>
-        <td className={`p-0.5 border-r border-slate-200 font-medium text-slate-700 text-xs uppercase tracking-wide ${opts?.indent ? 'pl-5' : 'pl-3 flex items-center gap-1.5'}`}>
+        <td className={`p-0.5 border-r border-slate-200 font-medium text-slate-700 text-[15px] uppercase tracking-wide ${opts?.indent ? 'pl-5' : 'pl-3 flex items-center gap-1.5'}`}>
           {opts?.icon}{label}
           {isMandatory && <span className={isMissing ? 'text-red-600 font-bold' : 'text-red-500'} title="Required">*</span>}
         </td>
-        <td className="p-0.5 border-r border-slate-200">
+        <td className="p-1.5 border-r border-slate-200">
           {isVariable ? inactiveCell : (
             <input
               type="number" min={0} max={max.fixed}
@@ -731,7 +727,7 @@ export default function AddPrice() {
             />
           )}
         </td>
-        <td className="p-0.5 border-r border-slate-200">
+        <td className="p-1.5 border-r border-slate-200">
           {!isVariable ? inactiveCell : (
             <input
               type="number" step="0.01" min={0} max={max.variable}
@@ -741,7 +737,7 @@ export default function AddPrice() {
             />
           )}
         </td>
-        <td className="p-0.5">
+        <td className="p-1">
           <UnitSelect value={unit} onChange={(v) => setUnit(key as string, v)} />
         </td>
       </tr>
@@ -892,48 +888,48 @@ export default function AddPrice() {
 
           {/* Step 1: Unified Price Configuration Table */}
           {step === 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="max-w-5xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="max-w-6xl mx-auto">
             <Card className="p-0 overflow-hidden border-0 shadow-lg">
               {/* Unified Table */}
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left min-w-[560px]">
-                  <thead className="bg-[#f8fafc] text-slate-500 text-xs tracking-wider uppercase font-semibold border-b border-slate-200">
+                <table className="w-full text-base text-left min-w-[560px]">
+                  <thead className="bg-[#f8fafc] text-slate-600 text-sm tracking-wider uppercase font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="p-1 border-r border-slate-200 w-[32%]">Charge</th>
-                      <th className="p-1 border-r border-slate-200 w-[16%] text-center">Fixed (₹)</th>
-                      <th className="p-1 border-r border-slate-200 w-[16%] text-center">Variable (%)</th>
-                      <th className="p-1 w-[36%] text-center">Unit / Threshold</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[32%]">Charge</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[16%] text-center">Fixed (₹)</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[16%] text-center">Variable (%)</th>
+                      <th className="p-2.5 w-[36%] text-center">Unit / Threshold</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-100">
                     {/* BASIC CHARGES HEADER */}
                     <tr className="bg-slate-50/80">
-                      <td colSpan={4} className="px-3 py-0.5 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">Basic Charges</td>
+                      <td colSpan={4} className="px-3 py-1.5 text-sm font-bold text-slate-600 uppercase tracking-wider border-y border-slate-200">Basic Charges</td>
                     </tr>
 
-                    {renderChargeRow("docketCharges", "Docket Charges", { icon: <Package size={13} className="text-blue-500"/> })}
-                    {renderChargeRow("fuel", "Fuel Surcharge", { icon: <Percent size={13} className="text-blue-500"/> })}
+                    {renderChargeRow("docketCharges", "Docket Charges", { icon: <Package size={17} className="text-blue-500"/> })}
+                    {renderChargeRow("fuel", "Fuel Surcharge", { icon: <Percent size={17} className="text-blue-500"/> })}
 
                     {/* Min Chargeable Weight — pure KG threshold, no fixed/variable duality */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-0.5 border-r border-slate-200 font-medium text-slate-700 pl-3 flex items-center gap-1.5 text-xs uppercase tracking-wide"><Weight size={13} className="text-blue-500"/> Min Chargeable Wt</td>
-                      <td className="p-0.5 border-r border-slate-200">
-                        <input type="number" min={0} max={FIELD_MAX.minWeight} className="w-16 mx-auto block p-0.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" placeholder="-" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e, FIELD_MAX.minWeight)} />
+                      <td className="p-1.5 border-r border-slate-200 font-medium text-slate-700 pl-3 flex items-center gap-1.5 text-[15px] uppercase tracking-wide"><Weight size={17} className="text-blue-500"/> Min Chargeable Wt</td>
+                      <td className="p-1.5 border-r border-slate-200">
+                        <input type="number" min={0} max={FIELD_MAX.minWeight} className="w-28 mx-auto block py-1.5 px-1 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-base" placeholder="-" value={priceRate.minWeight || ""} onChange={(e) => handleRateChange("minWeight", null, e, FIELD_MAX.minWeight)} />
                       </td>
-                      <td className="p-0.5 border-r border-slate-200">
-                        <input type="number" disabled className="w-16 mx-auto block p-0.5 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-xs" placeholder="-" />
+                      <td className="p-1.5 border-r border-slate-200">
+                        <input type="number" disabled className="w-28 mx-auto block py-1.5 px-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-base" placeholder="-" />
                       </td>
-                      <td className="p-0.5">
+                      <td className="p-1">
                         <UnitSelect value="KG" readOnly />
                       </td>
                     </tr>
 
-                    {renderChargeRow("minCharges", "Minimum Charges", { icon: <DollarSign size={13} className="text-blue-500"/> })}
-                    {renderChargeRow("gstPct", "GST %", { icon: <Percent size={13} className="text-blue-500"/> })}
+                    {renderChargeRow("minCharges", "Minimum Charges", { icon: <DollarSign size={17} className="text-blue-500"/> })}
+                    {renderChargeRow("gstPct", "GST %", { icon: <Percent size={17} className="text-blue-500"/> })}
 
                     {/* ADDITIONAL CHARGES HEADER */}
                     <tr className="bg-slate-50/80">
-                      <td colSpan={4} className="px-3 py-0.5 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">Additional Charges</td>
+                      <td colSpan={4} className="px-3 py-1.5 text-sm font-bold text-slate-600 uppercase tracking-wider border-y border-slate-200">Additional Charges</td>
                     </tr>
 
                     {renderChargeRow("rovCharges", "ROV / FOV Charges", { indent: true })}
@@ -942,12 +938,12 @@ export default function AddPrice() {
 
                     {/* Weight Threshold — pure KG value tied to Handling, no fixed/variable duality */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-0.5 border-r border-slate-200 font-medium text-slate-400 pl-6 text-xs uppercase tracking-wide">› Weight Threshold</td>
-                      <td className="p-0.5 border-r border-slate-200">
-                        <input type="number" min={0} max={FIELD_MAX.minWeight} placeholder="-" className="w-16 mx-auto block p-0.5 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" value={(priceRate.handlingCharges as any)?.threshholdweight || ""} onChange={e => handleRateChange("handlingCharges", "threshholdweight", e, FIELD_MAX.minWeight)} />
+                      <td className="p-1.5 border-r border-slate-200 font-medium text-slate-400 pl-6 text-[15px] uppercase tracking-wide">› Weight Threshold</td>
+                      <td className="p-1.5 border-r border-slate-200">
+                        <input type="number" min={0} max={FIELD_MAX.minWeight} placeholder="-" className="w-28 mx-auto block py-1.5 px-1 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-base" value={(priceRate.handlingCharges as any)?.threshholdweight || ""} onChange={e => handleRateChange("handlingCharges", "threshholdweight", e, FIELD_MAX.minWeight)} />
                       </td>
-                      <td className="p-1 border-r border-slate-200">
-                        <input type="number" disabled className="w-full p-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-xs" placeholder="-" />
+                      <td className="p-1.5 border-r border-slate-200">
+                        <input type="number" disabled className="w-full py-1.5 px-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-base" placeholder="-" />
                       </td>
                       <td className="p-1">
                         <UnitSelect value="KG" readOnly />
@@ -965,10 +961,10 @@ export default function AddPrice() {
                         should only ever have to enter it once. Last row in Additional
                         Charges, not tucked away in Optional. */}
                     <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-1 border-r border-slate-200 font-medium text-slate-700 pl-4 flex items-center gap-2 text-xs">
-                        <Scale size={15} className="text-blue-500"/> Volumetric Divisor
+                      <td className="p-1.5 border-r border-slate-200 font-medium text-slate-700 pl-4 flex items-center gap-2 text-[15px]">
+                        <Scale size={17} className="text-blue-500"/> Volumetric Divisor
                       </td>
-                      <td className="p-1 border-r border-slate-200">
+                      <td className="p-1.5 border-r border-slate-200">
                         <input
                           type="number" min={0} max={NUMBER_FIELD_MAX.divisor}
                           className={cellInputClass} placeholder="-"
@@ -976,11 +972,13 @@ export default function AddPrice() {
                           onChange={(e) => {
                             const raw = e.target.valueAsNumber || 0;
                             const val = Math.min(Math.max(raw, 0), NUMBER_FIELD_MAX.divisor);
+                            markPriceFieldTouched('divisor');
+                            markPriceFieldTouched('kFactor');
                             setPriceRate(prev => ({ ...prev, divisor: val, kFactor: val }));
                           }}
                         />
                       </td>
-                      <td className="p-1 border-r border-slate-200">{inactiveCell}</td>
+                      <td className="p-1.5 border-r border-slate-200">{inactiveCell}</td>
                       <td className="p-1">
                         <UnitSelect value="L×W×H ÷ N" readOnly />
                       </td>
@@ -991,9 +989,9 @@ export default function AddPrice() {
                       className="bg-slate-50/80 cursor-pointer select-none hover:bg-slate-100/80 transition-colors"
                       onClick={() => setShowOptional(o => !o)}
                     >
-                      <td colSpan={4} className="px-3 py-1 text-xs font-semibold text-slate-600 uppercase tracking-wider border-y border-slate-200">
+                      <td colSpan={4} className="px-3 py-2 text-sm font-bold text-slate-600 uppercase tracking-wider border-y border-slate-200">
                         <span className="inline-flex items-center gap-1.5">
-                          <ChevronDown size={13} className={`transition-transform ${showOptional ? '' : '-rotate-90'}`} />
+                          <ChevronDown size={17} className={`transition-transform ${showOptional ? '' : '-rotate-90'}`} />
                           Optional Charges
                         </span>
                       </td>
@@ -1011,12 +1009,12 @@ export default function AddPrice() {
 
                         {/* Cheque Handling — plain ₹ value, no fixed/variable duality */}
                         <tr className="hover:bg-slate-50/50 transition-colors">
-                          <td className="p-1 border-r border-slate-200 font-medium text-slate-700 pl-6 text-xs">Cheque Handling Charges</td>
-                          <td className="p-1 border-r border-slate-200">
-                            <input type="number" min={0} max={NUMBER_FIELD_MAX.chequeHandlingCharges} className="w-full p-1 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-xs" placeholder="-" value={priceRate.chequeHandlingCharges || ""} onChange={(e) => handleRateChange("chequeHandlingCharges", null, e, NUMBER_FIELD_MAX.chequeHandlingCharges)} />
+                          <td className="p-1.5 border-r border-slate-200 font-medium text-slate-700 pl-6 text-[15px]">Cheque Handling Charges</td>
+                          <td className="p-1.5 border-r border-slate-200">
+                            <input type="number" min={0} max={NUMBER_FIELD_MAX.chequeHandlingCharges} className="w-full py-1.5 px-1 text-center border border-transparent hover:border-slate-200 focus:border-slate-200 rounded-md focus:ring-1 focus:ring-blue-500 font-medium transition-colors bg-transparent placeholder-slate-300 text-base" placeholder="-" value={priceRate.chequeHandlingCharges || ""} onChange={(e) => handleRateChange("chequeHandlingCharges", null, e, NUMBER_FIELD_MAX.chequeHandlingCharges)} />
                           </td>
-                          <td className="p-1 border-r border-slate-200">
-                            <input type="number" disabled className="w-full p-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-xs" placeholder="-" />
+                          <td className="p-1.5 border-r border-slate-200">
+                            <input type="number" disabled className="w-full py-1.5 px-1 text-center border border-transparent rounded-md font-medium bg-slate-50 text-slate-300 cursor-not-allowed text-base" placeholder="-" />
                           </td>
                           <td className="p-1">
                             <UnitSelect value="FLAT" readOnly />

@@ -101,7 +101,8 @@ export default function VerifyOtpPage() {
         sessionStorage.removeItem('transporter_signup_email');
         sessionStorage.removeItem('transporter_signup_phone');
         toast.success(data.message || 'Verified! Welcome aboard.');
-        navigate('/dashboard', { replace: true });
+        // Invited (referral) signups get the "go public" offer first; everyone else goes straight to the dashboard.
+        navigate(data.transporter?.origin === 'shipper_referral' ? '/go-public' : '/dashboard', { replace: true });
       } else {
         toast.error(data.message || 'Verification failed.');
       }

@@ -222,7 +222,8 @@ const termsSections: TermsSection[] = [
     content: (
       <div className="mt-4 p-4 bg-slate-100 rounded-lg text-sm text-slate-700">
         <p>By using the Platform, You acknowledge reading and agreeing to these Terms. For Super Admins/Admins: Additional role-specific terms apply (e.g., hardcoded email checks for access).</p>
-        <p className="mt-3 font-semibold">FreightCompare.ai</p>
+        <p className="mt-3 font-semibold">FORUS INTELLIGENCE LABS PRIVATE LIMITED</p>
+        <p className="text-slate-500">Operator of FreightCompare.ai</p>
       </div>
     ),
   },
@@ -271,7 +272,7 @@ export const TermsModal: React.FC<TermsModalProps> = ({ open, onClose }) => (
                 Last Updated: February 20, 2026
               </p>
               <p>
-                These Terms and Conditions ("Terms," "T&amp;C," or "Agreement") govern your access to and use of the FreightCompare.ai platform (the "Platform"), including any websites, applications, APIs, or services provided by FreightCompare.ai (hereinafter referred to as "We," "Us," "Our," or the "Company"), with its registered office at [Insert Registered Office Address, e.g., Okhla Phase 1, Delhi NCR, India].
+                These Terms and Conditions ("Terms," "T&amp;C," or "Agreement") govern your access to and use of the FreightCompare.ai platform (the "Platform"), including any websites, applications, APIs, or services provided on the Platform. The Platform is owned and operated by <strong>FORUS INTELLIGENCE LABS PRIVATE LIMITED</strong> (hereinafter referred to as "We," "Us," "Our," or the "Company"), with its registered office at [Insert Registered Office Address, e.g., Okhla Phase 1, Delhi NCR, India].
               </p>
               <p>
                 By accessing, registering for, or using the Platform, you ("User," "You," or "Your") agree to be bound by these Terms, our Privacy Policy, Acceptable Use Policy, and any other policies incorporated herein by reference. If You are accessing the Platform on behalf of an entity (e.g., a company or organization), You represent and warrant that You have the authority to bind that entity to these Terms.

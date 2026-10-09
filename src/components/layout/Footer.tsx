@@ -153,7 +153,7 @@ const Footer: React.FC = () => {
         {/* Sub-Footer */}
         <div className="mt-16 pt-8 border-t border-slate-200/10 flex flex-col sm:flex-row justify-between items-center">
           <p className="text-sm text-slate-500 text-center sm:text-left mb-4 sm:mb-0">
-            © {currentYear} FreightCompare, Inc. All rights reserved.
+            © {currentYear} FORUS INTELLIGENCE LABS PRIVATE LIMITED. All rights reserved.
           </p>
           <div className="flex items-center space-x-5">
             <SocialIcon href="#" icon={<Twitter size={20} />} />
