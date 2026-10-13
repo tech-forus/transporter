@@ -3,7 +3,7 @@ import Cookies from 'js-cookie';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { API_BASE_URL } from '../config/apiConfig';
-import { getStoredReferral } from '../utils/referral';
+import { getStoredReferral, getStoredTransporterReferral } from '../utils/referral';
 
 interface JwtPayload {
   _id: string;
@@ -148,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     credential: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/transporter/auth/google-signup`, { credential, referralCode: getStoredReferral() || undefined });
+      const response = await axios.post(`${API_BASE_URL}/api/transporter/auth/google-signup`, { credential, referralCode: getStoredReferral() || undefined, transporterReferralCode: getStoredTransporterReferral() || undefined });
       if (response.data?.token) {
         loginWithToken(response.data.token);
         return { success: true };

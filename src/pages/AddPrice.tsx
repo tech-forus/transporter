@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, ChangeEvent, FormEvent } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { API_BASE_URL } from "../config/apiConfig";
-import { getStoredReferral } from "../utils/referral";
+import { getStoredReferral, getStoredTransporterReferral } from "../utils/referral";
 import { useNavigate } from "react-router-dom";
 import {
   DollarSign,
@@ -492,6 +492,8 @@ export default function AddPrice() {
     dataToSubmit.append('zones', JSON.stringify(zoneLabels.filter(z => z.trim())));
     const referralCode = getStoredReferral();
     if (referralCode) dataToSubmit.append('referralCode', referralCode);
+    const transporterReferralCode = getStoredTransporterReferral();
+    if (transporterReferralCode) dataToSubmit.append('transporterReferralCode', transporterReferralCode);
     dataToSubmit.append('networks', JSON.stringify(Array.isArray(networks) && networks.length > 0 ? networks : ['independent']));
     dataToSubmit.append('service', extractedService);
     const rateFileIds = localStorage.getItem('transporter_rate_file_ids');
