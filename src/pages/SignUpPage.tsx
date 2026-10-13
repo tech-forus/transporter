@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, ChangeEvent, DragEvent, FormEvent } from 'react';
 import guidlines from '../assets/guidlines.jpg';
-import { getStoredReferral } from '../utils/referral';
+import { getStoredReferral, getStoredTransporterReferral } from '../utils/referral';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -2104,6 +2104,9 @@ export default function SignUpPage() {
     // Shipper invite link (?ref=) captured on landing — the server re-validates it.
     const referralCode = getStoredReferral();
     if (referralCode) dataToSubmit.append('referralCode', referralCode);
+    // Another transporter's invite (?tref=): attribution only, the server re-validates it.
+    const transporterReferralCode = getStoredTransporterReferral();
+    if (transporterReferralCode) dataToSubmit.append('transporterReferralCode', transporterReferralCode);
 
     dataToSubmit.append('zones', JSON.stringify(zones.filter(z => z.trim()))); // Send non-empty zones
     dataToSubmit.append('networks', JSON.stringify(networks && networks.length > 0 ? networks : ['independent']));

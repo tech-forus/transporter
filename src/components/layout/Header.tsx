@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Truck,
   PackageCheck,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -96,6 +97,9 @@ const UserProfileDropdown: React.FC = () => {
                             <Link to="/profile" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
                                 <UserIcon size={16} /> My Profile
                             </Link>
+                            <Link to="/invite" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
+                                <Users size={16} /> Invite transporters
+                            </Link>
                             <hr className="my-1 border-slate-100" />
                             <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 rounded-md font-medium">
                                 <LogOutIcon size={16} /> Sign Out
@@ -140,6 +144,7 @@ const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpe
                                <MobileNavLink to="/dashboard" icon={<LayoutDashboard size={20}/>}>Dashboard</MobileNavLink>
                                <MobileNavLink to="/bookings" icon={<PackageCheck size={20}/>}>Bookings</MobileNavLink>
                                <MobileNavLink to="/profile" icon={<UserIcon size={20}/>}>My Profile</MobileNavLink>
+                               <MobileNavLink to="/invite" icon={<Users size={20}/>}>Invite transporters</MobileNavLink>
                                <div className="pt-8 mt-auto">
                                 <button onClick={handleSignOut} className="w-full text-center px-6 py-3 bg-slate-100 text-slate-700 rounded-lg font-medium">
                                   Sign Out

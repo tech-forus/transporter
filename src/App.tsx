@@ -19,6 +19,8 @@ import TransporterKycPage from './pages/TransporterKycPage';
 import FleetPage from './pages/FleetPage';
 import KycGate from './components/KycGate';
 import ReferralBanner from './components/ReferralBanner';
+import TransporterInviteBanner from './components/TransporterInviteBanner';
+import InviteTransportersPage from './pages/InviteTransportersPage';
 import ReferralAttachGate from './components/ReferralAttachGate';
 import GoPublicPage from './pages/GoPublicPage';
 import RatesEditorPage from './pages/RatesEditorPage';
@@ -107,7 +109,7 @@ function App() {
         <Routes>
           <Route path='/' element={<MainLayout><LandingPage /></MainLayout>} />
           <Route path="/transporter-signin" element={<PublicRoute><MainLayout><SignInPage /></MainLayout></PublicRoute>} />
-          <Route path="/transporter-signup" element={<PublicRoute><MainLayout compact><ReferralBanner /><SignUpPage /></MainLayout></PublicRoute>} />
+          <Route path="/transporter-signup" element={<PublicRoute><MainLayout compact><ReferralBanner /><TransporterInviteBanner /><SignUpPage /></MainLayout></PublicRoute>} />
           {/* /dashboard is where an authenticated transporter always lands
               (see PublicRoute above) — shows the real direct-booking feed.
               The old bidding-marketplace "Available Bids" list moved to its
@@ -121,6 +123,7 @@ function App() {
           <Route path="/bidding/details/:id" element={<PrivateRoute><MainLayout><KycGate><BiddingDetails /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><MainLayout><KycGate><ProfilePage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/rates" element={<PrivateRoute><MainLayout><KycGate><RatesPage /></KycGate></MainLayout></PrivateRoute>} />
+          <Route path="/invite" element={<PrivateRoute><MainLayout><KycGate><InviteTransportersPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/fleet" element={<PrivateRoute><MainLayout><KycGate><FleetPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/bids" element={<PrivateRoute><MainLayout><KycGate><BidsPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/bookings" element={<PrivateRoute><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></PrivateRoute>} />
