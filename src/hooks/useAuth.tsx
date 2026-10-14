@@ -84,6 +84,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Origins of the FreightCompare app that may hand this app a session:
+// the Android app's WebView (https://localhost), iOS, local dev, and the website.
+const FC_HOST_ORIGINS = [
+  'https://localhost',
+  'capacitor://localhost',
+  'http://localhost:3000',
+  'https://freightcompare.ai',
+  'https://www.freightcompare.ai',
+  'https://freight-compare-frontend.vercel.app',
+];
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -257,8 +268,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'request_transporter_logout') logout();
+      // The FreightCompare app's own transporter login form signed this
+      // transporter in and is handing over the session token (see its
+      // TransporterFrameContext.tsx). Only from the embedding parent, and
+      // only from a known FreightCompare origin, so no other page that
+      // embeds this app can push a session into it.
+      if (
+        event.data?.type === 'fc_transporter_session' &&
+        typeof event.data.token === 'string' &&
+        event.source === window.parent &&
+        FC_HOST_ORIGINS.includes(event.origin)
+      ) {
+        try {
+          loginWithToken(event.data.token);
+        } catch (e) {
+          console.error('AuthProvider: rejected handed-off session token', e);
+        }
+      }
     };
     window.addEventListener('message', handler);
+    // Tells the host this app can now take a handed-off session.
+    if (window.parent !== window) window.parent.postMessage({ type: 'transporter_session_ready' }, '*');
     return () => window.removeEventListener('message', handler);
   }, []);
 
