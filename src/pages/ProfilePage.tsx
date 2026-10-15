@@ -171,7 +171,7 @@ const EditableField = ({
           value={draft}
           onChange={(e) => { setDraft(e.target.value); commit(e.target.value); }}
           onBlur={() => setEditing(false)}
-          className="w-full text-sm font-semibold text-slate-800 bg-blue-50/60 border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full text-sm font-semibold text-slate-800 dark:text-white bg-blue-50/60 border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-400"
         >
           <option value="" disabled>Select…</option>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -190,7 +190,7 @@ const EditableField = ({
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
           if (e.key === 'Escape') { setDraft(String(value ?? '')); setEditing(false); }
         }}
-        className="w-full text-sm font-semibold text-slate-800 bg-blue-50/60 border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-400"
+        className="w-full text-sm font-semibold text-slate-800 dark:text-white bg-blue-50/60 border border-blue-300 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-400"
       />
     );
   }
@@ -204,16 +204,16 @@ const EditableField = ({
       onClick={() => setEditing(true)}
       className="group w-full text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-blue-50/70 transition-colors flex items-start gap-2.5"
     >
-      {icon && <span className="text-slate-400 mt-0.5 flex-none">{icon}</span>}
+      {icon && <span className="text-slate-400 dark:text-[#6f93b8] mt-0.5 flex-none">{icon}</span>}
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1">
+        <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-0.5 flex items-center gap-1">
           {label}
           {status === 'saving' && <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-400" />}
           {status === 'saved' && <Check className="w-2.5 h-2.5 text-emerald-500" />}
           {status === 'idle' && <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400" />}
         </p>
-        <p className="text-sm font-semibold text-slate-800 break-words">
-          {hasValue ? displayValue : <span className="font-normal text-slate-300">Click to add</span>}
+        <p className="text-sm font-semibold text-slate-800 dark:text-white break-words">
+          {hasValue ? displayValue : <span className="font-normal text-slate-300 dark:text-[#5c7c9a]">Click to add</span>}
         </p>
       </div>
     </button>
@@ -225,19 +225,19 @@ const EditableField = ({
 // the grid stays even instead of mixing button and plain rows.
 const StaticField = ({ label, value, icon }: { label: string; value: React.ReactNode; icon?: React.ReactNode }) => (
   <div className="flex items-start gap-2.5 px-2 py-1.5">
-    {icon && <span className="text-slate-400 mt-0.5 flex-none">{icon}</span>}
+    {icon && <span className="text-slate-400 dark:text-[#6f93b8] mt-0.5 flex-none">{icon}</span>}
     <div className="min-w-0 flex-1">
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
-      <p className="text-sm font-semibold text-slate-800 break-words">{value}</p>
+      <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-0.5">{label}</p>
+      <p className="text-sm font-semibold text-slate-800 dark:text-white break-words">{value}</p>
     </div>
   </div>
 );
 
 const SCard = ({ icon, title, children, className }: { icon: React.ReactNode; title: string; children: React.ReactNode; className?: string }) => (
-  <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${className ?? ''}`}>
-    <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100">
-      <div className="w-7 h-7 flex items-center justify-center bg-blue-100 rounded-lg text-blue-600 flex-none">{icon}</div>
-      <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">{title}</h2>
+  <div className={`bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm overflow-hidden ${className ?? ''}`}>
+    <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100 dark:border-[#1d3f5c]">
+      <div className="w-7 h-7 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 flex-none">{icon}</div>
+      <h2 className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf] uppercase tracking-widest">{title}</h2>
     </div>
     <div className="px-5 py-4">{children}</div>
   </div>
@@ -248,13 +248,13 @@ const PwdInput = ({ id, label, value, onChange, disabled }: {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean;
 }) => (
   <div>
-    <label htmlFor={id} className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</label>
+    <label htmlFor={id} className="block text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">{label}</label>
     <div className="relative">
-      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-[#6f93b8] pointer-events-none" />
       <input
         id={id} name={id} type="password" required value={value} onChange={onChange} disabled={disabled}
         placeholder="••••••••"
-        className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition disabled:bg-slate-50 bg-white"
+        className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
       />
     </div>
   </div>
@@ -357,7 +357,7 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
   if (step === 'idle') {
     return (
       <div>
-        <p className="text-xs text-slate-500 mb-3">
+        <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mb-3">
           Your account was created with Google, so there's no password yet — you can create one to also sign in with your email and password.
         </p>
         <button
@@ -373,23 +373,23 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
 
   return (
     <form onSubmit={handleCreate}>
-      <p className="text-xs text-slate-500 mb-3">
-        Enter the OTP sent to <span className="font-semibold text-slate-700">{email}</span> (expires in 10 minutes) and choose a password.
+      <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mb-3">
+        Enter the OTP sent to <span className="font-semibold text-slate-700 dark:text-[#8fb0cf]">{email}</span> (expires in 10 minutes) and choose a password.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label htmlFor="tpCreateOtp" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">OTP</label>
+          <label htmlFor="tpCreateOtp" className="block text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">OTP</label>
           <input
             id="tpCreateOtp" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
             inputMode="numeric" maxLength={6} disabled={submitting}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition disabled:bg-slate-50 bg-white"
+            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
           />
         </div>
         <PwdInput id="tpCreateNewPassword" label="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={submitting} />
         <PwdInput id="tpCreateConfirmPassword" label="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={submitting} />
       </div>
       <div className="flex items-center justify-between mt-3.5">
-        <button type="button" onClick={sendOtp} disabled={sending || submitting} className="text-xs font-semibold text-amber-600 hover:text-amber-800 disabled:opacity-50">
+        <button type="button" onClick={sendOtp} disabled={sending || submitting} className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 disabled:opacity-50">
           Resend OTP
         </button>
         <button
@@ -577,7 +577,7 @@ const ProfilePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-slate-500">
+      <div className="flex items-center justify-center min-h-[60vh] text-slate-500 dark:text-[#8fb0cf]">
         <Loader className="animate-spin mr-3" size={24} />
         <p className="text-lg">Loading Profile...</p>
       </div>
@@ -586,11 +586,11 @@ const ProfilePage: React.FC = () => {
 
   if (error || !profile) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-red-600 p-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-red-600 dark:text-red-400 p-4">
         <AlertTriangle className="mb-3" size={40} />
         <p className="text-lg font-semibold text-center">Could not load profile</p>
-        <p className="text-slate-600 text-center">{error || 'No profile data available.'}</p>
-        <Link to="/dashboard" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700">
+        <p className="text-slate-600 dark:text-[#8fb0cf] text-center">{error || 'No profile data available.'}</p>
+        <Link to="/dashboard" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700">
           <ArrowLeft size={15} /> Back to Dashboard
         </Link>
       </div>
@@ -601,9 +601,9 @@ const ProfilePage: React.FC = () => {
   const laneRateCount = profile.individualLaneRates?.length || 0;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#08141f]">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-blue-600 mb-4 transition-colors">
+        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-[#8fb0cf] hover:text-blue-600 mb-4 transition-colors">
           <ArrowLeft size={16} /> Back
         </Link>
 
@@ -613,14 +613,14 @@ const ProfilePage: React.FC = () => {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-slate-900 truncate">{profile.companyName}</h1>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{profile.companyName}</h1>
               {profile.isVerified && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 flex-none">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-full px-2.5 py-1 flex-none">
                   <BadgeCheck size={13} /> Verified
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-0.5">
               {isIndividual ? 'Individual / Owner-Operator' : 'Business'} Transporter · Click any value below to edit
             </p>
           </div>
@@ -731,24 +731,24 @@ const ProfilePage: React.FC = () => {
 
           <Link
             to="/profile/rates"
-            className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 hover:border-blue-300 hover:shadow-md transition-all"
+            className="flex items-center justify-between gap-3 bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm px-5 py-4 hover:border-blue-300 hover:shadow-md transition-all"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 flex items-center justify-center bg-blue-100 rounded-xl text-blue-600 flex-none">
+              <div className="w-9 h-9 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400 flex-none">
                 <Route className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800">
+                <p className="text-sm font-bold text-slate-800 dark:text-white">
                   {isIndividual ? `Lane Rates (${laneRateCount})` : 'Rate Card & Zone Rates'}
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 dark:text-[#6f93b8]">
                   {isIndividual
                     ? 'View and manage your pricing per origin-destination lane'
                     : 'View your saved rate card and zone-to-zone pricing'}
                 </p>
               </div>
             </div>
-            <ArrowLeft className="w-4 h-4 text-slate-300 rotate-180" />
+            <ArrowLeft className="w-4 h-4 text-slate-300 dark:text-[#5c7c9a] rotate-180" />
           </Link>
 
 
@@ -758,18 +758,18 @@ const ProfilePage: React.FC = () => {
               a profile field. */}
           <Link
             to="/profile/bids"
-            className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 hover:border-blue-300 hover:shadow-md transition-all"
+            className="flex items-center justify-between gap-3 bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm px-5 py-4 hover:border-blue-300 hover:shadow-md transition-all"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 flex items-center justify-center bg-blue-100 rounded-xl text-blue-600 flex-none">
+              <div className="w-9 h-9 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400 flex-none">
                 <Bell className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800">Available Bids</p>
-                <p className="text-xs text-slate-400">View bids matching your service zones</p>
+                <p className="text-sm font-bold text-slate-800 dark:text-white">Available Bids</p>
+                <p className="text-xs text-slate-400 dark:text-[#6f93b8]">View bids matching your service zones</p>
               </div>
             </div>
-            <ArrowLeft className="w-4 h-4 text-slate-300 rotate-180" />
+            <ArrowLeft className="w-4 h-4 text-slate-300 dark:text-[#5c7c9a] rotate-180" />
           </Link>
         </div>
       </div>
@@ -780,20 +780,20 @@ const ProfilePage: React.FC = () => {
           onClick={closeContactOtp}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+            className="bg-white dark:bg-[#0d2438] rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
-              <div className="w-12 h-12 rounded-full bg-blue-50 border-4 border-blue-100 flex items-center justify-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 border-4 border-blue-100 dark:border-blue-800/40 flex items-center justify-center mb-4">
                 <ShieldCheck className="w-5 h-5 text-blue-500" />
               </div>
-              <h3 className="text-base font-bold text-slate-900 mb-1.5">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">
                 Verify your new {contactFieldLabel(contactOtp.field)}
               </h3>
-              <p className="text-sm text-slate-500 leading-relaxed mb-1">
+              <p className="text-sm text-slate-500 dark:text-[#8fb0cf] leading-relaxed mb-1">
                 {contactOtp.sending ? 'Sending an OTP to...' : 'Enter the OTP sent to:'}
               </p>
-              <p className="text-sm font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-4 break-all">
+              <p className="text-sm font-bold text-slate-800 dark:text-white bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c] rounded-lg px-3 py-2 mb-4 break-all">
                 {contactOtp.value}
               </p>
 
@@ -807,17 +807,17 @@ const ProfilePage: React.FC = () => {
                 onChange={(e) => setContactOtp((prev) => (prev ? { ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 8), error: '' } : prev))}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyContactOtp(); }}
                 placeholder="Enter OTP"
-                className="w-full px-3 py-2.5 mb-2 border border-slate-200 rounded-xl text-sm font-semibold text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                className="w-full px-3 py-2.5 mb-2 border border-slate-200 dark:border-[#1d3f5c] rounded-xl text-sm font-semibold text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
               />
               {contactOtp.error && <p className="text-xs text-red-500 mb-2">{contactOtp.error}</p>}
 
               {resendTimer > 0 ? (
-                <p className="text-xs text-slate-400 mb-4">Resend OTP in {Math.floor(resendTimer / 60)}:{String(resendTimer % 60).padStart(2, '0')}</p>
+                <p className="text-xs text-slate-400 dark:text-[#6f93b8] mb-4">Resend OTP in {Math.floor(resendTimer / 60)}:{String(resendTimer % 60).padStart(2, '0')}</p>
               ) : (
                 <button
                   onClick={handleResendContactOtp}
                   disabled={contactOtp.sending || contactOtp.verifying}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold underline underline-offset-2 disabled:opacity-50 mb-4"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold underline underline-offset-2 disabled:opacity-50 mb-4"
                 >
                   Resend OTP
                 </button>
@@ -827,7 +827,7 @@ const ProfilePage: React.FC = () => {
                 <button
                   onClick={closeContactOtp}
                   disabled={contactOtp.verifying}
-                  className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-slate-500 dark:text-[#8fb0cf] hover:bg-slate-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>

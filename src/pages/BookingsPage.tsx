@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import {
   RefreshCw, MapPin, Package, IndianRupee, Clock, Mail, Phone,
   User as UserIcon, CheckCircle2, XCircle, ThumbsUp, Bell, Eye, X,
-  TrendingUp, ClipboardList, Route, ArrowRight, UserCog,
+  TrendingUp, ClipboardList, Route, ArrowRight, UserCog, Truck,
 } from 'lucide-react';
 import GoPublicCard, { PUBLIC_STATUS_REFRESH_EVENT } from '../components/GoPublicCard';
 import CopyableAddress from '../components/CopyableAddress';
@@ -78,10 +78,10 @@ interface Booking {
 // `accent` drives the colored left stripe on each card (dashboard-style
 // visual grouping at a glance); `badge` is the pill text/border colors.
 const STATUS_THEME: Record<Booking['transporterAckStatus'], { badge: string; accent: string }> = {
-  pending: { badge: 'bg-amber-50 text-amber-700 border-amber-200', accent: 'bg-amber-500' },
-  acknowledged: { badge: 'bg-blue-50 text-blue-700 border-blue-200', accent: 'bg-blue-500' },
-  confirmed: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'bg-emerald-500' },
-  declined: { badge: 'bg-red-50 text-red-700 border-red-200', accent: 'bg-red-400' },
+  pending: { badge: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40', accent: 'bg-amber-500' },
+  acknowledged: { badge: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/40', accent: 'bg-blue-500' },
+  confirmed: { badge: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40', accent: 'bg-emerald-500' },
+  declined: { badge: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/40', accent: 'bg-red-400' },
 };
 
 // Fixed picker rather than free text — a decline reason is only useful if
@@ -145,7 +145,7 @@ function PickupBadge({ pickupDate, pickupTime }: { pickupDate?: string; pickupTi
   const countdown = usePickupCountdown(pickupDate, pickupTime);
   if (!countdown) return null;
   return (
-    <span className="absolute top-4 right-5 inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full bg-red-50 text-red-600 border border-red-200 shadow-sm">
+    <span className="absolute top-4 right-5 inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/40 shadow-sm">
       <span aria-hidden="true">🕐</span> Pickup {countdown.label}
     </span>
   );
@@ -159,13 +159,13 @@ const DetailField = ({ label, value }: { label: string; value?: string | number 
   const hasValue = value !== undefined && value !== null && String(value).trim() !== '';
   return (
     <div className="space-y-1">
-      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</label>
+      <label className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest">{label}</label>
       <input
         disabled
         value={hasValue ? String(value) : ''}
         placeholder={hasValue ? undefined : 'Not provided'}
         className={`w-full px-3 py-2 rounded-lg text-sm font-medium border cursor-not-allowed ${
-          hasValue ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-slate-100 border-slate-200 text-slate-400 italic'
+          hasValue ? 'bg-slate-50 dark:bg-[#08141f] border-slate-200 dark:border-[#1d3f5c] text-slate-800 dark:text-white' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-[#1d3f5c] text-slate-400 dark:text-[#6f93b8] italic'
         }`}
       />
     </div>
@@ -186,15 +186,15 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
       onClick={onClose}
     >
       <div
-        className="bg-white w-[94vw] max-w-6xl rounded-2xl shadow-2xl max-h-[94vh] overflow-y-auto"
+        className="bg-white dark:bg-[#0d2438] w-[94vw] max-w-6xl rounded-2xl shadow-2xl max-h-[94vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-slate-900 px-6 py-4 text-white relative rounded-t-2xl">
-          <button onClick={onClose} className="absolute top-3.5 right-4 text-slate-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="absolute top-3.5 right-4 text-slate-400 dark:text-[#6f93b8] hover:text-white transition-colors">
             <X size={20} />
           </button>
           <h3 className="text-lg font-bold">Booking {booking.bookingCode}</h3>
-          <p className="text-slate-400 text-xs mt-0.5">Exactly what {shipperName} submitted.</p>
+          <p className="text-slate-400 dark:text-[#6f93b8] text-xs mt-0.5">Exactly what {shipperName} submitted.</p>
         </div>
 
         <div className="p-6 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
@@ -220,8 +220,8 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
               <DetailField label="Decline Reason (from you)" value={booking.transporterDeclineReason} />
             )}
 
-            <div className="pt-2 border-t border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Shipper's Customer (optional, if notified)</p>
+            <div className="pt-2 border-t border-slate-100 dark:border-[#1d3f5c]">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">Shipper's Customer (optional, if notified)</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <DetailField label="Name" value={booking.customerContactName} />
                 <DetailField label="Phone" value={booking.customerContactPhone} />
@@ -232,38 +232,38 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
 
           {/* RIGHT: packing list — same slot BookNowModal.tsx uses for it */}
           <div className="lg:border-l lg:border-slate-200 lg:pl-6">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Packing List</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">Packing List</p>
             {boxes.length > 0 ? (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#1d3f5c]">
                 <table className="w-full text-xs border-collapse">
                   <thead>
-                    <tr className="text-slate-500 uppercase text-[10px] bg-slate-100">
-                      <th className="text-left py-1.5 px-2 border border-slate-200">Qty</th>
-                      <th className="text-left py-1.5 px-2 border border-slate-200">Desc</th>
-                      <th className="text-center py-1.5 px-2 border border-slate-200">L ({unit})</th>
-                      <th className="text-center py-1.5 px-2 border border-slate-200">W ({unit})</th>
-                      <th className="text-center py-1.5 px-2 border border-slate-200">H ({unit})</th>
-                      <th className="text-center py-1.5 px-2 border border-slate-200">Wt (kg)</th>
+                    <tr className="text-slate-500 dark:text-[#8fb0cf] uppercase text-[10px] bg-slate-100 dark:bg-white/5">
+                      <th className="text-left py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">Qty</th>
+                      <th className="text-left py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">Desc</th>
+                      <th className="text-center py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">L ({unit})</th>
+                      <th className="text-center py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">W ({unit})</th>
+                      <th className="text-center py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">H ({unit})</th>
+                      <th className="text-center py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">Wt (kg)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {boxes.map((b, i) => (
-                      <tr key={i} className="bg-white">
-                        <td className="py-1.5 px-2 text-center font-semibold text-slate-700 border border-slate-200">{b.count ?? '-'}</td>
-                        <td className="py-1.5 px-2 text-left text-slate-700 border border-slate-200">{b.description || '-'}</td>
-                        <td className="py-1.5 px-2 text-center text-slate-700 border border-slate-200">{b.length ?? '-'}</td>
-                        <td className="py-1.5 px-2 text-center text-slate-700 border border-slate-200">{b.width ?? '-'}</td>
-                        <td className="py-1.5 px-2 text-center text-slate-700 border border-slate-200">{b.height ?? '-'}</td>
-                        <td className="py-1.5 px-2 text-center text-slate-700 border border-slate-200">{b.weight ?? '-'}</td>
+                      <tr key={i} className="bg-white dark:bg-[#0d2438]">
+                        <td className="py-1.5 px-2 text-center font-semibold text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.count ?? '-'}</td>
+                        <td className="py-1.5 px-2 text-left text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.description || '-'}</td>
+                        <td className="py-1.5 px-2 text-center text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.length ?? '-'}</td>
+                        <td className="py-1.5 px-2 text-center text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.width ?? '-'}</td>
+                        <td className="py-1.5 px-2 text-center text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.height ?? '-'}</td>
+                        <td className="py-1.5 px-2 text-center text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.weight ?? '-'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-slate-400 italic bg-slate-100 border border-slate-200 rounded-lg px-3 py-2">Not provided</p>
+              <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-[#1d3f5c] rounded-lg px-3 py-2">Not provided</p>
             )}
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mt-2">
               Total: {booking.totalBoxes} box{booking.totalBoxes === 1 ? '' : 'es'} · {booking.totalChargeableWeight} kg chargeable
             </p>
           </div>
@@ -287,15 +287,15 @@ const DeclineReasonModal = ({
   onClose: () => void;
 }) => createPortal(
   <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
-      <h3 className="text-base font-bold text-slate-900 mb-1">Why decline this booking?</h3>
-      <p className="text-xs text-slate-500 mb-4">Optional, but it helps the shipper understand what happened.</p>
+    <div className="bg-white dark:bg-[#0d2438] w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+      <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">Why decline this booking?</h3>
+      <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mb-4">Optional, but it helps the shipper understand what happened.</p>
       <div className="space-y-2">
         {DECLINE_REASONS.map((reason) => (
           <button
             key={reason}
             onClick={() => onPick(reason)}
-            className="w-full text-left px-3.5 py-2.5 text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-colors"
+            className="w-full text-left px-3.5 py-2.5 text-sm font-semibold text-slate-700 dark:text-[#8fb0cf] bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c] rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 hover:border-slate-300 transition-colors"
           >
             {reason}
           </button>
@@ -303,7 +303,7 @@ const DeclineReasonModal = ({
       </div>
       <button
         onClick={onSkip}
-        className="w-full mt-3 px-3.5 py-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+        className="w-full mt-3 px-3.5 py-2 text-xs font-semibold text-slate-400 dark:text-[#6f93b8] hover:text-slate-600 transition-colors"
       >
         Skip — decline without a reason
       </button>
@@ -365,11 +365,22 @@ const BookingsPage: React.FC = () => {
     return () => clearInterval(id);
   }, [isAuthenticated, fetchBookings]);
 
+  // "Your Setup" summary (ported from main's Dashboard, 2026-10-15): a light read-back of the transporter's own
+  // routes + rate card + fleet, so they can see their setup without opening the full editor. Uses the existing
+  // GET /api/transporter/auth/price-summary; a failure just leaves the card showing dashes.
+  const [priceSummary, setPriceSummary] = useState<{ hasPriceCard: boolean; originZoneCount?: number; destinationRateCount?: number } | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    axios.get(`${API_BASE_URL}/api/transporter/auth/price-summary`)
+      .then((res) => { if (res.data?.success) setPriceSummary(res.data); })
+      .catch(() => setPriceSummary(null));
+  }, [isAuthenticated]);
+
   // Without this the embedding parent iframe never learns this page grew
   // (e.g. a modal opening), so it stays sized for the plain list and the
   // modal renders partly off the visible page instead of centered in view
   // — same fix every other page here already has.
-  useReportIframeHeight([bookings.length, viewingBooking, decliningBooking, loading, error]);
+  useReportIframeHeight([bookings.length, viewingBooking, decliningBooking, loading, error, priceSummary]);
 
   // Without this, the two modals below — centered via `fixed inset-0` — center
   // themselves against this iframe's full auto-grown content height instead of
@@ -435,8 +446,8 @@ const BookingsPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <p className="text-lg font-semibold text-red-600">Please log in to view bookings.</p>
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-[#08141f]">
+        <p className="text-lg font-semibold text-red-600 dark:text-red-400">Please log in to view bookings.</p>
       </div>
     );
   }
@@ -446,13 +457,13 @@ const BookingsPage: React.FC = () => {
       <div className="max-w-6xl mx-auto py-2">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               Welcome back{(user as any)?.companyName ? `, ${(user as any).companyName}` : ''}
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-0.5">
               {bookings.length} booking{bookings.length === 1 ? '' : 's'} from shippers
             </p>
           </div>
@@ -489,11 +500,11 @@ const BookingsPage: React.FC = () => {
         {loading && bookings.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <RefreshCw size={24} className="animate-spin text-blue-500 mr-3" />
-            <p className="text-slate-500 text-sm font-medium">Loading bookings…</p>
+            <p className="text-slate-500 dark:text-[#8fb0cf] text-sm font-medium">Loading bookings…</p>
           </div>
         ) : error ? (
-          <div className="p-5 text-center bg-red-50 border border-red-100 rounded-2xl max-w-md mx-auto">
-            <p className="text-red-700 font-medium">{error}</p>
+          <div className="p-5 text-center bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40 rounded-2xl max-w-md mx-auto">
+            <p className="text-red-700 dark:text-red-300 font-medium">{error}</p>
             <button
               onClick={() => fetchBookings()}
               className="mt-4 px-4 py-2 font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors"
@@ -502,13 +513,13 @@ const BookingsPage: React.FC = () => {
             </button>
           </div>
         ) : bookings.length === 0 ? (
-          <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+          <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 dark:border-[#1d3f5c] rounded-2xl bg-white dark:bg-[#0d2438]">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
               <Bell size={20} />
             </div>
-            <p className="text-slate-700 font-semibold">No bookings yet</p>
-            <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">When a shipper books you directly, it will show up here. Keep your rates up to date so shippers can find and book you.</p>
-            <Link to="/profile/rates" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition-colors">
+            <p className="text-slate-700 dark:text-[#8fb0cf] font-semibold">No bookings yet</p>
+            <p className="text-sm text-slate-400 dark:text-[#6f93b8] mt-1 max-w-sm mx-auto">When a shipper books you directly, it will show up here. Keep your rates up to date so shippers can find and book you.</p>
+            <Link to="/profile/rates" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl hover:bg-blue-100 transition-colors">
               Review my lane rates <ArrowRight size={14} />
             </Link>
           </div>
@@ -528,7 +539,7 @@ const BookingsPage: React.FC = () => {
               return (
                 <div
                   key={b._id}
-                  className="relative overflow-hidden flex flex-col gap-4 p-5 pl-6 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300"
+                  className="relative overflow-hidden flex flex-col gap-4 p-5 pl-6 bg-white dark:bg-[#0d2438] border border-slate-100 dark:border-[#1d3f5c] rounded-2xl shadow-sm hover:shadow-md transition-all duration-300"
                 >
                   <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${accent}`} />
                   {(isPending || isAckedOnly) && (
@@ -538,11 +549,11 @@ const BookingsPage: React.FC = () => {
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center flex-wrap gap-2 mb-2.5">
-                        <span className="font-black text-lg text-slate-900 inline-flex items-center gap-1.5 tracking-tight">
+                        <span className="font-black text-lg text-slate-900 dark:text-white inline-flex items-center gap-1.5 tracking-tight">
                           <UserIcon size={16} className="text-blue-500" /> {shipperName}
                         </span>
                         {b.customerID?.companyName && shipperName !== b.customerID.companyName && (
-                          <span className="text-xs text-slate-400 font-medium">{b.customerID.companyName}</span>
+                          <span className="text-xs text-slate-400 dark:text-[#6f93b8] font-medium">{b.customerID.companyName}</span>
                         )}
                         {isNew && (
                           <span className="inline-flex items-center text-[11px] font-black px-2 py-0.5 rounded-full bg-emerald-500 text-white uppercase tracking-wider shadow-sm shadow-emerald-200">
@@ -554,22 +565,22 @@ const BookingsPage: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500 font-medium">
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500 dark:text-[#8fb0cf] font-medium">
                         {b.customerID?.email && (
                           <a href={`mailto:${b.customerID.email}`} className="inline-flex items-center gap-1 hover:text-blue-600 hover:underline">
-                            <Mail size={12} className="text-slate-400" /> {b.customerID.email}
+                            <Mail size={12} className="text-slate-400 dark:text-[#6f93b8]" /> {b.customerID.email}
                           </a>
                         )}
                         {b.customerID?.phone && (
                           <>
                             <a href={`tel:${digitsOnly(b.customerID.phone)}`} className="inline-flex items-center gap-1 hover:text-blue-600 hover:underline">
-                              <Phone size={12} className="text-slate-400" /> {b.customerID.phone}
+                              <Phone size={12} className="text-slate-400 dark:text-[#6f93b8]" /> {b.customerID.phone}
                             </a>
                             <a
                               href={`https://wa.me/91${digitsOnly(b.customerID.phone)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 hover:underline font-semibold"
+                              className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:underline font-semibold"
                             >
                               <WhatsAppIcon size={12} /> WhatsApp
                             </a>
@@ -578,27 +589,27 @@ const BookingsPage: React.FC = () => {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 mt-3">
-                        <span className="inline-flex items-center gap-1 text-sm font-black px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
+                        <span className="inline-flex items-center gap-1 text-sm font-black px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40">
                           <IndianRupee size={13} />
                           {(b.freightCharge || b.invoiceValue || 0).toLocaleString('en-IN')}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                          <MapPin size={12} className="text-slate-400" /> {b.pickupPincode} <ArrowRight size={10} className="text-slate-300" /> {b.dropPincode}
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-[#8fb0cf] bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c] rounded-xl px-3 py-1.5">
+                          <MapPin size={12} className="text-slate-400 dark:text-[#6f93b8]" /> {b.pickupPincode} <ArrowRight size={10} className="text-slate-300 dark:text-[#5c7c9a]" /> {b.dropPincode}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                          <Package size={12} className="text-slate-400" /> {b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'} · {b.totalChargeableWeight} kg
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-[#8fb0cf] bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c] rounded-xl px-3 py-1.5">
+                          <Package size={12} className="text-slate-400 dark:text-[#6f93b8]" /> {b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'} · {b.totalChargeableWeight} kg
                         </span>
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                          <Clock size={12} className="text-slate-400" /> {b.pickupDate || '-'} {b.pickupTime || ''}
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-[#8fb0cf] bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c] rounded-xl px-3 py-1.5">
+                          <Clock size={12} className="text-slate-400 dark:text-[#6f93b8]" /> {b.pickupDate || '-'} {b.pickupTime || ''}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-[#1d3f5c]">
                     <button
                       onClick={() => setViewingBooking(b)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-[#8fb0cf] bg-slate-50 dark:bg-[#08141f] border border-slate-200 dark:border-[#1d3f5c] rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
                     >
                       <Eye size={13} /> View Details
                     </button>
@@ -606,7 +617,7 @@ const BookingsPage: React.FC = () => {
                       <button
                         onClick={() => setAckStatus(b._id, 'acknowledged')}
                         disabled={actingOn === b._id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
                       >
                         <ThumbsUp size={13} /> Acknowledge
                       </button>
@@ -623,7 +634,7 @@ const BookingsPage: React.FC = () => {
                         <button
                           onClick={() => handleDeclineClick(b)}
                           disabled={actingOn === b._id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
                         >
                           <XCircle size={13} /> Decline
                         </button>
@@ -634,7 +645,7 @@ const BookingsPage: React.FC = () => {
                       which tab it's viewed from, full-width so it always reads
                       as its own line rather than trailing after the buttons. */}
                   {b.transporterAckStatus === 'declined' && b.transporterDeclineReason && (
-                    <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40 rounded-lg px-3 py-2">
                       <ClipboardList size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
                       <span><span className="font-bold">Decline reason:</span> {b.transporterDeclineReason}</span>
                     </div>
@@ -648,11 +659,11 @@ const BookingsPage: React.FC = () => {
                 {/* Tabs — Upcoming vs History (confirmed+declined together),
                     with a notification dot for pending bookings still inside
                     the "New" window. */}
-                <div className="flex items-center gap-2 mb-5 border-b border-slate-200">
+                <div className="flex items-center gap-2 mb-5 border-b border-slate-200 dark:border-[#1d3f5c]">
                   <button
                     onClick={() => setActiveTab('upcoming')}
                     className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${
-                      activeTab === 'upcoming' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+                      activeTab === 'upcoming' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-400 dark:text-[#6f93b8] hover:text-slate-600'
                     }`}
                   >
                     Upcoming ({groupedBookings.upcoming.length})
@@ -665,7 +676,7 @@ const BookingsPage: React.FC = () => {
                   <button
                     onClick={() => setActiveTab('history')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${
-                      activeTab === 'history' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+                      activeTab === 'history' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-400 dark:text-[#6f93b8] hover:text-slate-600'
                     }`}
                   >
                     History ({groupedBookings.history.length})
@@ -676,13 +687,13 @@ const BookingsPage: React.FC = () => {
                   groupedBookings.upcoming.length > 0 ? (
                     <div className="space-y-3">{groupedBookings.upcoming.map(renderCard)}</div>
                   ) : (
-                    <p className="text-sm text-slate-400 italic">Nothing needs your response right now.</p>
+                    <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">Nothing needs your response right now.</p>
                   )
                 ) : (
                   groupedBookings.history.length > 0 ? (
                     <div className="space-y-3">{groupedBookings.history.map(renderCard)}</div>
                   ) : (
-                    <p className="text-sm text-slate-400 italic">No confirmed or declined bookings yet.</p>
+                    <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">No confirmed or declined bookings yet.</p>
                   )
                 )}
               </div>
@@ -693,22 +704,43 @@ const BookingsPage: React.FC = () => {
           {/* Sidebar: go-public status + quick actions */}
           <aside className="space-y-4 lg:sticky lg:top-24">
             <GoPublicCard sidebar />
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-2">
-              <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400">Quick actions</p>
+            {/* Your Setup — routes covered, rate card status, fleet size (ported from main's Dashboard) */}
+            <div className="bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-100 dark:border-[#1d3f5c] shadow-sm p-4">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-[#6f93b8] mb-3">Your Setup</p>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><Route size={11} /> Routes</div>
+                  <p className="text-base font-black text-slate-900 dark:text-white">{priceSummary?.hasPriceCard ? priceSummary.destinationRateCount ?? 0 : '—'}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><ClipboardList size={11} /> Rate card</div>
+                  <p className="text-base font-black text-slate-900 dark:text-white">{priceSummary === null ? '—' : priceSummary.hasPriceCard ? 'Set up' : 'Not started'}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><Truck size={11} /> Fleet</div>
+                  <p className="text-base font-black text-slate-900 dark:text-white">{(user as any)?.noOfTrucks ? `${(user as any).noOfTrucks} trucks` : '—'}</p>
+                </div>
+              </div>
+              <Link to="/profile/rates" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                <Route size={13} /> {priceSummary?.hasPriceCard ? 'Edit routes & rates' : 'Add your routes & rates'}
+              </Link>
+            </div>
+            <div className="bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-100 dark:border-[#1d3f5c] shadow-sm p-2">
+              <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-[#6f93b8]">Quick actions</p>
               {[
-                { to: '/profile/bids', title: 'Available Bids', sub: 'Bids matching your service zones', icon: <Bell className="w-4 h-4" />, tone: 'bg-amber-100 text-amber-600' },
-                { to: '/profile/rates', title: 'Lane Rates', sub: 'Review your saved rates', icon: <Route className="w-4 h-4" />, tone: 'bg-indigo-100 text-indigo-600' },
-                { to: '/profile', title: 'My Profile', sub: 'Company details and KYC', icon: <UserCog className="w-4 h-4" />, tone: 'bg-emerald-100 text-emerald-600' },
+                { to: '/profile/bids', title: 'Available Bids', sub: 'Bids matching your service zones', icon: <Bell className="w-4 h-4" />, tone: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' },
+                { to: '/profile/rates', title: 'Lane Rates', sub: 'Review your saved rates', icon: <Route className="w-4 h-4" />, tone: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' },
+                { to: '/profile', title: 'My Profile', sub: 'Company details and KYC', icon: <UserCog className="w-4 h-4" />, tone: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' },
               ].map((l) => (
-                <Link key={l.to} to={l.to} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                <Link key={l.to} to={l.to} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-9 h-9 flex items-center justify-center rounded-xl flex-none ${l.tone}`}>{l.icon}</div>
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-800">{l.title}</p>
-                      <p className="text-xs text-slate-400 truncate">{l.sub}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-white">{l.title}</p>
+                      <p className="text-xs text-slate-400 dark:text-[#6f93b8] truncate">{l.sub}</p>
                     </div>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-slate-300 flex-none" />
+                  <ArrowRight className="w-4 h-4 text-slate-300 dark:text-[#5c7c9a] flex-none" />
                 </Link>
               ))}
             </div>
