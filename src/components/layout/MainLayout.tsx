@@ -2,7 +2,6 @@
 import React, { ReactNode } from 'react';
 import Header from './Header';
 import Footer from './Footer'; // NEW: Import Footer
-import KycNudgeBanner from '../KycNudgeBanner';
 import TransporterAssistant from '../TransporterAssistant';
 import { useAuth } from '../../hooks/useAuth';
 import IframeNav from './IframeNav';
@@ -45,7 +44,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, compact, fillScreen }
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      <KycNudgeBanner />
+      {/* KycNudgeBanner is intentionally not rendered: KYC applies to NEW transporters only. Existing accounts are
+          'exempt' and see no KYC prompt at all. The component is kept (unused) in case a soft nudge is wanted later. */}
       <Header compact={compact} />
       <main className={`flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-2' : 'py-8'} w-full ${fillScreen ? 'min-h-[calc(100vh-5rem)]' : ''}`}>
         {children}
