@@ -6,21 +6,32 @@ interface ZoneRateMatrixProps {
   zoneLabels: string[];
   zoneRates: number[][];
   onRatesChange: (rates: number[][]) => void;
+  // Zones only ever get ADDED to zoneLabels (every document upload unions its
+  // zone labels into what's already there — see AddPrice.tsx's
+  // mergeZonesInto) — optional so callers that don't manage zone identity
+  // (e.g. a future read-only usage) aren't forced to wire it, but every real
+  // usage today passes it so a bad AI-read zone or an unwanted duplicate can
+  // actually be removed instead of being stuck forever.
+  onRemoveZone?: (index: number) => void;
   title?: string;
   subtitle?: React.ReactNode;
-  // When true, origin rows with no real (non-zero) rate anywhere are hidden by
-  // default — e.g. a rate card only covered one origin zone, so 15 empty rows
-  // would otherwise just be visual noise. A toggle lets the user reveal the
-  // rest to add rates manually; it's never permanent — nothing is deleted.
-  hideEmptyRowsByDefault?: boolean;
 }
 
-export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, title, subtitle, hideEmptyRowsByDefault }: ZoneRateMatrixProps) {
+export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, onRemoveZone, title, subtitle }: ZoneRateMatrixProps) {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [pasteData, setPasteData] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [pastePreview, setPastePreview] = useState<number[][] | null>(null);
-  const [showAllRows, setShowAllRows] = useState(!hideEmptyRowsByDefault);
+  // Every zone that's actually known (mentioned anywhere — via an extraction,
+  // an upload, or typed in) shows by default, blank cells and all, on BOTH
+  // its row and column — a zone the app confirmed exists but hasn't quoted a
+  // rate for yet is exactly the kind of gap this whole matrix exists to
+  // surface. Hiding is something the user opts INTO, not a default they have
+  // to opt out of. Reworked live 2026-09-22 after: "if certain zones are
+  // mentioned and are there even if there price isnt there show them but on
+  // both sides row and columns as blacks needing to be filled unless ofc
+  // user wants them gone".
+  const [showAllRows, setShowAllRows] = useState(true);
 
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
@@ -64,35 +75,57 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
     onRatesChange(next);
   };
 
-  // Rows with no real rate anywhere are hidden by default when
-  // hideEmptyRowsByDefault is set (only makes sense for a partial AI
-  // extraction — a fully-manual, all-zero grid falls back to showing
-  // everything so there's always at least one row to type into).
-  const visibleRowIndices = useMemo(() => {
+  // Only computed/used once the user explicitly clicks "Hide empty zones" —
+  // showAllRows starts true, so by default every zone shows. A fully-empty
+  // grid (nothing entered anywhere yet) falls back to showing everything
+  // regardless, so hiding can never leave zero rows to type into.
+  //
+  // Row and column visibility are the SAME decision, applied together: a
+  // zone that's genuinely known (has a rate somewhere, in either
+  // direction) shows up fully — both its row and its column. An earlier
+  // version hid empty ROWS only, so a zone like NE1 (known as a
+  // destination — some other zone quotes a rate to it — but with no known
+  // outgoing rate of its own) showed up as a column with no matching row,
+  // reading as broken/inconsistent. Reported live 2026-09-22: "why is NE1
+  // being shown in columns if its not in rows... if its intentional maybe
+  // dont show the blank rows that are not needed or there? if they there
+  // show them 100%".
+  const activeZoneIndices = useMemo(() => {
     if (showAllRows) return zoneLabels.map((_, i) => i);
-    const withData = zoneRates
+    const withData = zoneLabels
       .map((_, i) => i)
-      .filter(i => (zoneRates[i] || []).some(v => v > 0));
+      .filter(i => {
+        const asOrigin = (zoneRates[i] || []).some(v => v > 0);
+        const asDestination = zoneRates.some(row => (row?.[i] || 0) > 0);
+        return asOrigin || asDestination;
+      });
     return withData.length > 0 ? withData : zoneLabels.map((_, i) => i);
   }, [showAllRows, zoneRates, zoneLabels]);
 
-  const handleKeyDown = (i: number, j: number, e: KeyboardEvent<HTMLInputElement>) => {
-    const cols = zoneLabels.length;
+  // Independent of showAllRows — whether the "Hide empty zones" toggle has
+  // anything to actually do, so it isn't offered when every zone already has
+  // real data.
+  const hasEmptyZones = useMemo(() => zoneLabels.some((_, i) => {
+    const asOrigin = (zoneRates[i] || []).some(v => v > 0);
+    const asDestination = zoneRates.some(row => (row?.[i] || 0) > 0);
+    return !asOrigin && !asDestination;
+  }), [zoneRates, zoneLabels]);
 
+  const handleKeyDown = (i: number, j: number, e: KeyboardEvent<HTMLInputElement>) => {
     let nextI = i;
     let nextJ = j;
 
     switch (e.key) {
       case 'ArrowUp': {
-        const pos = visibleRowIndices.indexOf(i);
-        nextI = visibleRowIndices[Math.max(0, pos - 1)] ?? i;
+        const pos = activeZoneIndices.indexOf(i);
+        nextI = activeZoneIndices[Math.max(0, pos - 1)] ?? i;
         e.preventDefault();
         break;
       }
       case 'ArrowDown':
       case 'Enter': {
-        const pos = visibleRowIndices.indexOf(i);
-        nextI = visibleRowIndices[Math.min(visibleRowIndices.length - 1, pos + 1)] ?? i;
+        const pos = activeZoneIndices.indexOf(i);
+        nextI = activeZoneIndices[Math.min(activeZoneIndices.length - 1, pos + 1)] ?? i;
         e.preventDefault();
         break;
       }
@@ -100,14 +133,21 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
       // the old caret-position checks never fired. Left/Right always move
       // a cell (the value is selected on arrival, so typing overwrites it).
       case 'ArrowLeft':
-        nextJ = Math.max(0, j - 1);
-        e.preventDefault();
+        if ((e.target as HTMLInputElement).selectionStart === 0) {
+          // j is an absolute zoneLabels index, but only activeZoneIndices
+          // columns are actually rendered — step to the previous VISIBLE
+          // column, not just j-1 (which could land on a hidden one).
+          const posL = activeZoneIndices.indexOf(j);
+          nextJ = activeZoneIndices[Math.max(0, posL - 1)] ?? j;
+          e.preventDefault();
+        }
         break;
       case 'ArrowRight':
-      case 'Tab':
-        if (e.key === 'Tab') return;
-        nextJ = Math.min(cols - 1, j + 1);
-        e.preventDefault();
+        if ((e.target as HTMLInputElement).selectionStart === (e.target as HTMLInputElement).value.length) {
+          const posR = activeZoneIndices.indexOf(j);
+          nextJ = activeZoneIndices[Math.min(activeZoneIndices.length - 1, posR + 1)] ?? j;
+          e.preventDefault();
+        }
         break;
       default:
         return;
@@ -120,45 +160,53 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
   };
 
   const parsePastedData = useCallback((text: string): { data: number[][], error: string | null } => {
-    const lines = text.trim().split(/\r?\n/).filter(line => line.trim());
+    const rawLines = text.trim().split(/\r?\n/).filter(line => line.trim());
 
-    if (lines.length === 0) {
+    if (rawLines.length === 0) {
       return { data: [], error: "No data found" };
     }
 
-    const firstLine = lines[0];
-    const delimiter = firstLine.includes('\t') ? '\t' : ',';
+    const delimiter = rawLines[0].includes('\t') ? '\t' : ',';
 
-    const parsedData: number[][] = [];
-    let hasHeaders = false;
+    // Trim trailing empty cells only (a common Excel artifact from selecting
+    // one extra blank column/row when copying) — never interior ones, since
+    // an interior blank cell legitimately means "0", not "not pasted".
+    const splitLine = (line: string) => {
+      const cells = line.split(delimiter).map(c => c.trim());
+      while (cells.length > 0 && cells[cells.length - 1] === '') cells.pop();
+      return cells;
+    };
+    let rows = rawLines.map(splitLine).filter(r => r.length > 0);
 
-    const firstRowCells = firstLine.split(delimiter).map(c => c.trim());
-    const firstCellIsEmpty = firstRowCells[0] === '' || firstRowCells[0].toLowerCase() === 'from' || firstRowCells[0].toLowerCase().includes('to');
-
-    if (firstCellIsEmpty || zoneLabels.some(z => firstRowCells.includes(z))) {
-      hasHeaders = true;
+    // Detect a genuine header ROW by whether most of its cells fail to parse
+    // as numbers — NOT by checking only whether row 0's first cell looks like
+    // a zone name. The old check treated ANY row starting with a real zone
+    // label as a header, which is exactly the normal shape of a matrix
+    // copied out of Excel WITH row labels but no header row — it silently
+    // dropped the first real data row every time, producing a row-count
+    // mismatch (and via startCol on every row, corrupted the rest too).
+    const isHeaderRow = (cells: string[]) => {
+      const rest = cells.length > 1 ? cells.slice(1) : cells;
+      const numericCount = rest.filter(c => c !== '' && !isNaN(parseFloat(c))).length;
+      return numericCount < rest.length / 2;
+    };
+    if (rows.length > 0 && isHeaderRow(rows[0])) {
+      rows = rows.slice(1);
     }
 
-    const startRow = hasHeaders ? 1 : 0;
-
-    for (let i = startRow; i < lines.length; i++) {
-      const cells = lines[i].split(delimiter).map(c => c.trim());
-      const startCol = hasHeaders ? 1 : 0;
-
+    // Strip a leading row-label cell PER ROW, independently, instead of one
+    // blanket hasHeaders decision applied to every row — a cell that doesn't
+    // parse as a number is a zone name, not a rate, regardless of what row
+    // 0 looked like.
+    const parsedData: number[][] = rows.map(cells => {
+      const startCol = cells.length > 0 && isNaN(parseFloat(cells[0])) ? 1 : 0;
       const row: number[] = [];
       for (let j = startCol; j < cells.length; j++) {
         const val = parseFloat(cells[j]);
-        if (isNaN(val)) {
-          row.push(0);
-        } else {
-          row.push(Math.min(Math.max(val, 0), CELL_MAX));
-        }
+        row.push(isNaN(val) ? 0 : Math.min(Math.max(val, 0), CELL_MAX));
       }
-
-      if (row.length > 0) {
-        parsedData.push(row);
-      }
-    }
+      return row;
+    });
 
     const expectedRows = zoneLabels.length;
     const expectedCols = zoneLabels.length;
@@ -243,8 +291,17 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
             {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
           </div>
         )}
-        <div className="flex flex-wrap gap-1.5 flex-shrink-0 ml-auto">
-          {hideEmptyRowsByDefault && visibleRowIndices.length < zoneLabels.length && (
+        {/* flex-shrink-0 here forbade the browser from ever compressing this
+            group below its natural (every button on one row) width, so
+            flex-wrap never actually got a chance to wrap anything — the row
+            just overflowed the card/screen instead, clipping "Copy All"/
+            "Clear All". Reported live 2026-09-22 with a screenshot, surfaced
+            by the new zone-upload feature making a 7-zone "Show all 7
+            zones" button (long text) reachable more often. min-w-0 lets it
+            actually shrink to the available width so flex-wrap can do its
+            job. */}
+        <div className="flex flex-wrap gap-1.5 min-w-0 ml-auto">
+          {!showAllRows && (
             <button
               type="button"
               onClick={() => setShowAllRows(true)}
@@ -254,7 +311,7 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
               Show all {zoneLabels.length} zones
             </button>
           )}
-          {hideEmptyRowsByDefault && showAllRows && (
+          {showAllRows && hasEmptyZones && (
             <button
               type="button"
               onClick={() => setShowAllRows(false)}
@@ -464,25 +521,43 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
               <th className="p-2 font-semibold text-slate-600 text-left border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-16">
                 From\To
               </th>
-              {zoneLabels.map(label => (
+              {activeZoneIndices.map(j => (
                 <th
-                  key={label}
-                  className="p-2 text-center font-semibold text-slate-700 border-r border-slate-200 last:border-r-0"
+                  key={zoneLabels[j]}
+                  className="p-1 text-center font-semibold text-slate-600 border-r border-slate-200 last:border-r-0"
                 >
-                  {label}
+                  {zoneLabels[j]}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="bg-white">
-            {visibleRowIndices.map(i => {
+            {activeZoneIndices.map(i => {
               const row = zoneRates[i];
               return (
               <tr key={i} className="border-t border-slate-200">
-                <td className="p-2 font-bold text-slate-800 bg-slate-50 sticky left-0 z-10 border-r border-slate-200 truncate">
-                  {zoneLabels[i]}
+                <td className="p-1 font-semibold text-slate-700 bg-slate-50 sticky left-0 z-10 border-r border-slate-200">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="truncate">{zoneLabels[i]}</span>
+                    {onRemoveZone && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Remove zone "${zoneLabels[i]}"? This deletes its rates in both directions.`)) {
+                            onRemoveZone(i);
+                          }
+                        }}
+                        className="ml-auto flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors"
+                        aria-label={`Remove zone ${zoneLabels[i]}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
                 </td>
-                {row.map((val, j) => (
+                {activeZoneIndices.map(j => {
+                  const val = row[j];
+                  return (
                   <td
                     key={j}
                     className={`p-0.5 border-r border-slate-100 last:border-r-0 ${
@@ -516,7 +591,8 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, t
                       `}
                     />
                   </td>
-                ))}
+                  );
+                })}
               </tr>
               );
             })}

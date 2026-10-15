@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './hooks/useAuth'; // Ensure useAuth.tsx is correct
-import { Toaster } from 'react-hot-toast';
+import { Toaster, ToastBar, toast } from 'react-hot-toast';
+import { motion } from 'framer-motion';
 import MainLayout from './components/layout/MainLayout'; // Assuming App.tsx is in src/
 import LandingPage from './pages/LandingPage';
 import SignUpPage from './pages/SignUpPage';
@@ -31,6 +32,7 @@ import { captureReferralFromUrl } from './utils/referral';
 captureReferralFromUrl();
 import CompleteTransporterProfileModal from './components/CompleteTransporterProfileModal';
 import { useNeedsTransporterProfileGate } from './hooks/useTransporterProfileGate';
+import { useEmbeddedTheme } from './hooks/useEmbeddedTheme';
 
 
 
@@ -98,11 +100,36 @@ const HostNavigationListener: React.FC = () => {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function App() {
+  useEmbeddedTheme();
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <AuthProvider> {/* AuthProvider now wraps everything */}
         <Router>
-        <Toaster />
+        {/* react-hot-toast has no built-in swipe-to-dismiss — a validation
+            error toast (e.g. AddPrice.tsx's "Please fill in: ...") otherwise
+            only goes away on its own timer. Reported live 2026-09-22: "this
+            warning i cant remove by swiping". Wrapping each toast in a
+            draggable div adds that without touching the toast's own look —
+            ToastBar renders the exact same content/styling as plain
+            <Toaster/> did. touchAction: 'pan-y' keeps page scroll working;
+            only horizontal drag is captured for the swipe gesture itself. */}
+        <Toaster>
+          {(t) => (
+            <motion.div
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.85}
+              onDragEnd={(_, info) => {
+                if (Math.abs(info.offset.x) > 80 || Math.abs(info.velocity.x) > 500) {
+                  toast.dismiss(t.id);
+                }
+              }}
+              style={{ touchAction: 'pan-y' }}
+            >
+              <ToastBar toast={t} />
+            </motion.div>
+          )}
+        </Toaster>
         <HostNavigationListener />
         <TransporterProfileGate />
         <ReferralAttachGate />
