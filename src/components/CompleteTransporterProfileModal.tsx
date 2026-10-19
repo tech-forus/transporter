@@ -624,6 +624,14 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                   </div>
                 </div>
               ) : (
+              <>
+              {/* Way back from the map to the GST address, so "Edit on map" is never a one-way door. */}
+              {IS_WEB && gstAddress && editingAddress && (
+                <button type="button" onClick={() => setEditingAddress(false)}
+                  className="mb-3 text-sm font-semibold text-amber-600 hover:text-amber-700">
+                  ← Use my GST address instead
+                </button>
+              )}
               <AddressLocationPicker
                 value={{
                   flatNumber: watch('flatNumber'),
@@ -658,6 +666,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                   if (r.state && !watch('state')) setValue('state', r.state);
                 }}
               />
+              </>
               )}
             </div>
           )}
