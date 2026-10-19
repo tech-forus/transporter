@@ -57,11 +57,12 @@ const KycGate: React.FC<PropsWithChildren> = ({ children }) => {
         <div className="pointer-events-none select-none blur-sm" aria-hidden="true">
           {children}
         </div>
-        {/* Website: m-auto (not items-center) centers when the card fits, otherwise overflows downward only, so
-            the page (and the host iframe, which sizes to it) grows to fit instead of cutting off the top and the
-            buttons. The app keeps its original centering. */}
-        <div className={`absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] flex p-4 z-40 ${IS_WEB ? '' : 'items-center justify-center'}`}>
-          <div className={IS_WEB ? 'm-auto flex justify-center w-full' : 'contents'}>
+        {/* Website: pinned near the top and centered horizontally. Vertical centering over a tall dashboard put the
+            card half a page down; top-aligned it is in view on arrival, and a taller card only grows downward, so the
+            page (and the host iframe, which sizes to it) grows to fit instead of cutting off the top. The app keeps
+            its original centering. */}
+        <div className={`absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] flex p-4 z-40 ${IS_WEB ? 'items-start justify-center pt-6' : 'items-center justify-center'}`}>
+          <div className={IS_WEB ? 'flex justify-center w-full' : 'contents'}>
             <KycWizardCard onComplete={() => { setCheck('loading'); checkStatus(); }} />
           </div>
         </div>
