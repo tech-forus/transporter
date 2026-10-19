@@ -23,6 +23,7 @@ import { TermsModal } from '../components/TermsModal';
 import IndividualLaneRatesStep, { type LaneRate } from '../components/IndividualLaneRatesStep';
 import AddressAutosuggest from '../components/AddressAutosuggest';
 import AddressLocationPicker, { type AddressLocationValue } from '../components/AddressLocationPicker';
+import { IS_WEB } from '../config/host';
 import OfficeAddressField from '../components/OfficeAddressField';
 import { clearPricingDraft, preparePricingForNewExtraction } from '../utils/pricingDraft';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
@@ -2226,7 +2227,7 @@ export default function SignUpPage() {
   const pendingSubmitOverridesRef = useRef<Parameters<typeof submitTransporterData>[0]>(undefined);
 
   const requireAddressThenSubmit = async (overrides?: Parameters<typeof submitTransporterData>[0]) => {
-    if (formData.lat && (formData.flatNumber || '').trim()) {
+    if (formData.lat && (IS_WEB || (formData.flatNumber || '').trim())) { // Flat No. optional on the website only
       await submitTransporterData(overrides);
       return;
     }
@@ -2235,7 +2236,7 @@ export default function SignUpPage() {
   };
 
   const handleAddressGateConfirm = async () => {
-    if (!formData.lat || !(formData.flatNumber || '').trim()) {
+    if (!formData.lat || (!IS_WEB && !(formData.flatNumber || '').trim())) {
       toast.error('Please confirm your office location first.');
       return;
     }
@@ -4113,7 +4114,7 @@ Notes:
                 <button
                   type="button"
                   onClick={handleAddressGateConfirm}
-                  disabled={isLoading || !formData.lat || !(formData.flatNumber || '').trim()}
+                  disabled={isLoading || !formData.lat || (!IS_WEB && !(formData.flatNumber || '').trim())}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
                 >
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}

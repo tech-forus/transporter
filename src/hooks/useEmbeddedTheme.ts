@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { IS_WEB } from "../config/host";
 
 // When embedded in the FreightCompare parent app's iframe, this app has no
 // idea the host is in dark mode — it's a separate document/origin, so the
@@ -18,6 +19,8 @@ export function useEmbeddedTheme() {
 
     const applyTheme = (theme: string) => {
       document.documentElement.classList.toggle('dark', theme === 'dark');
+      // Full-coverage dark theme (index.css) is website-only; the app keeps the per-page dark: styles it had.
+      document.documentElement.classList.toggle('web-dark', IS_WEB && theme === 'dark');
     };
 
     const handler = (event: MessageEvent) => {

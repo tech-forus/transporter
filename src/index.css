@@ -39,3 +39,76 @@ textarea:-webkit-autofill {
   caret-color: #0f172a;
   transition: background-color 5000s ease-in-out 0s;
 }
+
+/* ── Website dark theme (html.web-dark: added next to .dark by useEmbeddedTheme on the website host only; the app keeps its look) ──
+   Most portal screens were built light-only. Instead of hand-adding dark: variants to every element,
+   this maps the common light utilities onto the portal's existing dark palette (#08141f page, #0d2438
+   surface, #1d3f5c border, #8fb0cf / #6f93b8 text — the same values Dashboard/Profile already use).
+   It lives in @layer base: `.web-dark .x` (0,2,0) beats the plain light utility (0,1,0), while any explicit
+   `dark:` utility on an element (also 0,2,0 but emitted later, in the utilities layer) still wins. */
+@layer base {
+  html.web-dark { color-scheme: dark; background-color: #08141f; }
+  html.web-dark body { background-color: #08141f; color: #c9dbec; }
+
+  /* Surfaces */
+  .web-dark .bg-white, .web-dark .bg-white\/90, .web-dark .bg-white\/70 { background-color: #0d2438; }
+  .web-dark .bg-slate-50, .web-dark .bg-slate-50\/80, .web-dark .bg-slate-50\/50, .web-dark .bg-slate-50\/40, .web-dark .bg-gray-50 { background-color: #0b1d2e; }
+  .web-dark .bg-slate-100, .web-dark .bg-gray-100 { background-color: #12304a; }
+  .web-dark .bg-slate-200, .web-dark .bg-gray-200 { background-color: #1d3f5c; }
+  .web-dark .hover\:bg-white:hover, .web-dark .hover\:bg-slate-50:hover, .web-dark .hover\:bg-slate-50\/60:hover,
+  .web-dark .hover\:bg-slate-100:hover, .web-dark .hover\:bg-gray-50:hover, .web-dark .hover\:bg-gray-100:hover { background-color: #12304a; }
+  .web-dark .hover\:bg-slate-200:hover { background-color: #1d3f5c; }
+
+  /* Text */
+  .web-dark .text-slate-900, .web-dark .text-slate-800, .web-dark .text-gray-900, .web-dark .text-gray-800 { color: #e6f0fa; }
+  .web-dark .text-slate-700, .web-dark .text-gray-700 { color: #c9dbec; }
+  .web-dark .text-slate-600, .web-dark .text-gray-600 { color: #a6c1db; }
+  .web-dark .text-slate-500, .web-dark .text-gray-500 { color: #8fb0cf; }
+  .web-dark .text-slate-400, .web-dark .text-gray-400 { color: #6f93b8; }
+  .web-dark .text-slate-300, .web-dark .text-gray-300 { color: #5c7c9a; }
+  .web-dark ::placeholder { color: #5c7c9a; }
+
+  /* Borders, dividers, rings */
+  .web-dark .border-slate-100, .web-dark .border-slate-200, .web-dark .border-slate-200\/60, .web-dark .border-gray-100, .web-dark .border-gray-200,
+  .web-dark .divide-slate-100 > * + *, .web-dark .divide-slate-200 > * + *, .web-dark .divide-gray-100 > * + * { border-color: #1d3f5c; }
+  .web-dark .border-slate-300, .web-dark .border-gray-300 { border-color: #2a5275; }
+  .web-dark .ring-slate-200 { --tw-ring-color: #1d3f5c; }
+
+  /* Pale status tints → translucent tints that read on dark */
+  .web-dark .bg-blue-50, .web-dark .bg-blue-50\/40, .web-dark .bg-blue-50\/60, .web-dark .bg-blue-100, .web-dark .bg-sky-50,
+  .web-dark .hover\:bg-blue-50:hover, .web-dark .hover\:bg-blue-50\/30:hover, .web-dark .hover\:bg-blue-100:hover { background-color: rgba(59, 130, 246, 0.14); }
+  .web-dark .bg-indigo-50, .web-dark .bg-violet-50, .web-dark .bg-purple-50 { background-color: rgba(129, 140, 248, 0.14); }
+  .web-dark .bg-amber-50, .web-dark .bg-amber-50\/70, .web-dark .bg-amber-100, .web-dark .bg-yellow-50, .web-dark .bg-orange-50 { background-color: rgba(245, 158, 11, 0.14); }
+  .web-dark .bg-amber-200 { background-color: rgba(245, 158, 11, 0.3); }
+  .web-dark .bg-emerald-50, .web-dark .bg-green-50, .web-dark .bg-emerald-100, .web-dark .bg-green-100 { background-color: rgba(16, 185, 129, 0.14); }
+  .web-dark .bg-red-50, .web-dark .bg-red-100, .web-dark .bg-rose-50, .web-dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.14); }
+  .web-dark .border-blue-100, .web-dark .border-blue-200, .web-dark .ring-blue-200 { border-color: rgba(59, 130, 246, 0.35); --tw-ring-color: rgba(59, 130, 246, 0.35); }
+  .web-dark .border-amber-200, .web-dark .border-amber-300, .web-dark .ring-amber-200 { border-color: rgba(245, 158, 11, 0.35); --tw-ring-color: rgba(245, 158, 11, 0.35); }
+  .web-dark .border-emerald-200, .web-dark .border-green-200, .web-dark .ring-emerald-200 { border-color: rgba(16, 185, 129, 0.35); --tw-ring-color: rgba(16, 185, 129, 0.35); }
+  .web-dark .border-red-100, .web-dark .border-red-200, .web-dark .ring-red-200 { border-color: rgba(239, 68, 68, 0.35); --tw-ring-color: rgba(239, 68, 68, 0.35); }
+
+  /* Coloured text: the dark shades used on pale tints are unreadable on navy, lift them */
+  .web-dark .text-blue-600, .web-dark .hover\:text-blue-600:hover, .web-dark .text-blue-500 { color: #60a5fa; }
+  .web-dark .text-blue-700, .web-dark .text-blue-800, .web-dark .hover\:text-blue-700:hover, .web-dark .hover\:text-blue-800:hover { color: #93c5fd; }
+  .web-dark .text-indigo-600, .web-dark .text-violet-600 { color: #a5b4fc; }
+  .web-dark .text-indigo-700, .web-dark .text-indigo-900, .web-dark .text-purple-700 { color: #c4b5fd; }
+  .web-dark .text-amber-600 { color: #fbbf24; }
+  .web-dark .text-amber-700, .web-dark .text-amber-800, .web-dark .text-amber-900, .web-dark .text-amber-900\/80, .web-dark .text-amber-950, .web-dark .hover\:text-amber-950:hover { color: #fcd34d; }
+  .web-dark .text-emerald-600, .web-dark .text-green-600 { color: #34d399; }
+  .web-dark .text-emerald-700, .web-dark .text-emerald-900, .web-dark .text-green-700 { color: #6ee7b7; }
+  .web-dark .text-red-600, .web-dark .hover\:text-red-600:hover, .web-dark .text-red-500 { color: #f87171; }
+  .web-dark .text-red-700, .web-dark .hover\:text-red-700:hover { color: #fca5a5; }
+
+  /* Autofill would otherwise paint a white box inside dark inputs */
+  .web-dark input:-webkit-autofill, .web-dark select:-webkit-autofill, .web-dark textarea:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #0d2438 inset !important;
+    box-shadow: 0 0 0 1000px #0d2438 inset !important;
+    -webkit-text-fill-color: #e6f0fa !important;
+    caret-color: #e6f0fa;
+  }
+}
+
+/* Embedded in the host iframe, a full-viewport min-height means "at least as tall as the iframe", which the
+   iframe then grows to match: it can never shrink, and short pages show a large empty gap before the host
+   footer. Content decides the height there instead. */
+.embedded-web .min-h-screen { min-height: 0; }

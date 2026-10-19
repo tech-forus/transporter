@@ -5,6 +5,9 @@ import Footer from './Footer'; // NEW: Import Footer
 import TransporterAssistant from '../TransporterAssistant';
 import { useAuth } from '../../hooks/useAuth';
 import IframeNav from './IframeNav';
+import { useLocation } from 'react-router-dom';
+import { useReportIframeHeight } from '../../hooks/useReportIframeHeight';
+import { IS_WEB } from '../../config/host';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -19,6 +22,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, compact, fillScreen }
   const { isAuthenticated } = useAuth();
   // Detect if the app is currently embedded inside an iframe
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+  // Website only: every page reports its height to the host iframe from here, so a page that doesn't call the hook itself
+  // (Fleet, Go Public, Invite, Rates editor, ...) no longer inherits the previous page's height. No-op standalone.
+  const { pathname } = useLocation();
+  useReportIframeHeight([pathname], IS_WEB);
 
   if (isIframe) {
     // No min-h-screen and no extra bottom padding here, deliberately — both
@@ -35,7 +42,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, compact, fillScreen }
     // content in the rare case a page's content runs right to the bottom is
     // a far smaller problem than that.
     return (
-      <div className="bg-transparent w-full">
+      <div className={`${IS_WEB ? 'embedded-web ' : ''}bg-transparent w-full`}>
         {children}
         <IframeNav />
       </div>

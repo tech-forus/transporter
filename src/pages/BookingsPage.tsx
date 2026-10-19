@@ -17,6 +17,12 @@ import {
   TrendingUp, ClipboardList, Route, ArrowRight, UserCog, Truck,
 } from 'lucide-react';
 import GoPublicCard, { PUBLIC_STATUS_REFRESH_EVENT } from '../components/GoPublicCard';
+import { IS_WEB } from '../config/host';
+
+// Website only. GST returns registered names in ALL CAPS ("SHIPSHOPY PRIVATE LIMITED"); show them in title case for reading.
+// Short tokens (TCI, DHL, PVT, LTD, CO.) stay as typed so acronyms survive. Names with any lowercase are left alone.
+const displayCompanyName = (name: string) =>
+  !IS_WEB || /[a-z]/.test(name) ? name : name.replace(/\S+/g, (w) => (w.length <= 3 ? w : w[0] + w.slice(1).toLowerCase()));
 import CopyableAddress from '../components/CopyableAddress';
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE_URL } from '../config/apiConfig';
@@ -461,7 +467,7 @@ const BookingsPage: React.FC = () => {
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Welcome back{(user as any)?.companyName ? `, ${(user as any).companyName}` : ''}
+              Welcome back{(user as any)?.companyName ? `, ${displayCompanyName((user as any).companyName)}` : ''}
             </h1>
             <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-0.5">
               {bookings.length} booking{bookings.length === 1 ? '' : 's'} from shippers

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, MapPin, Pencil, X } from 'lucide-react';
 import AddressLocationPicker, { type AddressLocationValue } from './AddressLocationPicker';
+import { IS_WEB } from '../config/host';
 
 // Business signup, step 1: shows the office address (the GST-registered one until the
 // transporter confirms it on the map) and lets them refine it with Google suggestions and a
@@ -10,7 +11,7 @@ import AddressLocationPicker, { type AddressLocationValue } from './AddressLocat
 
 // Same bar the final signup gate uses, so confirming here skips that gate.
 export const isLocationConfirmed = (v: AddressLocationValue): boolean =>
-  v.lat != null && v.lng != null && !!v.flatNumber.trim();
+  v.lat != null && v.lng != null && (IS_WEB || !!v.flatNumber.trim()); // Flat No. optional on the website only
 
 const summarize = (v: AddressLocationValue): string =>
   [v.flatNumber, v.buildingName, v.formattedAddress].map((s) => s?.trim()).filter(Boolean).join(', ');

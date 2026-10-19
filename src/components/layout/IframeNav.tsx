@@ -21,13 +21,18 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutDashboard, User as UserIcon, MoreHorizontal, ShieldCheck, LogOut, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { HOST } from '../../config/host';
+
+// Only the Android app needs this bar. On the website the host header's account menu already has
+// Dashboard/Profile/Bids/Rates/Sign out, and a fixed bottom bar there covered page and modal buttons.
+const isNativeAppHost = HOST === 'app';
 
 const IframeNav: React.FC = () => {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || !isNativeAppHost) return null;
 
   const handleSignOut = () => {
     setMoreOpen(false);

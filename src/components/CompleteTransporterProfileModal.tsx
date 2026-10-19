@@ -21,8 +21,11 @@ import toast from 'react-hot-toast';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useGSTLookup } from '../hooks/useGSTLookup';
 import { useAuth } from '../hooks/useAuth';
+import { useModalIframePin } from '../hooks/useModalIframePin';
 import AddressAutosuggest from './AddressAutosuggest';
 import AddressLocationPicker, { type AddressLocationValue } from './AddressLocationPicker';
+import { geocodeAddress } from '../services/geoApi';
+import { IS_WEB } from '../config/host';
 
 axios.defaults.withCredentials = true; // same established pattern as ProfilePage.tsx etc. — the protected PUT below needs the real httpOnly cookie sent.
 
@@ -66,17 +69,39 @@ interface Props {
   onComplete: () => void;
 }
 
+// Unfinished form survives a refresh (e.g. after allowing location) for this tab only — sessionStorage, so
+// GST/phone aren't left on a shared office PC once the tab closes. Cleared on successful submit.
+type ProfileDraft = { values: Partial<FormValues>; step: 'details' | 'address'; verifiedPhone: string | null };
+const draftKey = (email: string) => `fc_transporter_profile_draft:${email.toLowerCase()}`;
+const readDraft = (email: string): ProfileDraft | null => {
+  if (!IS_WEB) return null; // website only
+  try { return JSON.parse(sessionStorage.getItem(draftKey(email)) || 'null'); } catch { return null; }
+};
+const writeDraft = (email: string, draft: ProfileDraft | null) => {
+  if (!IS_WEB) return; // website only
+  try {
+    if (draft) sessionStorage.setItem(draftKey(email), JSON.stringify(draft));
+    else sessionStorage.removeItem(draftKey(email));
+  } catch { /* storage unavailable: the form just isn't restored */ }
+};
+
 const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint: _firstNameHint, onComplete }) => {
   const { loginWithToken } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const gstLookup = useGSTLookup();
+  // Inside the host iframe, pin it to the visible screen so this modal isn't clipped by the iframe's height.
+  useModalIframePin(IS_WEB);
+
+  const [draft] = useState(() => readDraft(email));
+  // The phone counts as verified only if the restored number is the one that passed OTP (the server already saved it).
+  const restoredVerified = !!draft?.verifiedPhone && draft.values?.phone === draft.verifiedPhone;
 
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(restoredVerified);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpValue, setOtpValue] = useState('');
-  const verifiedPhoneRef = React.useRef<string | null>(null);
+  const verifiedPhoneRef = React.useRef<string | null>(restoredVerified ? draft!.verifiedPhone : null);
 
   // A real second step here for BOTH account types — a dedicated "Confirm
   // Your Office Location" screen using the full AddressLocationPicker,
@@ -85,10 +110,10 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
   // text inputs (address/state) inline in step 1 unchanged — this step 2
   // only feeds the new structured fields, same additive relationship as
   // the shipper reference component.
-  const [modalStep, setModalStep] = useState<'details' | 'address'>('details');
+  const [modalStep, setModalStep] = useState<'details' | 'address'>(draft?.step || 'details');
 
   const {
-    register, handleSubmit, control, watch, setValue, trigger, formState: { errors },
+    register, handleSubmit, control, watch, setValue, getValues, trigger, formState: { errors },
   } = useForm<FormValues>({
     mode: 'onBlur',
     defaultValues: {
@@ -98,8 +123,18 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
       phone: '', whatsapp: '', sameAsPhone: true,
       flatNumber: '', buildingName: '', area: '', landmark: '', city: '',
       lat: null, lng: null, placeId: null, formattedAddress: '',
+      ...draft?.values,
     },
   });
+
+  // Save on every field change, step change and successful OTP.
+  React.useEffect(() => {
+    const save = (values: Partial<FormValues>) =>
+      writeDraft(email, { values, step: modalStep, verifiedPhone: phoneVerified ? verifiedPhoneRef.current : null });
+    save(getValues());
+    const sub = watch((values) => save(values as Partial<FormValues>));
+    return () => sub.unsubscribe();
+  }, [email, modalStep, phoneVerified, watch, getValues]);
 
   const accountTypeValue = watch('accountType');
   const isIndividualValue = accountTypeValue === 'individual';
@@ -220,7 +255,8 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
   React.useEffect(() => {
     if ((gstLookup.status === 'success' || gstLookup.status === 'partial') && gstLookup.gstData) {
       if (gstLookup.gstData.pincode) setValue('pincode', gstLookup.gstData.pincode, { shouldValidate: true });
-      if (gstLookup.gstData.legalName) setValue('companyName', gstLookup.gstData.legalName);
+      // shouldValidate: re-check it now, so an earlier "required" error clears as soon as GST fills it.
+      if (gstLookup.gstData.legalName) setValue('companyName', gstLookup.gstData.legalName, { shouldValidate: IS_WEB });
       if (gstLookup.gstData.address) setValue('address', gstLookup.gstData.address);
       if (gstLookup.gstData.stateName) setValue('state', gstLookup.gstData.stateName);
     }
@@ -244,12 +280,35 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
   }, [gstLookup.status, gstLookup.gstData]);
   const needsManualCompanyFields = !isIndividualValue && manualFallbackNeeded;
 
+  // Step 2 for a Business with a GST address: show that address to confirm; the map opens only on "Edit".
+  // The backend needs only `address` (lat/lng/flatNumber are optional there), so the pin is best-effort here.
+  const [editingAddress, setEditingAddress] = useState(false);
+  const gstAddress = !isIndividualValue ? (watch('address') || '').trim() : '';
+  const confirmGstAddress = IS_WEB && modalStep === 'address' && !!gstAddress && !editingAddress;
+
+  React.useEffect(() => {
+    if (!confirmGstAddress || watch('lat')) return;
+    geocodeAddress(gstAddress)
+      .then((place) => {
+        if (!place || watch('lat')) return;
+        setValue('lat', place.lat);
+        setValue('lng', place.lng);
+        setValue('placeId', place.placeId);
+        setValue('formattedAddress', place.formattedAddress);
+        setValue('city', place.city);
+        setValue('area', watch('area') || place.area);
+      })
+      .catch(() => { /* non-fatal: the GST address itself is still saved */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmGstAddress, gstAddress]);
+
   const onSubmit = async (data: FormValues) => {
     if (!phoneVerified || verifiedPhoneRef.current !== String(data.phone || '').replace(/\D/g, '')) {
       toast.error('Please verify your mobile number via OTP first.');
       return;
     }
-    if (!data.lat || !data.flatNumber?.trim()) {
+    // Flat / House No. is optional on the website; the app still requires it.
+    if (!confirmGstAddress && (!data.lat || (!IS_WEB && !data.flatNumber?.trim()))) {
       toast.error('Please confirm your office location first.');
       setModalStep('address');
       return;
@@ -303,6 +362,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
 
       const res = await axios.put(`${API_BASE_URL}/api/transporter/auth/profile/complete-transporter-profile`, payload);
       if (res.data?.token) {
+        writeDraft(email, null);
         loginWithToken(res.data.token);
         toast.success('Profile completed — welcome aboard!');
         onComplete();
@@ -316,13 +376,59 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
     }
   };
 
+  // Step-1 fields as values so their order can differ by host (see the details step below).
+  const companyField = (
+            <div>
+              <label htmlFor="companyName" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Company / Trade Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                {...register('companyName', { required: 'Company/trade name is required.', pattern: { value: /^[a-zA-Z0-9\s]*$/, message: 'Only letters, numbers, and spaces are allowed.' } })}
+                id="companyName" maxLength={200}
+                className={`w-full h-[38px] px-3 border rounded-lg text-[13px] bg-white text-slate-900 focus:outline-none focus:ring-2 ${errors.companyName ? 'border-red-400 focus:ring-red-400/40' : 'border-slate-200 focus:ring-amber-400/40'}`}
+              />
+              {errors.companyName && <p className="mt-1 text-xs text-red-600">{errors.companyName.message}</p>}
+            </div>
+  );
+  const gstField = (
+                <div>
+                  <label htmlFor="gstNo" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                    GST Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"><Hash size={16} /></span>
+                    <input
+                      {...register('gstNo', { required: 'GST Number is required.', setValueAs: (v: any) => String(v ?? '').toUpperCase().trim().replace(/[^A-Z0-9]/g, '').slice(0, 15) })}
+                      id="gstNo" maxLength={15} onInput={enforceGstFormat}
+                      style={{ textTransform: 'uppercase' }} placeholder="GST Number"
+                      className={`w-full h-[38px] pl-9 pr-3 border rounded-lg text-[13px] bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${errors.gstNo ? 'border-red-400 focus:ring-red-400/40' : 'border-slate-200 focus:ring-amber-400/40'}`}
+                    />
+                  </div>
+                  {errors.gstNo && <p className="mt-1 text-xs text-red-600">{errors.gstNo.message}</p>}
+                  {gstLookup.status === 'failed' && (
+                    <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1"><AlertCircle size={11} /> Couldn't auto-verify — double check the GST number.</p>
+                  )}
+                </div>
+  );
+  const gstCard = (gstLookup.status === 'success' || gstLookup.status === 'partial') && gstLookup.gstData?.legalName && (
+                  <div className="flex items-start gap-2.5 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                    <CheckCircle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800 leading-snug">
+                      <span className="font-semibold">{gstLookup.gstData.legalName}</span>
+                      {gstLookup.gstData.address && <span className="block text-amber-700 mt-0.5">{gstLookup.gstData.address}</span>}
+                    </p>
+                  </div>
+                );
+
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto">
+    // Website: m-auto (not items-center) centers when it fits and scrolls from the top when it doesn't;
+    // items-center pushed the overflow above the top edge. The app keeps its original centering.
+    <div className={`fixed inset-0 z-[9998] flex bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto ${IS_WEB ? '' : 'items-center justify-center'}`}>
       <motion.div
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="bg-white rounded-2xl shadow-2xl max-w-xl w-full my-8 overflow-hidden"
+        className={`bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden ${IS_WEB ? 'm-auto' : 'my-8'}`}
       >
         <div className="h-1.5 bg-gradient-to-r from-amber-500 to-orange-600" />
         <div className="p-6 sm:p-8">
@@ -348,49 +454,13 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
               </div>
             </div>
 
-            <div>
-              <label htmlFor="companyName" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                Company / Trade Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                {...register('companyName', { required: 'Company/trade name is required.', pattern: { value: /^[a-zA-Z0-9\s]*$/, message: 'Only letters, numbers, and spaces are allowed.' } })}
-                id="companyName" maxLength={200}
-                className={`w-full h-[38px] px-3 border rounded-lg text-[13px] bg-white text-slate-900 focus:outline-none focus:ring-2 ${errors.companyName ? 'border-red-400 focus:ring-red-400/40' : 'border-slate-200 focus:ring-amber-400/40'}`}
-              />
-              {errors.companyName && <p className="mt-1 text-xs text-red-600">{errors.companyName.message}</p>}
-            </div>
+            {/* Website: GST first (it autofills the company name below). The app keeps its original order. */}
+            {!IS_WEB && companyField}
+            {!isIndividualValue && (IS_WEB ? <>{gstField}{gstCard}</> : <>{gstCard}{gstField}</>)}
+            {IS_WEB && companyField}
 
             {!isIndividualValue && (
               <>
-                {(gstLookup.status === 'success' || gstLookup.status === 'partial') && gstLookup.gstData?.legalName && (
-                  <div className="flex items-start gap-2.5 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5">
-                    <CheckCircle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-800 leading-snug">
-                      <span className="font-semibold">{gstLookup.gstData.legalName}</span>
-                      {gstLookup.gstData.address && <span className="block text-amber-700 mt-0.5">{gstLookup.gstData.address}</span>}
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label htmlFor="gstNo" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                    GST Number <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"><Hash size={16} /></span>
-                    <input
-                      {...register('gstNo', { required: 'GST Number is required.', setValueAs: (v: any) => String(v ?? '').toUpperCase().trim().replace(/[^A-Z0-9]/g, '').slice(0, 15) })}
-                      id="gstNo" maxLength={15} onInput={enforceGstFormat}
-                      style={{ textTransform: 'uppercase' }} placeholder="GST Number"
-                      className={`w-full h-[38px] pl-9 pr-3 border rounded-lg text-[13px] bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${errors.gstNo ? 'border-red-400 focus:ring-red-400/40' : 'border-slate-200 focus:ring-amber-400/40'}`}
-                    />
-                  </div>
-                  {errors.gstNo && <p className="mt-1 text-xs text-red-600">{errors.gstNo.message}</p>}
-                  {gstLookup.status === 'failed' && (
-                    <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1"><AlertCircle size={11} /> Couldn't auto-verify — double check the GST number.</p>
-                  )}
-                </div>
-
                 {needsManualCompanyFields && (
                   <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3.5">
                     <p className="text-[11px] text-amber-700 flex items-center gap-1"><AlertCircle size={12} /> Couldn't auto-fill everything from GST — please fill these in:</p>
@@ -542,6 +612,18 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
               <label className="block text-sm font-semibold text-slate-800 mb-2">
                 Confirm Your Office Location <span className="text-red-500">*</span>
               </label>
+              {confirmGstAddress ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-800 leading-snug">{gstAddress}</p>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">From your GST registration</span>
+                    <button type="button" onClick={() => setEditingAddress(true)}
+                      className="text-sm font-semibold text-amber-600 hover:text-amber-700">
+                      Edit on map
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <AddressLocationPicker
                 value={{
                   flatNumber: watch('flatNumber'),
@@ -576,6 +658,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                   if (r.state && !watch('state')) setValue('state', r.state);
                 }}
               />
+              )}
             </div>
           )}
 
@@ -588,7 +671,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                 Back
               </button>
               <button
-                type="submit" disabled={submitting || !watch('lat') || !watch('flatNumber')?.trim()}
+                type="submit" disabled={submitting || (!confirmGstAddress && (!watch('lat') || (!IS_WEB && !watch('flatNumber')?.trim())))}
                 className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 text-base font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed shadow-lg shadow-amber-500/40 transition-colors"
               >
                 {submitting ? (<><Loader2 className="w-5 h-5 animate-spin" /> Saving...</>) : 'Complete Profile & Continue'}

@@ -11,6 +11,7 @@ import { MapPin, Search, Loader2, Navigation } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { loadGoogleMaps } from '../utils/loadGoogleMaps';
 import { geocodeAddress, reverseGeocode, type ResolvedPlace } from '../services/geoApi';
+import { IS_WEB } from '../config/host';
 import { haversineKm } from '../utils/mapProjection';
 import LocationPermissionModal, { type LocationPermissionPhase } from './LocationPermissionModal';
 
@@ -582,7 +583,7 @@ const AddressLocationPicker: React.FC<AddressLocationPickerProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                Flat / House No. <span className="text-red-500">*</span>
+                Flat / House No.{!IS_WEB && <span className="text-red-500"> *</span>}
               </label>
               <input
                 type="text"

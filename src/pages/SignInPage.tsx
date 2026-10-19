@@ -80,7 +80,9 @@ export default function SignInPage() {
     if (window !== window.parent) {
       window.parent.postMessage({ type: 'navigate_to_shipper_login' }, '*');
     } else {
-      navigate('/signin');
+      // Standalone: this app has no /signin route (that's the shipper app), so go to its origin.
+      const shipperOrigin = String(import.meta.env.VITE_SHIPPER_APP_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://freightcompare.ai')).replace(/\/+$/, '');
+      window.location.assign(`${shipperOrigin}/signin`);
     }
   };
 
