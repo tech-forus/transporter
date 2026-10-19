@@ -1,12 +1,13 @@
 // src/pages/SignInPage.tsx — transporter login (embedded in the main app's
 // /transporter/login via iframe). Same layout and flow as the shipper
-// SignInPage in the main app: OTP first (mobile or email, SMS or email code
-// works), password as the fallback. Orange stays the transporter accent.
+// SignInPage in the main app. Mobile number or email + password is the default;
+// one tap switches to a one-time code (SMS or email), and Google sign-in sits below. Orange stays the transporter accent.
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { useAuth } from '../hooks/useAuth';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
@@ -19,7 +20,7 @@ const fieldCls = "w-full h-14 flex items-center rounded-xl border border-slate-3
 const inputCls = "h-full w-full min-w-0 bg-transparent px-4 text-base text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#5c7c9a] outline-none";
 
 export default function SignInPage() {
-  const [mode, setMode] = useState<'otp' | 'password'>('otp');
+  const [mode, setMode] = useState<'otp' | 'password'>('password');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
@@ -28,7 +29,7 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login, loginWithToken } = useAuth();
+  const { login, loginWithGoogle, loginWithToken } = useAuth();
   const navigate = useNavigate();
 
   useReportIframeHeight();
@@ -53,6 +54,25 @@ export default function SignInPage() {
       window.parent.postMessage({ type: 'navigate_to_signup' }, '*');
     } else {
       navigate('/transporter-signup');
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      toast.error('Google sign-in failed. Please try again.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await loginWithGoogle(credentialResponse.credential);
+      if (result.success) {
+        toast.success('Login Successful!');
+        navigate('/dashboard');
+      } else {
+        toast.error(result.error ?? 'Google sign-in failed.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -262,6 +282,29 @@ export default function SignInPage() {
                 {mode === 'otp' ? 'Use password' : 'Use OTP instead'}
               </button>
             </p>
+          )}
+
+          {!codeStep && (
+            <>
+              <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-slate-200 dark:border-[#1d3f5c]" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white lg:bg-slate-100 dark:bg-[#08141f] px-3 text-slate-400 dark:text-[#6f93b8] font-medium">OR</span>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => toast.error('Google sign-in failed. Please try again.')}
+                  text="continue_with"
+                  shape="rectangular"
+                  width="336"
+                />
+              </div>
+            </>
           )}
 
           <p className="mt-10 text-center text-sm text-slate-500 dark:text-[#8fb0cf]">
