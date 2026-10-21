@@ -66,7 +66,7 @@ const digitsOnlyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 interface Props {
   email: string;
   firstNameHint: string;
-  onComplete: () => void;
+  onComplete: (accountType: 'business' | 'individual') => void;
 }
 
 // Unfinished form survives a refresh (e.g. after allowing location) for this tab only — sessionStorage, so
@@ -365,7 +365,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
         writeDraft(email, null);
         loginWithToken(res.data.token);
         toast.success('Profile completed — welcome aboard!');
-        onComplete();
+        onComplete(data.accountType);
       } else {
         toast.error(res.data?.message || 'Could not save your details.');
       }

@@ -20,10 +20,15 @@ import {
   FileText,
   Sparkles,
   AlertTriangle,
+  MapPin,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
 import ZoneRateMatrix from "../components/ZoneRateMatrix";
+import ZoneSelectionWizard from "../components/ZoneSelectionWizard";
+import SetupProgressPanel, { type SetupStep } from "../components/SetupProgressPanel";
+import TruckProgressAnimation from "../components/TruckProgressAnimation";
+import { useRateSetup } from "../hooks/useRateSetup";
 import ZoneSummaryPanel, { type ZonePincodeEntry } from "../components/ZoneSummaryPanel";
 import { useReportIframeHeight } from "../hooks/useReportIframeHeight";
 import {
@@ -251,6 +256,8 @@ export default function AddPrice() {
   // handleSubmit below — a returning transporter saves via the new
   // authenticated PUT /auth/pricing, never the signup-only POST /auth/addprice.
   const [isReturningTransporter, setIsReturningTransporter] = useState(false);
+  // Rates already saved on this account (null when unknown, e.g. mid-signup with no session yet).
+  const { hasRates: accountHasRates } = useRateSetup();
   const [returningCheckDone, setReturningCheckDone] = useState(false);
   useEffect(() => {
     (async () => {
@@ -277,7 +284,8 @@ export default function AddPrice() {
   const [uploadDismissed, setUploadDismissed] = useState(false);
   const [uploadFiles, setUploadFiles] = useState<UploadItem[]>([]);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
-  const [uploadLogs, setUploadLogs] = useState<string[]>([]);
+  // Kept for debugging in React DevTools only — never rendered (transporters see TruckProgressAnimation).
+  const [, setUploadLogs] = useState<string[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [gapReport, setGapReport] = useState<{ missingCharges: string[]; zoneNote: string | null } | null>(null);
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
@@ -721,9 +729,43 @@ export default function AddPrice() {
     }
   };
 
+  // Manual zone picking — the same Zone → City → Pincode picker as the shipper
+  // Add Vendor's "Manual Setup". Opens on its own when the transporter goes
+  // manual (or the documents had no zones); also reachable from the side panel.
+  const [showZonePicker, setShowZonePicker] = useState(false);
+
   const dismissUploadStep = () => {
     setShowUploadStep(false);
     setUploadDismissed(true);
+    if (zoneLabels.length === 0) setShowZonePicker(true);
+  };
+
+  // Picked pincodes become the same shapes an uploaded sheet produces: zone
+  // labels + per-pincode service entries. Rates already typed for zones that
+  // stay are kept; a zone that was dropped loses its row/column.
+  const applyPickedZones = ({ zones, serviceability }: {
+    zones: { zoneCode: string }[];
+    serviceability: { pincode: string; zone: string }[];
+  }) => {
+    const labels = zones.map(z => z.zoneCode);
+    setZoneRates(labels.map(from => labels.map(to => {
+      const i = zoneLabels.indexOf(from);
+      const j = zoneLabels.indexOf(to);
+      return i >= 0 && j >= 0 ? zoneRates[i]?.[j] || 0 : 0;
+    })));
+    setZoneLabels(labels);
+    const odaByPincode = new Map(zonePincodeData.map(e => [e.pincode, e.isOda]));
+    const pincodeData: ZonePincodeEntry[] = serviceability.map(s => ({
+      pincode: Number(s.pincode), isOda: odaByPincode.get(Number(s.pincode)) ?? false, zone: s.zone,
+    }));
+    setZonePincodeData(pincodeData);
+    // Same keys loadFromStorage reads, so a reload keeps the picked zones.
+    try {
+      sessionStorage.setItem('transporter_zone_pincode_data', JSON.stringify(pincodeData));
+      sessionStorage.setItem('zones', JSON.stringify(labels));
+    } catch { /* storage full/blocked — zones stay in memory for this visit */ }
+    setShowZonePicker(false);
+    setStep(mandatoryChargesComplete ? lastStep : 0);
   };
 
   // A second entry point for the same upload+extract pipeline, right on the
@@ -859,6 +901,17 @@ export default function AddPrice() {
     if (!mandatoryChargesComplete) {
       setShowValidationErrors(true);
       toast.error(`Please fill in ${missingMandatoryFields.map(f => f.label).join(', ')} before saving.`);
+      return;
+    }
+    // Steps can be opened in any order from the side panel, so Save checks every one — nothing half-done is written.
+    if (zoneLabels.length === 0) {
+      toast.error('Pick your service zones before saving.');
+      setShowZonePicker(true);
+      return;
+    }
+    if (!hasAnyZoneRate) {
+      toast.error('Fill at least one zone rate before saving.');
+      setStep(lastStep);
       return;
     }
     isSubmittingRef.current = true;
@@ -1021,13 +1074,19 @@ export default function AddPrice() {
   // the other half of this — it asks us first, before touching its own
   // history or showing that dialog.
   useEffect(() => {
-    const canGoBackHere = showZoneUploadPanel || step > 0 || (isReturningTransporter && (showUploadStep || step === 0));
+    const canGoBackHere = showZonePicker || showZoneUploadPanel || step > 0 || (isReturningTransporter && (showUploadStep || step === 0));
     window.parent?.postMessage({ type: 'transporter_iframe_nav_state', canGoBack: canGoBackHere }, '*');
-  }, [showZoneUploadPanel, step, isReturningTransporter, showUploadStep]);
+  }, [showZonePicker, showZoneUploadPanel, step, isReturningTransporter, showUploadStep]);
+  // Leaving this page (e.g. Save → dashboard) must clear the flag, or the app's
+  // back button keeps sending consume_back to a page that is no longer listening.
+  useEffect(() => () => {
+    window.parent?.postMessage({ type: 'transporter_iframe_nav_state', canGoBack: false }, '*');
+  }, []);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type !== 'transporter_iframe_consume_back') return;
+      if (showZonePicker) { setShowZonePicker(false); return; }
       if (showZoneUploadPanel) { setShowZoneUploadPanel(false); return; }
       if (step > 0) { goBack(); return; }
       if (isReturningTransporter) { navigate('/dashboard'); return; }
@@ -1036,7 +1095,51 @@ export default function AddPrice() {
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showZoneUploadPanel, step, isReturningTransporter]);
+  }, [showZonePicker, showZoneUploadPanel, step, isReturningTransporter]);
+
+  // ── Side panel ────────────────────────────────────────────────────────────
+  // Any step can be opened from here in any order; handleSubmit re-checks
+  // every one before anything is saved. Leaving the upload screen this way
+  // counts as dismissing it, or the effect above would reopen it.
+  const leaveUploadScreen = () => { setShowUploadStep(false); setUploadDismissed(true); };
+  const goToStep = (n: number) => { leaveUploadScreen(); setShowZonePicker(false); setStep(n); };
+  const openZonePicker = () => { leaveUploadScreen(); setShowZonePicker(true); };
+  const openUploadScreen = () => { setShowZonePicker(false); setShowUploadStep(true); };
+
+  const onUploadScreen = showUploadStep;
+  const onZonePicker = !onUploadScreen && showZonePicker;
+  const onStep = (n: number) => !onUploadScreen && !onZonePicker && step === n;
+  const rateCardChosen = !isReturningTransporter || uploadDismissed || wasAiPrefilled;
+  const setupSteps: SetupStep[] = [
+    { key: 'company', label: 'Company details', status: 'done' },
+    {
+      key: 'ratecard', label: 'Rate card',
+      status: onUploadScreen ? 'current' : rateCardChosen ? 'done' : 'todo',
+      hint: onUploadScreen ? 'Upload or enter manually' : rateCardChosen ? (wasAiPrefilled ? 'Read from your documents' : 'Entering manually') : undefined,
+      onClick: isReturningTransporter ? openUploadScreen : undefined,
+    },
+    {
+      key: 'zones', label: 'Service zones',
+      status: onZonePicker ? 'current' : zoneLabels.length > 0 ? 'done' : 'todo',
+      hint: zoneLabels.length > 0 && !onZonePicker
+        ? `${zoneLabels.length} zone${zoneLabels.length === 1 ? '' : 's'} · ${zonePincodeData.length.toLocaleString()} pincodes`
+        : undefined,
+      onClick: openZonePicker,
+    },
+    { key: 'charges', label: 'Charges', status: onStep(0) ? 'current' : mandatoryChargesComplete ? 'done' : 'todo', onClick: () => goToStep(0) },
+    {
+      key: 'rates', label: 'Zone rates & review',
+      status: onStep(lastStep) ? 'current' : hasAnyZoneRate ? 'done' : 'todo',
+      onClick: () => goToStep(lastStep),
+    },
+    { key: 'kyc', label: 'KYC documents', status: 'todo', hint: 'Next, after you save' },
+  ];
+  const withPanel = (content: React.ReactNode) => (
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-4">
+      <div className="min-w-0">{content}</div>
+      <SetupProgressPanel steps={setupSteps} className="hidden lg:block" />
+    </div>
+  );
 
   const renderStepper = () => (
     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1150,15 +1253,16 @@ export default function AddPrice() {
        further scroll room to reach it. */
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-[#08141f] font-sans py-4 px-4 pb-24">
-        <div className="container mx-auto max-w-xl">
-          <div className="bg-white dark:bg-[#0d2438] rounded-2xl shadow-lg border border-slate-200/60 dark:border-[#1d3f5c] p-5 sm:p-6">
+        <div className="container mx-auto max-w-5xl">
+          {withPanel(
+          <div className="mx-auto max-w-xl bg-white dark:bg-[#0d2438] rounded-2xl shadow-lg border border-slate-200/60 dark:border-[#1d3f5c] p-5 sm:p-6">
             <h1 className="text-lg font-bold text-slate-900 dark:text-white">Add your routes & rates</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-[#8fb0cf]">
               Upload your rate card, zone/pincode coverage sheet, or serviceability doc — PDF, Excel, CSV, Word, or photos of the papers all work.
               We'll read them and fill in the rest for you. If anything's missing or unclear, we'll tell you exactly what — so you can add it yourself or upload another document that covers it.
             </p>
 
-            {uploadStatus !== 'processing' && (
+            {(uploadStatus === 'idle' || uploadStatus === 'failed') && (
               <>
                 <div
                   className="mt-4 border-2 border-dashed border-slate-300 dark:border-[#1d3f5c] rounded-xl p-5 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
@@ -1215,34 +1319,31 @@ export default function AddPrice() {
               </>
             )}
 
+            {/* Friendly animation only — the raw extraction log (uploadLogs) is never shown to transporters. */}
             {uploadStatus === 'processing' && (
               <div className="mt-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-400">
-                  <Loader2 className="animate-spin" size={16} /> Reading your documents…
-                </div>
-                <div className="mt-2 bg-slate-900 dark:bg-black rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-[11px] text-emerald-400 space-y-0.5">
-                  {uploadLogs.map((l, i) => <div key={i}>{l}</div>)}
-                </div>
+                <TruckProgressAnimation />
               </div>
             )}
 
             {uploadStatus === 'success' && (
               <div className="mt-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-3">
-                  <CheckCircle2 size={16} /> Documents read
-                </div>
-
-                {gapReport ? (
-                  <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300 space-y-1">
-                    <p className="font-semibold">Here's what's still missing:</p>
-                    {gapReport.missingCharges.length > 0 && (
-                      <p>Charges not found: {gapReport.missingCharges.join(', ')}.</p>
-                    )}
-                    {gapReport.zoneNote && <p>{gapReport.zoneNote}</p>}
-                    <p className="text-xs opacity-90">Upload another document covering these, or continue and fill them in yourself below.</p>
+                {zonePincodeData.length > 0 ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <p className="flex items-center gap-2 text-sm font-bold text-emerald-700">
+                      <CheckCircle2 size={16} className="flex-shrink-0" /> We've received your delivery pincodes
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {zonePincodeData.length.toLocaleString()} pincodes across {zoneLabels.length} zone{zoneLabels.length === 1 ? '' : 's'}.{' '}
+                      {/* Rates already there (read from the file, or saved on the account before) → no "add rates" ask. */}
+                      {hasAnyZoneRate || accountHasRates ? 'Review everything in the next steps before saving.' : 'Please add your rates in the next steps.'}
+                    </p>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 dark:text-[#8fb0cf]">Everything we needed was found — review the numbers on the next screen before saving.</p>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-sm font-bold text-amber-800">We couldn't find delivery pincodes in your file</p>
+                    <p className="mt-1 text-sm text-slate-600">Upload another file, or continue and pick the areas you serve in the next step.</p>
+                  </div>
                 )}
 
                 <div className="mt-3 flex flex-col gap-2">
@@ -1264,6 +1365,43 @@ export default function AddPrice() {
               </div>
             )}
           </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Manual zone picker ────────────────────────────────────────────────────
+  if (showZonePicker) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-[#08141f] font-sans py-2 px-4 pb-24">
+        <div className="container mx-auto max-w-7xl">
+          {withPanel(
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowZonePicker(false)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-lg transition-colors flex-shrink-0"
+                >
+                  <ArrowLeft size={15} /> Back
+                </button>
+                <h1 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+                  <MapPin size={16} className="text-blue-600" /> Pick the areas you serve
+                </h1>
+                <span className="w-16" />
+              </div>
+              <p className="text-sm text-slate-500 dark:text-[#8fb0cf]">
+                Choose zones, then cities, then pincodes. Press <b>Apply Selection</b> when done — you'll set a rate between each pair of zones next.
+                {zoneLabels.length > 0 && ' Applying replaces your current zones; rates you already entered are kept for zones that stay.'}
+              </p>
+              <ZoneSelectionWizard
+                onComplete={applyPickedZones}
+                initialSelectedPincodes={zonePincodeData.map(e => String(e.pincode))}
+                blankCellValue={0}
+              />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1272,7 +1410,8 @@ export default function AddPrice() {
   // ── Main Charges Configuration Form ───────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 font-sans py-1 sm:py-2">
-      <div className="container mx-auto px-4 max-w-7xl space-y-2">
+      <div className="container mx-auto px-4 max-w-7xl">
+      {withPanel(<div className="space-y-2">
 
         {/* Header: back, title, stepper, next — all in one row */}
         <motion.div
@@ -1318,7 +1457,7 @@ export default function AddPrice() {
               </span>
             </div>
             <div className="hidden md:block h-4 w-px bg-slate-200 flex-shrink-0" />
-            <div className="hidden md:flex flex-shrink-0">{renderStepper()}</div>
+            <div className="hidden md:flex lg:hidden flex-shrink-0">{renderStepper()}</div>
             {wasAiPrefilled && (
               <div
                 className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg flex-shrink-0"
@@ -1656,11 +1795,7 @@ export default function AddPrice() {
                           </button>
                         </>
                       )}
-                      {uploadStatus === 'processing' && (
-                        <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-400">
-                          <Loader2 className="animate-spin" size={16} /> Reading your document…
-                        </div>
-                      )}
+                      {uploadStatus === 'processing' && <TruckProgressAnimation />}
                       {uploadStatus === 'success' && (
                         <>
                           <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-2">
@@ -1683,16 +1818,36 @@ export default function AddPrice() {
                 </div>
               )}
 
-              <Card>
-                <ZoneRateMatrix
-                  zoneLabels={zoneLabels}
-                  zoneRates={zoneRates}
-                  onRatesChange={setZoneRates}
-                  onRemoveZone={handleRemoveZone}
-                  title="Zone-to-Zone Rates"
-                  subtitle={<>Per-kilogram rate between each zone — use <strong>Bulk Paste</strong> to import from Excel.</>}
-                />
-              </Card>
+              {zoneLabels.length === 0 ? (
+                <Card className="text-center py-10">
+                  <MapPin size={26} className="mx-auto text-blue-600" />
+                  <p className="mt-2 font-semibold text-slate-800">Choose the areas you serve first</p>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">Pick zones, cities and pincodes — then set a rate between each pair of zones here.</p>
+                  <button
+                    type="button"
+                    onClick={openZonePicker}
+                    className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-colors"
+                  >
+                    <MapPin size={15} /> Pick service zones
+                  </button>
+                </Card>
+              ) : (
+                <Card>
+                  <div className="mb-2 flex justify-end">
+                    <button type="button" onClick={openZonePicker} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700">
+                      <MapPin size={13} /> Edit service zones
+                    </button>
+                  </div>
+                  <ZoneRateMatrix
+                    zoneLabels={zoneLabels}
+                    zoneRates={zoneRates}
+                    onRatesChange={setZoneRates}
+                    onRemoveZone={handleRemoveZone}
+                    title="Zone-to-Zone Rates"
+                    subtitle={<>Per-kilogram rate between each zone — use <strong>Bulk Paste</strong> to import from Excel.</>}
+                  />
+                </Card>
+              )}
             </motion.div>
           )}
 
@@ -1706,13 +1861,13 @@ export default function AddPrice() {
           )}
 
         </form>
+      </div>)}
       </div>
 
       {/* Wrong-document block — the uploaded file had no usable data (no
-          pincodes/zones), so the Zone Matrix step would just be empty. Hard
-          block per product decision: no "enter manually" escape hatch, since
-          without any pincode data there's nothing to build a manual matrix
-          from either — the only real fix is re-uploading a correct file. */}
+          pincodes/zones), so the Zone Matrix step would just be empty. Re-upload
+          stays the main action; the zone picker is the manual way out, since it
+          supplies the pincode data a manual matrix needs. */}
       <AnimatePresence>
         {showWrongDocModal && (
           <motion.div
@@ -1740,6 +1895,13 @@ export default function AddPrice() {
                 className="mt-5 w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-colors"
               >
                 <ArrowLeft size={15} /> Go Back &amp; Re-upload
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowWrongDocModal(false); openZonePicker(); }}
+                className="mt-2 w-full text-center text-sm font-semibold text-blue-600 hover:text-blue-700 py-1.5"
+              >
+                Pick my service zones manually instead
               </button>
             </motion.div>
           </motion.div>

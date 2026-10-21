@@ -25,6 +25,8 @@ import InviteTransportersPage from './pages/InviteTransportersPage';
 import ReferralAttachGate from './components/ReferralAttachGate';
 import GoPublicPage from './pages/GoPublicPage';
 import RatesEditorPage from './pages/RatesEditorPage';
+import SetupLanesPage from './pages/SetupLanesPage';
+import { rateSetupPath } from './hooks/useRateSetup';
 import { captureReferralFromUrl } from './utils/referral';
 
 // Remember a shipper invite code the moment the app loads — an already-signed-in transporter
@@ -69,13 +71,16 @@ export const PublicRoute: React.FC<React.PropsWithChildren> = ({ children }) => 
 const TransporterProfileGate: React.FC = () => {
   const { user } = useAuth();
   const { needsGate } = useNeedsTransporterProfileGate();
+  const navigate = useNavigate();
 
   if (!needsGate || !user) return null;
   return (
     <CompleteTransporterProfileModal
       email={(user as any).email || ''}
       firstNameHint=""
-      onComplete={() => { /* loginWithToken (inside the modal) already refreshed the decoded user's profileComplete, unmounting this */ }}
+      // loginWithToken (inside the modal) already cleared profileComplete, unmounting this. Next comes the
+      // same rates step normal signup has: AddPrice for Business, the lane step for owner-operators.
+      onComplete={(accountType) => navigate(rateSetupPath(accountType === 'individual'), { replace: true })}
     />
   );
 };
@@ -146,6 +151,8 @@ function App() {
               only the page body blurred behind the KYC wizard overlay. */}
           <Route path="/dashboard" element={<PrivateRoute><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/go-public" element={<PrivateRoute><MainLayout fillScreen><KycGate><GoPublicPage /></KycGate></MainLayout></PrivateRoute>} />
+          {/* First-time lane setup — outside KycGate, like /addprice, so rates come before KYC as in normal signup. */}
+          <Route path="/setup/lanes" element={<PrivateRoute><MainLayout><SetupLanesPage /></MainLayout></PrivateRoute>} />
           <Route path="/profile/rates/edit" element={<PrivateRoute><MainLayout><KycGate><RatesEditorPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/bidding/details/:id" element={<PrivateRoute><MainLayout><KycGate><BiddingDetails /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><MainLayout><KycGate><ProfilePage /></KycGate></MainLayout></PrivateRoute>} />

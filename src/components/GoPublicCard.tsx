@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Check, Globe, Hourglass, Lock, Users } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
+import { useRateSetup } from '../hooks/useRateSetup';
 
 axios.defaults.withCredentials = true;
 
@@ -79,6 +80,7 @@ function pendingKycNote(kyc: PublicStatus['kycStatus']): { text: string; link?: 
 // Legacy transporters (not eligible) never see it.
 const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banner, sidebar }) => {
   const { status, refresh } = usePublicStatus();
+  const { needsSetup, setupPath } = useRateSetup();
   const [busy, setBusy] = useState(false);
 
   // Tell the transporter the moment the admin decides while this page is open.
@@ -186,10 +188,18 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banne
             <div className="mt-0.5">Every shipper can find &amp; book you</div>
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-2">
-          <button onClick={go} disabled={busy} className="flex-1 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-indigo-700 shadow hover:bg-blue-50 disabled:opacity-60">Go public</button>
-          <Link to="/profile/rates/edit" className="rounded-xl px-3 py-2.5 text-xs font-bold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
-        </div>
+        {needsSetup ? (
+          // Nothing for shippers to book yet — rates come before going public.
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-semibold text-blue-100">Add your rates first. Shippers need prices to book you.</p>
+            <Link to={setupPath} className="block rounded-xl bg-white px-4 py-2.5 text-center text-sm font-black text-indigo-700 shadow hover:bg-blue-50">Set up rates</Link>
+          </div>
+        ) : (
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={go} disabled={busy} className="flex-1 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-indigo-700 shadow hover:bg-blue-50 disabled:opacity-60">Go public</button>
+            <Link to="/profile/rates/edit" className="rounded-xl px-3 py-2.5 text-xs font-bold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
+          </div>
+        )}
       </div>
     </div>
   );

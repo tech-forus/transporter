@@ -14,8 +14,9 @@ import toast from 'react-hot-toast';
 import {
   RefreshCw, MapPin, Package, IndianRupee, Clock, Mail, Phone,
   User as UserIcon, CheckCircle2, XCircle, ThumbsUp, Bell, Eye, X,
-  TrendingUp, ClipboardList, Route, ArrowRight, UserCog, Truck,
+  TrendingUp, ClipboardList, Route, ArrowRight, UserCog, Truck, AlertTriangle,
 } from 'lucide-react';
+import { useRateSetup } from '../hooks/useRateSetup';
 import GoPublicCard, { PUBLIC_STATUS_REFRESH_EVENT } from '../components/GoPublicCard';
 import { IS_WEB } from '../config/host';
 
@@ -382,11 +383,15 @@ const BookingsPage: React.FC = () => {
       .catch(() => setPriceSummary(null));
   }, [isAuthenticated]);
 
+  // Business and owner-operator alike: no rates yet → every "rates" entry point goes to first-time setup.
+  const { hasRates, needsSetup, setupPath } = useRateSetup();
+  const ratesLink = needsSetup ? setupPath : '/profile/rates';
+
   // Without this the embedding parent iframe never learns this page grew
   // (e.g. a modal opening), so it stays sized for the plain list and the
   // modal renders partly off the visible page instead of centered in view
   // — same fix every other page here already has.
-  useReportIframeHeight([bookings.length, viewingBooking, decliningBooking, loading, error, priceSummary]);
+  useReportIframeHeight([bookings.length, viewingBooking, decliningBooking, loading, error, priceSummary, needsSetup]);
 
   // Without this, the two modals below — centered via `fixed inset-0` — center
   // themselves against this iframe's full auto-grown content height instead of
@@ -483,6 +488,19 @@ const BookingsPage: React.FC = () => {
           </button>
         </header>
 
+        {needsSetup && (
+          <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+            <AlertTriangle size={20} className="flex-none text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Add your rates to start receiving bookings</p>
+              <p className="text-xs text-amber-800/80 dark:text-amber-300/80">Shippers can't see or book you until your rates are set up.</p>
+            </div>
+            <Link to={setupPath} className="inline-flex flex-none items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 transition-colors">
+              Set up rates <ArrowRight size={14} />
+            </Link>
+          </div>
+        )}
+
         {/* Stats: always shown (0s included) so the dashboard never looks empty/broken */}
         <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
@@ -525,8 +543,8 @@ const BookingsPage: React.FC = () => {
             </div>
             <p className="text-slate-700 dark:text-[#8fb0cf] font-semibold">No bookings yet</p>
             <p className="text-sm text-slate-400 dark:text-[#6f93b8] mt-1 max-w-sm mx-auto">When a shipper books you directly, it will show up here. Keep your rates up to date so shippers can find and book you.</p>
-            <Link to="/profile/rates" className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl hover:bg-blue-100 transition-colors">
-              Review my lane rates <ArrowRight size={14} />
+            <Link to={ratesLink} className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl hover:bg-blue-100 transition-colors">
+              {needsSetup ? 'Set up my rates' : 'Review my lane rates'} <ArrowRight size={14} />
             </Link>
           </div>
         ) : (() => {
@@ -720,15 +738,15 @@ const BookingsPage: React.FC = () => {
                 </div>
                 <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
                   <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><ClipboardList size={11} /> Rate card</div>
-                  <p className="text-base font-black text-slate-900 dark:text-white">{priceSummary === null ? '—' : priceSummary.hasPriceCard ? 'Set up' : 'Not started'}</p>
+                  <p className="text-base font-black text-slate-900 dark:text-white">{hasRates === null ? '—' : hasRates ? 'Set up' : 'Not started'}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
                   <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><Truck size={11} /> Fleet</div>
                   <p className="text-base font-black text-slate-900 dark:text-white">{(user as any)?.noOfTrucks ? `${(user as any).noOfTrucks} trucks` : '—'}</p>
                 </div>
               </div>
-              <Link to="/profile/rates" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
-                <Route size={13} /> {priceSummary?.hasPriceCard ? 'Edit routes & rates' : 'Add your routes & rates'}
+              <Link to={ratesLink} className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                <Route size={13} /> {needsSetup ? 'Add your routes & rates' : priceSummary?.hasPriceCard ? 'Edit routes & rates' : 'Add your routes & rates'}
               </Link>
             </div>
             <div className="bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-100 dark:border-[#1d3f5c] shadow-sm p-2">

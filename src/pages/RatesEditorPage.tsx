@@ -6,6 +6,7 @@ import { Plus, Trash2, ArrowLeft, Check, Loader2, AlertTriangle } from 'lucide-r
 import { API_BASE_URL } from '../config/apiConfig';
 import ReconfirmModal, { type DiffItem } from '../components/ReconfirmModal';
 import LaneEndFields from '../components/LaneEndFields';
+import { useRateSetup } from '../hooks/useRateSetup';
 
 axios.defaults.withCredentials = true;
 
@@ -92,6 +93,8 @@ const RatesEditorPage: React.FC = () => {
   const linkId = params.get('linkId');
 
   const [loaded, setLoaded] = useState(false);
+  // First-time-setup links only for Google/invite accounts — never legacy carriers (see useRateSetup).
+  const { needsSetup } = useRateSetup();
   const [individual, setIndividual] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [priceRate, setPriceRate] = useState<Rate>({});
@@ -248,7 +251,7 @@ const RatesEditorPage: React.FC = () => {
           </div>
           {lanes.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
-              No lanes yet. Add one to start receiving quotes.
+              No lanes yet. Add one to start receiving quotes{!linkId && needsSetup && <>, or <Link to="/setup/lanes" className="font-semibold text-blue-600 hover:text-blue-700">add many at once</Link></>}.
             </div>
           )}
           <div className="space-y-3">
@@ -336,7 +339,10 @@ const RatesEditorPage: React.FC = () => {
               <p className="mb-3 text-xs text-slate-500">Rupees per kg (max ₹100), from the row zone to the column zone.</p>
             </div>
             {origins.length === 0 ? (
-              <p className="px-5 pb-6 text-sm text-slate-400">No zone rates yet.</p>
+              <p className="px-5 pb-6 text-sm text-slate-400">
+                No zone rates yet.{' '}
+                {!linkId && needsSetup && <Link to="/addprice" className="font-semibold text-blue-600 hover:text-blue-700">Set up your rates</Link>}
+              </p>
             ) : (
               <>
                 <div className="overflow-x-auto border-t border-slate-100">

@@ -51,13 +51,16 @@ textarea:-webkit-autofill {
   html.web-dark body { background-color: #08141f; color: #c9dbec; }
 
   /* Surfaces */
-  .web-dark .bg-white, .web-dark .bg-white\/90, .web-dark .bg-white\/70 { background-color: #0d2438; }
+  .web-dark .bg-white, .web-dark .bg-white\/95, .web-dark .bg-white\/90, .web-dark .bg-white\/70 { background-color: #0d2438; }
+  .web-dark .focus\:bg-white:focus { background-color: #0b1d2e; }
+  .web-dark .disabled\:bg-slate-200:disabled { background-color: #1d3f5c; }
   .web-dark .bg-slate-50, .web-dark .bg-slate-50\/80, .web-dark .bg-slate-50\/50, .web-dark .bg-slate-50\/40, .web-dark .bg-gray-50 { background-color: #0b1d2e; }
   .web-dark .bg-slate-100, .web-dark .bg-gray-100 { background-color: #12304a; }
   .web-dark .bg-slate-200, .web-dark .bg-gray-200 { background-color: #1d3f5c; }
   .web-dark .hover\:bg-white:hover, .web-dark .hover\:bg-slate-50:hover, .web-dark .hover\:bg-slate-50\/60:hover,
   .web-dark .hover\:bg-slate-100:hover, .web-dark .hover\:bg-gray-50:hover, .web-dark .hover\:bg-gray-100:hover { background-color: #12304a; }
   .web-dark .hover\:bg-slate-200:hover { background-color: #1d3f5c; }
+  .web-dark .hover\:bg-slate-50\/80:hover { background-color: #12304a; }
 
   /* Text */
   .web-dark .text-slate-900, .web-dark .text-slate-800, .web-dark .text-gray-900, .web-dark .text-gray-800 { color: #e6f0fa; }
@@ -76,7 +79,10 @@ textarea:-webkit-autofill {
 
   /* Pale status tints → translucent tints that read on dark */
   .web-dark .bg-blue-50, .web-dark .bg-blue-50\/40, .web-dark .bg-blue-50\/60, .web-dark .bg-blue-100, .web-dark .bg-sky-50,
-  .web-dark .hover\:bg-blue-50:hover, .web-dark .hover\:bg-blue-50\/30:hover, .web-dark .hover\:bg-blue-100:hover { background-color: rgba(59, 130, 246, 0.14); }
+  .web-dark .hover\:bg-blue-50:hover, .web-dark .hover\:bg-blue-50\/30:hover, .web-dark .hover\:bg-blue-50\/20:hover, .web-dark .hover\:bg-blue-100:hover { background-color: rgba(59, 130, 246, 0.14); }
+  /* Selected rows/chips (zone picker): a step stronger than the plain tint so "selected" still reads */
+  .web-dark .bg-blue-100\/70, .web-dark .hover\:bg-blue-200:hover { background-color: rgba(59, 130, 246, 0.24); }
+  .web-dark .border-blue-300 { border-color: rgba(59, 130, 246, 0.5); }
   .web-dark .bg-indigo-50, .web-dark .bg-violet-50, .web-dark .bg-purple-50 { background-color: rgba(129, 140, 248, 0.14); }
   .web-dark .bg-amber-50, .web-dark .bg-amber-50\/70, .web-dark .bg-amber-100, .web-dark .bg-yellow-50, .web-dark .bg-orange-50 { background-color: rgba(245, 158, 11, 0.14); }
   .web-dark .bg-amber-200 { background-color: rgba(245, 158, 11, 0.3); }
@@ -95,7 +101,8 @@ textarea:-webkit-autofill {
   .web-dark .text-amber-600 { color: #fbbf24; }
   .web-dark .text-amber-700, .web-dark .text-amber-800, .web-dark .text-amber-900, .web-dark .text-amber-900\/80, .web-dark .text-amber-950, .web-dark .hover\:text-amber-950:hover { color: #fcd34d; }
   .web-dark .text-emerald-600, .web-dark .text-green-600 { color: #34d399; }
-  .web-dark .text-emerald-700, .web-dark .text-emerald-900, .web-dark .text-green-700 { color: #6ee7b7; }
+  .web-dark .text-emerald-700, .web-dark .text-emerald-800, .web-dark .text-emerald-900, .web-dark .text-green-700 { color: #6ee7b7; }
+  .web-dark .hover\:text-slate-600:hover { color: #a6c1db; }
   .web-dark .text-red-600, .web-dark .hover\:text-red-600:hover, .web-dark .text-red-500 { color: #f87171; }
   .web-dark .text-red-700, .web-dark .hover\:text-red-700:hover { color: #fca5a5; }
 

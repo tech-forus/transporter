@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
+import { rateSetupPath, useRateSetup } from '../hooks/useRateSetup';
 
 // --- Same shapes as ProfilePage.tsx — this page just renders the tabular/
 // bulk pricing data that used to live at the bottom of the profile page, so
@@ -94,6 +95,7 @@ interface FieldDef {
 
 const RatesPage: React.FC = () => {
   const { user } = useAuth();
+  const { needsSetup } = useRateSetup();
   const [profile, setProfile] = useState<TransporterProfile | null>(null);
   const [priceConfig, setPriceConfig] = useState<PriceConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,6 +184,10 @@ const RatesPage: React.FC = () => {
   const toZones = Array.from(toZonesSet).sort();
 
   const nothingToShow = isIndividual ? laneRates.length === 0 : rateCardFields.length === 0 && fromZones.length === 0;
+  // The editor only changes rates that already exist; first-time setup is the signup rates step.
+  // Only for accounts that can lack rates by design (see useRateSetup) — never legacy carriers.
+  const firstTimeSetup = nothingToShow && needsSetup;
+  const editLink = firstTimeSetup ? rateSetupPath(isIndividual) : '/profile/rates/edit';
 
   // Group the flat list into what a transporter thinks in: the essentials, the
   // extras that apply to some shipments, and the rarely-used optional ones.
@@ -220,8 +226,8 @@ const RatesPage: React.FC = () => {
             {isIndividual ? 'Your pricing per origin-destination lane, as submitted.' : 'What shippers see when they compare you. Keep it current to win more bookings.'}
           </p>
         </div>
-        <Link to="/profile/rates/edit" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-colors">
-          <Pencil size={15} /> Edit rates
+        <Link to={editLink} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-colors">
+          <Pencil size={15} /> {firstTimeSetup ? 'Set up rates' : 'Edit rates'}
         </Link>
       </div>
 
@@ -250,8 +256,8 @@ const RatesPage: React.FC = () => {
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Truck size={22} /></div>
           <p className="font-semibold text-slate-800">No rates saved yet</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">Add your rate card and zone rates so shippers can see your prices.</p>
-          <Link to="/profile/rates/edit" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{isIndividual ? 'Add your lanes and prices so shippers can find and book you.' : 'Add your rate card and zone rates so shippers can see your prices.'}</p>
+          <Link to={editLink} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             <Pencil size={14} /> Add rates
           </Link>
         </div>
