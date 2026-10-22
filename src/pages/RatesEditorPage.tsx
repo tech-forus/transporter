@@ -110,28 +110,56 @@ const RatesEditorPage: React.FC = () => {
   const chargesMissing = !individual && loaded ? missingRequiredCharges(priceRate).length : 0;
 
   useEffect(() => {
+    // A response that lands after a newer load (React dev runs this effect twice) must not overwrite the
+    // editor's state — it would wipe edits typed in the meantime.
+    let cancelled = false;
     (async () => {
       try {
         const url = linkId
           ? `${API_BASE_URL}/api/vendor-referral/links/${linkId}/rates`
           : `${API_BASE_URL}/api/transporter/price/me/config`;
         const d = (await axios.get(url)).data.data || {};
+        if (cancelled) return;
         const isInd = Array.isArray(d.lanes);
         setIndividual(isInd);
         setIsPublic(!linkId && d.visibility === 'public');
         if (isInd) setLanes(d.lanes.map((l: any) => ({ ...l, price: Number(l.price), _key: newKey() })));
         else { setPriceRate(d.priceRate || {}); setZoneRates(d.zoneRates || {}); }
-      } catch { toast.error('Could not load your rates.'); }
-      finally { setLoaded(true); }
+      } catch { if (!cancelled) toast.error('Could not load your rates.'); }
+      finally { if (!cancelled) setLoaded(true); }
     })();
+    return () => { cancelled = true; };
   }, [linkId]);
 
-  const put = useCallback((confirmed?: boolean) => axios.put(
-    `${API_BASE_URL}/api/transporter/price/me`,
-    individual
-      ? { lanes, linkId: linkId || undefined, confirmed }
-      : { priceRate, zoneRates, linkId: linkId || undefined, confirmed }
-  ), [individual, lanes, priceRate, zoneRates, linkId]);
+  const body = individual
+    ? { lanes, linkId: linkId || undefined }
+    : { priceRate, zoneRates, linkId: linkId || undefined };
+  const put = useCallback((confirmed?: boolean) => axios.put(`${API_BASE_URL}/api/transporter/price/me`, { ...body, confirmed }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [individual, lanes, priceRate, zoneRates, linkId]);
+
+  // A change waiting for the autosave timer must not be lost when the user clicks Done / Back (unmount) or
+  // refreshes / closes the tab (pagehide) inside that window.
+  const pendingSave = useRef(false);
+  const putRef = useRef(put);
+  putRef.current = put;
+  const bodyRef = useRef(body);
+  bodyRef.current = body;
+  useEffect(() => {
+    const flushOnPageHide = () => {
+      if (!pendingSave.current) return;
+      pendingSave.current = false;
+      fetch(`${API_BASE_URL}/api/transporter/price/me`, {
+        method: 'PUT', keepalive: true, credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyRef.current),
+      }).catch(() => {});
+    };
+    window.addEventListener('pagehide', flushOnPageHide);
+    return () => {
+      window.removeEventListener('pagehide', flushOnPageHide);
+      if (pendingSave.current) { pendingSave.current = false; putRef.current().catch(() => {}); }
+    };
+  }, []);
 
   const reportError = (e: any, fallback: string) => {
     const errs: string[] | undefined = e?.response?.data?.errors;
@@ -141,10 +169,12 @@ const RatesEditorPage: React.FC = () => {
   // Autosave (debounced) for private / custom.
   useEffect(() => {
     if (!loaded || explicitPublish || !dirty.current) return;
-    if (individual && (!lanesValid || busy > 0)) return;
-    if (chargesMissing > 0) return;
+    // Not saveable right now: drop any queued save too, so leaving the page can't save the incomplete state.
+    if ((individual && (!lanesValid || busy > 0)) || chargesMissing > 0) { window.clearTimeout(timer.current); pendingSave.current = false; return; }
     window.clearTimeout(timer.current);
+    pendingSave.current = true;
     timer.current = window.setTimeout(async () => {
+      pendingSave.current = false;
       setSaveState('saving');
       try { await put(); setSaveState('saved'); dirty.current = false; }
       catch (e: any) { setSaveState('error'); reportError(e, 'Could not save.'); }

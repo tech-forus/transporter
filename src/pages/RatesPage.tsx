@@ -3,13 +3,14 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 
 import {
-  Truck, Package, Receipt, Grid3x3, Route, ArrowLeft, Loader, AlertTriangle,
+  Truck, Receipt, Grid3x3, Route, ArrowLeft, Loader, AlertTriangle,
   Pencil, Layers, PlusCircle, Info,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { rateSetupPath, useRateSetup } from '../hooks/useRateSetup';
+import { describeCharges } from '../components/ChargesEditor';
 
 // --- Same shapes as ProfilePage.tsx — this page just renders the tabular/
 // bulk pricing data that used to live at the bottom of the profile page, so
@@ -57,23 +58,6 @@ interface PriceConfig {
   };
   zoneRates?: Record<string, Record<string, number>>;
 }
-
-const formatVarFixed = (vf?: VarFixed): string | null => {
-  if (!vf) return null;
-  const parts: string[] = [];
-  if (vf.fixed) parts.push(`₹${vf.fixed}`);
-  if (vf.variable) parts.push(`${vf.variable}%`);
-  return parts.length ? parts.join(' + ') : null;
-};
-
-const formatMixedCharge = (value: MixedCharge, percentIfScalar = false): string | null => {
-  if (value === null || value === undefined) return null;
-  if (Array.isArray(value)) return value.length ? `${value.length} weight slab${value.length === 1 ? '' : 's'}` : null;
-  if (typeof value === 'object') return formatVarFixed(value);
-  const num = Number(value);
-  if (!num) return null;
-  return percentIfScalar ? `${num}%` : `₹${num}`;
-};
 
 // Capacity can arrive either as a straight max weight, or as raised-bed
 // dimensions (no weight rating on file) — show whichever the record
@@ -153,29 +137,9 @@ const RatesPage: React.FC = () => {
   const laneRates = profile.individualLaneRates || [];
 
   const pr = priceConfig?.priceRate;
-  const rateCardFields: FieldDef[] = pr
-    ? [
-        { label: 'Min Chargeable Weight', value: pr.minWeight ? `${pr.minWeight} kg` : null, icon: <Package size={16} /> },
-        { label: 'Docket Charges', value: formatMixedCharge(pr.docketCharges), icon: <Receipt size={16} /> },
-        { label: 'Fuel Surcharge', value: formatMixedCharge(pr.fuel, true), icon: <Receipt size={16} /> },
-        { label: 'Minimum Charges', value: formatMixedCharge(pr.minCharges), icon: <Receipt size={16} /> },
-        { label: 'ROV / FOV Charges', value: formatVarFixed(pr.rovCharges), icon: <Receipt size={16} /> },
-        { label: 'Insurance Charges', value: formatVarFixed(pr.insuaranceCharges), icon: <Receipt size={16} /> },
-        { label: 'ODA Charges', value: formatVarFixed(pr.odaCharges), icon: <Receipt size={16} /> },
-        { label: 'COD Charges', value: formatVarFixed(pr.codCharges), icon: <Receipt size={16} /> },
-        { label: 'Prepaid Charges', value: formatVarFixed(pr.prepaidCharges), icon: <Receipt size={16} /> },
-        { label: 'To-Pay Charges', value: formatVarFixed(pr.topayCharges), icon: <Receipt size={16} /> },
-        { label: 'Handling Charges', value: formatVarFixed(pr.handlingCharges), icon: <Receipt size={16} /> },
-        { label: 'FM Charges', value: formatVarFixed(pr.fmCharges), icon: <Receipt size={16} /> },
-        { label: 'Appointment Charges', value: formatVarFixed(pr.appointmentCharges), icon: <Receipt size={16} /> },
-        { label: 'Green Tax / NGT', value: formatMixedCharge(pr.greenTax), icon: <Receipt size={16} /> },
-        { label: 'DACC Charges', value: formatMixedCharge(pr.daccCharges), icon: <Receipt size={16} /> },
-        { label: 'Misc / AOC Charges', value: formatMixedCharge(pr.miscellanousCharges), icon: <Receipt size={16} /> },
-        { label: 'Hamali Charges', value: formatMixedCharge(pr.hamaliCharges), icon: <Receipt size={16} /> },
-        { label: 'Cheque Handling', value: pr.chequeHandlingCharges ? `₹${pr.chequeHandlingCharges}` : null, icon: <Receipt size={16} /> },
-        { label: 'Volumetric Divisor', value: pr.divisor ? `${pr.divisor} (L×W×H ÷ N)` : null, icon: <Receipt size={16} /> },
-      ].filter((f) => f.value !== null && f.value !== undefined)
-    : [];
+  // Same reading as the editor (ChargesEditor.describeCharges), so GST, per-kg, ODA types etc. all show.
+  const described = pr ? describeCharges(pr as Record<string, unknown>) : [];
+  const rateCardFields: (FieldDef & { group: string })[] = described.map((d) => ({ label: d.label, value: d.value, icon: <Receipt size={16} />, group: d.group }));
 
   const zoneRatesData = priceConfig?.zoneRates || {};
   const fromZones = Object.keys(zoneRatesData).filter((z) => Object.values(zoneRatesData[z] || {}).some((v) => Number(v) > 0));
@@ -191,12 +155,10 @@ const RatesPage: React.FC = () => {
 
   // Group the flat list into what a transporter thinks in: the essentials, the
   // extras that apply to some shipments, and the rarely-used optional ones.
-  const BASIC = new Set(['Min Chargeable Weight', 'Docket Charges', 'Fuel Surcharge', 'Minimum Charges', 'Volumetric Divisor']);
-  const OPTIONAL = new Set(['Insurance Charges', 'COD Charges', 'Prepaid Charges', 'To-Pay Charges', 'FM Charges', 'Appointment Charges', 'DACC Charges']);
   const groups = [
-    { title: 'Basic charges', hint: 'Applied on every shipment', tone: 'bg-blue-50 text-blue-600', icon: <Receipt size={18} />, items: rateCardFields.filter((f) => BASIC.has(f.label)) },
-    { title: 'Additional charges', hint: 'Added when they apply', tone: 'bg-indigo-50 text-indigo-600', icon: <Layers size={18} />, items: rateCardFields.filter((f) => !BASIC.has(f.label) && !OPTIONAL.has(f.label)) },
-    { title: 'Optional charges', hint: 'Only on request', tone: 'bg-slate-100 text-slate-600', icon: <PlusCircle size={18} />, items: rateCardFields.filter((f) => OPTIONAL.has(f.label)) },
+    { title: 'Basic charges', hint: 'Applied on every shipment', tone: 'bg-blue-50 text-blue-600', icon: <Receipt size={18} />, items: rateCardFields.filter((f) => f.group === 'basic') },
+    { title: 'Additional charges', hint: 'Added when they apply', tone: 'bg-blue-50 text-blue-600', icon: <Layers size={18} />, items: rateCardFields.filter((f) => f.group === 'additional') },
+    { title: 'Optional charges', hint: 'Only when the shipper picks them', tone: 'bg-slate-100 text-slate-600', icon: <PlusCircle size={18} />, items: rateCardFields.filter((f) => f.group === 'optional') },
   ].filter((g) => g.items.length > 0);
 
   const allRates = fromZones.flatMap((fz) => toZones.map((tz) => Number(zoneRatesData[fz]?.[tz]) || 0));

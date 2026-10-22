@@ -46,7 +46,7 @@ function readCard(key: string, d: Rate | undefined): { unit: Unit; value: number
 }
 
 function writeCard(key: string, d: Rate | undefined, unit: Unit, value: number): Rate {
-  const base = { ...(d && typeof d === 'object' ? d : {}), fixed: 0, variable: 0, perKg: 0 };
+  const base: Rate = { ...(d && typeof d === 'object' ? d : {}), fixed: 0, variable: 0, perKg: 0 };
   if (unit === 'flat') base.fixed = value;
   if (unit === 'pct') base.variable = value;
   if (unit === 'kg') base.perKg = value;
@@ -70,6 +70,34 @@ export function missingRequiredCharges(rate: Rate): string[] {
   if (!(readSingle(rate.gstPct ?? rate.gst, 'variable') > 0)) missing.push('gstPct');
   if (!(readCard('handlingCharges', rate.handlingCharges).value > 0)) missing.push('handlingCharges');
   return missing;
+}
+
+/** Saved charges as the rates page lists them — same reading as this editor, so the two never disagree. */
+export function describeCharges(rate: Rate): { group: 'basic' | 'additional' | 'optional'; label: string; value: string }[] {
+  const out: { group: 'basic' | 'additional' | 'optional'; label: string; value: string }[] = [];
+  const add = (group: 'basic' | 'additional' | 'optional', label: string, value: string | null) => { if (value) out.push({ group, label, value }); };
+  const card = (key: string) => {
+    const { unit, value } = readCard(key, rate[key]);
+    if (!(value > 0)) return null;
+    return unit === 'kg' ? `₹${value}/kg` : unit === 'pct' ? `${value}% of freight` : `₹${value}`;
+  };
+  const fuel = readSingle(rate.fuel, 'variable');
+  const handling = card('handlingCharges');
+  const threshold = num(rate.handlingCharges?.thresholdWeight ?? rate.handlingCharges?.threshholdweight);
+  const oda = readOda(rate.odaCharges, rate.odaMatrix);
+  add('basic', 'Docket charges', readSingle(rate.docketCharges, 'fixed') > 0 ? `₹${readSingle(rate.docketCharges, 'fixed')}` : null);
+  add('basic', 'Fuel surcharge', fuel > 0 ? `${fuel}%${num(rate.fuelMax) > 0 ? `, max ₹${num(rate.fuelMax)}` : ''}` : null);
+  add('basic', 'Min chargeable weight', num(rate.minWeight) > 0 ? `${num(rate.minWeight)} kg` : null);
+  add('basic', 'Minimum charges', readSingle(rate.minCharges, 'fixed') > 0 ? `₹${readSingle(rate.minCharges, 'fixed')}` : null);
+  add('basic', 'GST', readSingle(rate.gstPct ?? rate.gst, 'variable') > 0 ? `${readSingle(rate.gstPct ?? rate.gst, 'variable')}%` : null);
+  add('basic', 'ROV / FOV', card('rovCharges'));
+  add('basic', 'ODA', oda.enabled || oda.custom ? odaSummary(oda) : null);
+  add('basic', 'Handling', handling ? `${handling}${threshold > 0 ? ` above ${threshold} kg` : ''}` : null);
+  add('basic', 'Volumetric divisor', num(rate.divisor) > 0 ? `${num(rate.divisor)} (L×W×H ÷ N)` : null);
+  for (const k of ['greenTax', 'hamaliCharges', 'miscellanousCharges', 'insuaranceCharges', 'fmCharges']) add('additional', CARDS[k].label, card(k));
+  add('additional', 'Cheque handling', num(rate.chequeHandlingCharges) > 0 ? `₹${num(rate.chequeHandlingCharges)}` : null);
+  for (const k of ['topayCharges', 'codCharges', 'daccCharges']) add('optional', CARDS[k].label, card(k));
+  return out;
 }
 
 /** priceRate keys this table owns — the page's "Basic settings" card leaves these out. */
@@ -176,6 +204,9 @@ const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unkno
   // Mode picked on screen. A charge with no value yet has no unit of its own, so without this a switch to
   // Variable or ₹/KG would snap straight back to Fixed ₹ (Add Vendor keeps the mode separately too).
   const [picked, setPicked] = useState<Record<string, Unit>>({});
+  // Last value typed per mode, so switching back restores it (as Add Vendor does). Only the mode the row is
+  // left on is saved.
+  const [memo, setMemo] = useState<Record<string, Partial<Record<Unit, number>>>>({});
   // Ticked optional charges (UI only; an unticked one is saved as 0). Saved values > 0 start ticked.
   const [optOn, setOptOn] = useState<Set<string>>(() => new Set(['topayCharges', 'codCharges', 'daccCharges'].filter((k) => readCard(k, rate[k]).value > 0)));
   const missing = new Set(missingRequiredCharges(rate));
@@ -188,11 +219,16 @@ const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unkno
     const value = picked[key] && picked[key] !== saved.unit ? 0 : saved.value;
     const mixed = saved.mixed && !picked[key];
     const enabled = !optional || value > 0 || optOn.has(key);
-    const set = (u: Unit, v: number) => { setPicked((p) => ({ ...p, [key]: u })); onChange(key, writeCard(key, rate[key], u, v)); };
+    const set = (u: Unit, v: number) => {
+      setPicked((p) => ({ ...p, [key]: u }));
+      setMemo((m) => ({ ...m, [key]: { ...m[key], [saved.unit]: m[key]?.[saved.unit] ?? saved.value, [u]: v } }));
+      onChange(key, writeCard(key, rate[key], u, v));
+    };
+    const switchTo = (u: Unit) => set(u, memo[key]?.[u] ?? (u === saved.unit ? saved.value : 0));
     const hasPct = def.units.includes('pct');
     const isFixed = unit !== 'pct';
     const unitCell = isFixed && def.units.includes('kg') ? (
-      <select value={unit} onChange={(e) => set(e.target.value as Unit, 0)} disabled={!enabled}
+      <select value={unit} onChange={(e) => switchTo(e.target.value as Unit)} disabled={!enabled}
         className="rounded border border-slate-200 bg-white px-1 py-1 text-xs font-bold text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-[#1d3f5c] dark:bg-[#0b1d2e]">
         <option value="flat">₹</option>
         <option value="kg">₹/KG</option>
@@ -211,7 +247,7 @@ const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unkno
               if (!on) onChange(key, writeCard(key, rate[key], 'flat', 0));
             }} />
         ) : undefined}
-        type={hasPct ? <ModeToggle isFixed={isFixed} disabled={!enabled} onChange={(f) => set(f ? 'flat' : 'pct', 0)} /> : <span className="text-xs text-slate-400">Fixed</span>}
+        type={hasPct ? <ModeToggle isFixed={isFixed} disabled={!enabled} onChange={(f) => switchTo(f ? 'flat' : 'pct')} /> : <span className="text-xs text-slate-400">Fixed</span>}
         value={<NumInput value={value} max={unit === 'pct' ? PCT_MAX : FLAT_MAX} disabled={!enabled} error={!!(def.required && err(key, def.label))} onChange={(v) => set(unit, v)} />}
         unit={unitCell}
       />
