@@ -119,6 +119,11 @@ textarea:-webkit-autofill {
    footer. Content decides the height there instead. */
 .embedded-web .min-h-screen { min-height: 0; }
 
+/* The host sizes the iframe to the content (useReportIframeHeight), so the host page does all the scrolling.
+   Any leftover few px (margins outside #root) made the iframe itself scrollable, and the wheel got caught in
+   that inner scroll before reaching the page. */
+html:has(.embedded-web), html:has(.embedded-web) body { overflow: hidden; }
+
 /* ── Website accent (html[data-accent], set by useEmbeddedTheme from the host's fc_theme message; web only) ──
    Mirrors the host site's accent picker so the portal's buttons, tabs, links and the Go public gradient
    match the colour chosen on freightcompare.ai. "blue" is the portal's native palette, so it needs no rules. */

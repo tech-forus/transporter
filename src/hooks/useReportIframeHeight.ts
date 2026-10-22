@@ -20,7 +20,9 @@ export function useReportIframeHeight(deps: React.DependencyList = [], enabled =
     // Dashboard.tsx hit 350,000+px within ~90 seconds before this cap
     // existed. No real page here is anywhere near this tall — this is a
     // circuit breaker, not a normal operating value.
-    const MAX_REPORTABLE_HEIGHT = 4000;
+    // Embedded web pages can't scroll themselves (index.css), so this must stay above any real page or the
+    // bottom gets cut off; a runaway loop still stops here.
+    const MAX_REPORTABLE_HEIGHT = 20000;
     // Measure the app root, not <html>: <html>'s scrollHeight is never less than the iframe's current height,
     // so after a taller page the iframe could only grow, leaving a big empty gap above the host footer.
     // Website only; the app keeps measuring <html> as before.
