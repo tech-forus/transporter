@@ -132,72 +132,72 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banne
     ] as const;
     return (
       <div className={banner ? 'mx-auto max-w-6xl px-4 pt-4' : ''}>
-        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 text-amber-950">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-slate-900 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-amber-500 text-white"><Hourglass size={18} /></span>
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-blue-600 text-white"><Hourglass size={18} /></span>
             <div>
               <div className="text-base font-black leading-tight">Request submitted!</div>
-              <div className="text-sm text-amber-900/80"><b>Awaiting approval.</b> We're reviewing your profile.</div>
+              <div className="text-sm text-slate-600 dark:text-[#a6c1db]"><b>Awaiting approval.</b> We're reviewing your profile.</div>
             </div>
           </div>
           <ol className="mt-4 flex items-center">
             {steps.map((s, i) => (
               <li key={s.label} className="flex flex-1 items-center last:flex-none">
                 <span className="flex items-center gap-1.5">
-                  <span className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[11px] font-black ${s.state === 'done' ? 'bg-emerald-500 text-white' : s.state === 'now' ? 'bg-amber-500 text-white ring-4 ring-amber-200' : 'bg-white text-slate-400 ring-1 ring-slate-200'}`}>
+                  <span className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[11px] font-black ${s.state === 'done' ? 'bg-emerald-500 text-white' : s.state === 'now' ? 'bg-blue-600 text-white ring-4 ring-blue-200' : 'bg-white text-slate-400 ring-1 ring-slate-200 dark:bg-transparent'}`}>
                     {s.state === 'done' ? <Check size={14} /> : i + 1}
                   </span>
-                  <span className={`text-xs font-bold ${s.state === 'next' ? 'text-slate-400' : 'text-slate-800'}`}>{s.label}</span>
+                  <span className={`text-xs font-bold ${s.state === 'next' ? 'text-slate-400' : 'text-slate-800 dark:text-white'}`}>{s.label}</span>
                 </span>
-                {i < steps.length - 1 && <span className={`mx-2 h-0.5 flex-1 rounded ${s.state === 'done' ? 'bg-emerald-400' : 'bg-amber-200'}`} />}
+                {i < steps.length - 1 && <span className={`mx-2 h-0.5 flex-1 rounded ${s.state === 'done' ? 'bg-emerald-400' : 'bg-blue-200'}`} />}
               </li>
             ))}
           </ol>
-          <p className="mt-3 text-xs text-amber-900/80">Once approved, every shipper on FreightCompare can find and book you.</p>
-          <p className="mt-1.5 rounded-lg bg-white/70 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200">
+          <p className="mt-3 text-xs text-slate-600 dark:text-[#a6c1db]">Once approved, every shipper on FreightCompare can find and book you.</p>
+          <p className="mt-1.5 rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-700 ring-1 ring-blue-200 dark:bg-white/5 dark:text-[#c9dbec] dark:ring-[#1d3f5c]">
             {kycNote.text}
             {kycNote.link && <> <Link to={kycNote.link} className="underline underline-offset-2">Open KYC</Link></>}
           </p>
-          <button onClick={withdraw} disabled={busy} className="mt-2 text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-950 disabled:opacity-60">Withdraw request</button>
+          <button onClick={withdraw} disabled={busy} className="mt-2 text-xs font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-800 disabled:opacity-60 dark:text-blue-300">Withdraw request</button>
         </div>
       </div>
     );
   }
   return (
     <div className={banner ? 'mx-auto max-w-6xl px-4 pt-4' : ''}>
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-5 text-white shadow-lg shadow-indigo-200">
-        <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-blue-100">
-          <Users size={13} /> Shippers are waiting
+      <div className="rounded-xl bg-blue-600 p-4 text-white">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-100">
+          <Users size={12} /> Shippers are waiting
         </div>
-        <div className="mt-1 flex items-end gap-2">
-          <span className="text-5xl font-black leading-none tracking-tight">{WAITING_SHIPPERS_LABEL}</span>
-          <span className="pb-1 text-sm font-semibold text-blue-100">shippers want to book transporters like you</span>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-3xl font-bold leading-none tracking-tight">{WAITING_SHIPPERS_LABEL}</span>
+          <span className="text-sm font-medium leading-snug text-blue-100" style={{ textWrap: 'balance' }}>shippers want to book<br />transporters like you</span>
         </div>
-        <p className="mt-3 text-sm text-blue-50">
+        <p className="mt-2 text-xs text-blue-100">
           {v === 'rejected'
             ? `Your last request wasn't approved${status.rejectionReason ? `: ${status.rejectionReason}` : ''}. Update your info and try again.`
             : 'Right now, only the shipper who invited you can see your rates. Go public and get found by all of them.'}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/20">
-            <div className="flex items-center gap-1 font-black"><Lock size={12} /> Today</div>
+          <div className="rounded-lg bg-white/10 p-2.5 ring-1 ring-white/20">
+            <div className="flex items-center gap-1 font-semibold"><Lock size={12} /> Today</div>
             <div className="mt-0.5 text-blue-100">Only your inviting shipper sees you</div>
           </div>
-          <div className="rounded-xl bg-white p-2.5 text-indigo-900 shadow">
-            <div className="flex items-center gap-1 font-black text-emerald-600"><Globe size={12} /> After going public</div>
-            <div className="mt-0.5">Every shipper can find &amp; book you</div>
+          <div className="rounded-lg bg-white/10 p-2.5 ring-1 ring-white/20">
+            <div className="flex items-center gap-1 font-semibold"><Globe size={12} /> After going public</div>
+            <div className="mt-0.5 text-blue-100">Every shipper can find &amp; book you</div>
           </div>
         </div>
         {needsSetup ? (
           // Nothing for shippers to book yet — rates come before going public.
-          <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold text-blue-100">Add your rates first. Shippers need prices to book you.</p>
-            <Link to={setupPath} className="block rounded-xl bg-white px-4 py-2.5 text-center text-sm font-black text-indigo-700 shadow hover:bg-blue-50">Set up rates</Link>
+          <div className="mt-3">
+            <p className="mb-2 text-xs text-blue-100">Add your rates first. Shippers need prices to book you.</p>
+            <Link to={setupPath} className="block rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-blue-700 hover:bg-blue-50">Set up rates</Link>
           </div>
         ) : (
-          <div className="mt-4 flex items-center gap-2">
-            <button onClick={go} disabled={busy} className="flex-1 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-indigo-700 shadow hover:bg-blue-50 disabled:opacity-60">Go public</button>
-            <Link to="/profile/rates/edit" className="rounded-xl px-3 py-2.5 text-xs font-bold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button onClick={go} disabled={busy} className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60">Go public</button>
+            <Link to="/profile/rates/edit" className="rounded-lg px-4 py-2 text-center text-sm font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
           </div>
         )}
       </div>
