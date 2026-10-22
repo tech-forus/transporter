@@ -468,10 +468,10 @@ const BookingsPage: React.FC = () => {
       <div className="max-w-6xl mx-auto py-2">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+            <p className="text-sm text-slate-500 dark:text-[#8fb0cf]">
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
               Welcome back{(user as any)?.companyName ? `, ${displayCompanyName((user as any).companyName)}` : ''}
             </h1>
             <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-0.5">
@@ -501,20 +501,21 @@ const BookingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Stats: always shown (0s included) so the dashboard never looks empty/broken */}
+        {/* Stats: always shown (0s included) so the dashboard never looks empty/broken.
+            Neutral tiles; colour only where it is a signal (pending > 0 needs the transporter). */}
         <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={18} className="text-white" />, bg: 'from-blue-600 to-blue-700 shadow-blue-200', sub: 'text-blue-100' },
-            { label: 'Pending action', value: String(stats.pending), icon: <Bell size={18} className="text-white" />, bg: 'from-amber-500 to-orange-500 shadow-amber-200', sub: 'text-amber-100' },
-            { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={18} className="text-white" />, bg: 'from-violet-500 to-violet-600 shadow-violet-200', sub: 'text-violet-100' },
-            { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={18} className="text-white" />, bg: 'from-emerald-500 to-emerald-600 shadow-emerald-200', sub: 'text-emerald-100' },
+            { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={16} />, alert: false },
+            { label: 'Pending action', value: String(stats.pending), icon: <Bell size={16} />, alert: stats.pending > 0 },
+            { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={16} />, alert: false },
+            { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={16} />, alert: false },
           ].map((c) => (
-            <div key={c.label} className={`flex items-center gap-3 bg-gradient-to-br ${c.bg} rounded-2xl px-4 py-4 shadow-sm`}>
-              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">{c.icon}</div>
-              <div className="min-w-0">
-                <p className="text-2xl font-black text-white leading-none truncate">{c.value}</p>
-                <p className={`text-[11px] font-semibold ${c.sub} mt-1.5`}>{c.label}</p>
+            <div key={c.label} className={`rounded-xl border bg-white dark:bg-[#0d2438] px-4 py-3.5 ${c.alert ? 'border-amber-300 dark:border-amber-500/50' : 'border-slate-200 dark:border-[#1d3f5c]'}`}>
+              <div className={`flex items-center gap-1.5 text-xs font-medium ${c.alert ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>
+                {c.icon}
+                <span className="truncate">{c.label}</span>
               </div>
+              <p className={`mt-2 text-2xl font-semibold leading-none truncate ${c.alert ? 'text-amber-700 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
             </div>
           ))}
         </div>
@@ -573,7 +574,7 @@ const BookingsPage: React.FC = () => {
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center flex-wrap gap-2 mb-2.5">
-                        <span className="font-black text-lg text-slate-900 dark:text-white inline-flex items-center gap-1.5 tracking-tight">
+                        <span className="font-semibold text-lg text-slate-900 dark:text-white inline-flex items-center gap-1.5">
                           <UserIcon size={16} className="text-blue-500" /> {shipperName}
                         </span>
                         {b.customerID?.companyName && shipperName !== b.customerID.companyName && (
@@ -730,19 +731,19 @@ const BookingsPage: React.FC = () => {
             <GoPublicCard sidebar />
             {/* Your Setup — routes covered, rate card status, fleet size (ported from main's Dashboard) */}
             <div className="bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-100 dark:border-[#1d3f5c] shadow-sm p-4">
-              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-[#6f93b8] mb-3">Your Setup</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Your setup</p>
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
-                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><Route size={11} /> Routes</div>
-                  <p className="text-base font-black text-slate-900 dark:text-white">{priceSummary?.hasPriceCard ? priceSummary.destinationRateCount ?? 0 : '—'}</p>
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><Route size={11} /> Routes</div>
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">{priceSummary?.hasPriceCard ? priceSummary.destinationRateCount ?? 0 : '—'}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
-                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><ClipboardList size={11} /> Rate card</div>
-                  <p className="text-base font-black text-slate-900 dark:text-white">{hasRates === null ? '—' : hasRates ? 'Set up' : 'Not started'}</p>
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><ClipboardList size={11} /> Rate card</div>
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">{hasRates === null ? '—' : hasRates ? 'Set up' : 'Not started'}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
-                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[10px] font-semibold uppercase tracking-wide mb-1"><Truck size={11} /> Fleet</div>
-                  <p className="text-base font-black text-slate-900 dark:text-white">{(user as any)?.noOfTrucks ? `${(user as any).noOfTrucks} trucks` : '—'}</p>
+                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><Truck size={11} /> Fleet</div>
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">{(user as any)?.noOfTrucks ? `${(user as any).noOfTrucks} trucks` : '—'}</p>
                 </div>
               </div>
               <Link to={ratesLink} className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-full px-3 py-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
@@ -750,7 +751,7 @@ const BookingsPage: React.FC = () => {
               </Link>
             </div>
             <div className="bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-100 dark:border-[#1d3f5c] shadow-sm p-2">
-              <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-[#6f93b8]">Quick actions</p>
+              <p className="px-3 pt-2 pb-1 text-sm font-semibold text-slate-900 dark:text-white">Quick actions</p>
               {[
                 { to: '/profile/bids', title: 'Available Bids', sub: 'Bids matching your service zones', icon: <Bell className="w-4 h-4" />, tone: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' },
                 { to: '/profile/rates', title: 'Lane Rates', sub: 'Review your saved rates', icon: <Route className="w-4 h-4" />, tone: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' },

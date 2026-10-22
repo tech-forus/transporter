@@ -2,24 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Montserrat everywhere — headings, sub-headings, and body text — matches
+/* Inter everywhere — headings, sub-headings, and body text — matches
    freight-compare-frontend. Applied globally so the pre-existing
    `text-xl font-bold` etc. utility combinations pick it up automatically
-   without touching every page's className. */
+   without touching every page's className. Tabular figures keep ₹ amounts
+   and counts column-aligned. */
 body {
-  font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
-  /* Montserrat Regular (400) reads noticeably lighter than Inter did at the
-     same weight — bumped to Medium as the default so plain body text and
-     unweighted sub-headings/labels don't look thin. Explicit Tailwind
-     font-* utilities (font-semibold, font-bold, etc.) still override this. */
-  font-weight: 500;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-weight: 700;
+  letter-spacing: -0.015em;
 }
 
 /* Keep form fields white — Chrome/Safari otherwise paint autofilled inputs

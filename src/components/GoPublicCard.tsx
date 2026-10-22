@@ -165,39 +165,35 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banne
   }
   return (
     <div className={banner ? 'mx-auto max-w-6xl px-4 pt-4' : ''}>
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-5 text-white shadow-lg shadow-indigo-200">
-        <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-blue-100">
-          <Users size={13} /> Shippers are waiting
+      <div className="rounded-xl border border-slate-200 dark:border-[#1d3f5c] bg-white dark:bg-[#0d2438] p-5 text-slate-900 dark:text-white">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Users size={16} className="text-blue-600 dark:text-blue-400" /> {WAITING_SHIPPERS_LABEL} shippers are looking for transporters like you
         </div>
-        <div className="mt-1 flex items-end gap-2">
-          <span className="text-5xl font-black leading-none tracking-tight">{WAITING_SHIPPERS_LABEL}</span>
-          <span className="pb-1 text-sm font-semibold text-blue-100">shippers want to book transporters like you</span>
-        </div>
-        <p className="mt-3 text-sm text-blue-50">
+        <p className="mt-2 text-sm text-slate-600 dark:text-[#a6c1db]">
           {v === 'rejected'
             ? `Your last request wasn't approved${status.rejectionReason ? `: ${status.rejectionReason}` : ''}. Update your info and try again.`
             : 'Right now, only the shipper who invited you can see your rates. Go public and get found by all of them.'}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/20">
-            <div className="flex items-center gap-1 font-black"><Lock size={12} /> Today</div>
-            <div className="mt-0.5 text-blue-100">Only your inviting shipper sees you</div>
+        <dl className="mt-3 space-y-1.5 text-sm">
+          <div className="flex items-start gap-2 text-slate-500 dark:text-[#8fb0cf]">
+            <Lock size={14} className="mt-0.5 flex-none" />
+            <div><dt className="inline font-medium text-slate-700 dark:text-[#c9dbec]">Today:</dt> <dd className="inline">only your inviting shipper sees you</dd></div>
           </div>
-          <div className="rounded-xl bg-white p-2.5 text-indigo-900 shadow">
-            <div className="flex items-center gap-1 font-black text-emerald-600"><Globe size={12} /> After going public</div>
-            <div className="mt-0.5">Every shipper can find &amp; book you</div>
+          <div className="flex items-start gap-2 text-slate-500 dark:text-[#8fb0cf]">
+            <Globe size={14} className="mt-0.5 flex-none text-emerald-600 dark:text-emerald-400" />
+            <div><dt className="inline font-medium text-slate-700 dark:text-[#c9dbec]">After going public:</dt> <dd className="inline">every shipper can find &amp; book you</dd></div>
           </div>
-        </div>
+        </dl>
         {needsSetup ? (
           // Nothing for shippers to book yet — rates come before going public.
           <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold text-blue-100">Add your rates first. Shippers need prices to book you.</p>
-            <Link to={setupPath} className="block rounded-xl bg-white px-4 py-2.5 text-center text-sm font-black text-indigo-700 shadow hover:bg-blue-50">Set up rates</Link>
+            <p className="mb-2 text-xs text-slate-500 dark:text-[#8fb0cf]">Add your rates first. Shippers need prices to book you.</p>
+            <Link to={setupPath} className="block rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-700">Set up rates</Link>
           </div>
         ) : (
           <div className="mt-4 flex items-center gap-2">
-            <button onClick={go} disabled={busy} className="flex-1 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-indigo-700 shadow hover:bg-blue-50 disabled:opacity-60">Go public</button>
-            <Link to="/profile/rates/edit" className="rounded-xl px-3 py-2.5 text-xs font-bold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
+            <button onClick={go} disabled={busy} className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">Go public</button>
+            <Link to="/profile/rates/edit" className="rounded-lg border border-slate-300 dark:border-[#2a5275] px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-[#c9dbec] hover:bg-slate-50 dark:hover:bg-white/5">Edit first</Link>
           </div>
         )}
       </div>
