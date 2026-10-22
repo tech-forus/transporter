@@ -209,12 +209,14 @@ const RatesEditorPage: React.FC = () => {
     : { tone: 'bg-slate-100 text-slate-500 ring-slate-200', text: 'Changes save automatically', icon: <Check size={14} /> };
 
   const card = 'rounded-2xl border border-slate-200 bg-white shadow-sm';
+  const embedded = typeof window !== 'undefined' && window.self !== window.top;
 
   return (
-    // min-h + bottom padding leave empty space above the footer instead of it hugging the content.
-    <div className="mx-auto min-h-[75vh] max-w-6xl pb-20 sm:pb-24">
-      {/* Sticky action bar: title, live save status, and the primary action always in reach */}
-      <div className="sticky top-20 z-20 -mx-2 mb-5 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur sm:px-5">
+    // Bottom padding leaves space above the footer instead of it hugging the content.
+    <div className={`mx-auto max-w-6xl pb-20 sm:pb-24 ${embedded ? '' : 'min-h-[75vh]'}`}>
+      {/* Action bar: title, live save status, and the primary action. Sticky only standalone — inside the
+          website's iframe the host page scrolls, so sticky never engages there and only left a gap / overlap. */}
+      <div className={`${embedded ? '' : 'sticky top-20 z-20 bg-white/90 backdrop-blur'} mb-5 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link to="/profile/rates" aria-label="Back to rates" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-blue-600">
@@ -285,9 +287,13 @@ const RatesEditorPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-5">
           <div className="space-y-5 lg:col-span-3">
+            <section className={`${card} px-3 pb-4 sm:px-4`}>
+              <ChargesEditor rate={priceRate} onChange={setRateKey} showErrors />
+            </section>
+
             {scalar.length > 0 && (
               <section className={`${card} p-5`}>
-                <h2 className="text-base font-bold text-slate-900">Basic settings</h2>
+                <h2 className="text-base font-bold text-slate-900">Volumetric & other settings</h2>
                 <p className="mb-4 text-xs text-slate-500">General rules used to work out every quote.</p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {scalar.map(([k, v]) => {
@@ -303,10 +309,6 @@ const RatesEditorPage: React.FC = () => {
                 </div>
               </section>
             )}
-
-            <section className={`${card} px-3 pb-4 sm:px-4`}>
-              <ChargesEditor rate={priceRate} onChange={setRateKey} showErrors />
-            </section>
           </div>
 
           <section className={`${card} overflow-hidden lg:col-span-2`}>

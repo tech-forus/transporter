@@ -7,6 +7,7 @@
 //   %      → variable         (% of base freight)
 import React, { useState } from 'react';
 import { ChevronDown, Info } from 'lucide-react';
+import OdaPicker, { readOda, writeOda, odaSummary } from './OdaPicker';
 
 type Rate = Record<string, any>;
 type Unit = 'flat' | 'kg' | 'pct';
@@ -56,24 +57,6 @@ function writeCard(key: string, d: Rate | undefined, unit: Unit, value: number):
   return base;
 }
 
-// ── ODA ─────────────────────────────────────────────────────────────────────
-type OdaChoice = 'no' | 'per_kg' | 'per_shipment' | 'custom';
-function readOda(d: Rate | undefined): { choice: OdaChoice; value: number } {
-  const r = d && typeof d === 'object' ? d : {};
-  const fixed = num(r.fixed), variable = num(r.variable);
-  if (fixed === 0 && variable === 0) return { choice: 'no', value: 0 };
-  if ((r.mode && r.mode !== 'legacy') || num(r.thresholdWeight) > 0) return { choice: 'custom', value: 0 };
-  if (r.billingType === 'per_shipment') return { choice: 'per_shipment', value: fixed || variable };
-  if (r.billingType === 'per_kg') return { choice: 'per_kg', value: variable || fixed };
-  return { choice: 'custom', value: 0 }; // legacy % on weight — kept untouched
-}
-function writeOda(d: Rate | undefined, choice: Exclude<OdaChoice, 'custom'>, value: number): Rate {
-  const base = { ...(d && typeof d === 'object' ? d : {}), mode: 'legacy', fixed: 0, variable: 0 };
-  if (choice === 'per_kg') return { ...base, billingType: 'per_kg', variable: value };
-  if (choice === 'per_shipment') return { ...base, billingType: 'per_shipment', fixed: value };
-  return base;
-}
-
 // Single-value charges saved as a number or as { fixed } / { variable } (older sign-up shape).
 const readSingle = (v: unknown, field: 'fixed' | 'variable') => (v && typeof v === 'object' ? num((v as Rate)[field]) : num(v));
 const writeSingle = (v: unknown, field: 'fixed' | 'variable', value: number) =>
@@ -91,7 +74,7 @@ export function missingRequiredCharges(rate: Rate): string[] {
 
 /** priceRate keys this table owns — the page's "Basic settings" card leaves these out. */
 export const CHARGE_KEYS = new Set([
-  'docketCharges', 'fuel', 'fuelMax', 'minWeight', 'minCharges', 'gstPct', 'gst', 'odaCharges', ...Object.keys(CARDS),
+  'docketCharges', 'fuel', 'fuelMax', 'minWeight', 'minCharges', 'gstPct', 'gst', 'odaCharges', 'odaMatrix', ...Object.keys(CARDS),
 ]);
 
 // ── UI pieces (mirroring ChargesSection.tsx) ─────────────────────────────────
@@ -190,6 +173,9 @@ const Section: React.FC<{ icon: string; title: string; open: boolean; onToggle: 
 // ── Main ────────────────────────────────────────────────────────────────────
 const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unknown) => void; showErrors: boolean }> = ({ rate, onChange, showErrors }) => {
   const [open, setOpen] = useState({ basic: true, additional: true, optional: false });
+  // Mode picked on screen. A charge with no value yet has no unit of its own, so without this a switch to
+  // Variable or ₹/KG would snap straight back to Fixed ₹ (Add Vendor keeps the mode separately too).
+  const [picked, setPicked] = useState<Record<string, Unit>>({});
   // Ticked optional charges (UI only; an unticked one is saved as 0). Saved values > 0 start ticked.
   const [optOn, setOptOn] = useState<Set<string>>(() => new Set(['topayCharges', 'codCharges', 'daccCharges'].filter((k) => readCard(k, rate[k]).value > 0)));
   const missing = new Set(missingRequiredCharges(rate));
@@ -197,9 +183,12 @@ const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unkno
 
   const cardRow = (key: string, optional = false) => {
     const def = CARDS[key];
-    const { unit, value, mixed } = readCard(key, rate[key]);
+    const saved = readCard(key, rate[key]);
+    const unit = picked[key] ?? saved.unit;
+    const value = picked[key] && picked[key] !== saved.unit ? 0 : saved.value;
+    const mixed = saved.mixed && !picked[key];
     const enabled = !optional || value > 0 || optOn.has(key);
-    const set = (u: Unit, v: number) => onChange(key, writeCard(key, rate[key], u, v));
+    const set = (u: Unit, v: number) => { setPicked((p) => ({ ...p, [key]: u })); onChange(key, writeCard(key, rate[key], u, v)); };
     const hasPct = def.units.includes('pct');
     const isFixed = unit !== 'pct';
     const unitCell = isFixed && def.units.includes('kg') ? (
@@ -229,7 +218,7 @@ const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unkno
     );
   };
 
-  const oda = readOda(rate.odaCharges);
+  const oda = readOda(rate.odaCharges, rate.odaMatrix);
   const handlingThreshold = num(rate.handlingCharges?.thresholdWeight ?? rate.handlingCharges?.threshholdweight);
   const optionalActive = ['topayCharges', 'codCharges', 'daccCharges'].filter((k) => readCard(k, rate[k]).value > 0).length;
 
@@ -252,20 +241,11 @@ const ChargesEditor: React.FC<{ rate: Rate; onChange: (key: string, value: unkno
           value={<NumInput value={readSingle(rate.gstPct ?? rate.gst, 'variable')} max={PCT_MAX} error={!!err('gstPct', '')}
             onChange={(v) => onChange('gstPct', rate.gstPct && typeof rate.gstPct === 'object' ? { ...rate.gstPct, variable: v } : { variable: v, fixed: 0 })} />} />
         {cardRow('rovCharges')}
-        <Row label="ODA Charges" tip="Out of Delivery Area surcharge: per kg or per shipment"
-          note={oda.choice === 'custom' ? 'Custom ODA setup. Kept as it is; contact support to change it.' : undefined}
-          type={oda.choice === 'custom' ? <span className="text-xs text-slate-400">Custom</span> : (
-            <select value={oda.choice} onChange={(e) => onChange('odaCharges', writeOda(rate.odaCharges, e.target.value as 'no' | 'per_kg' | 'per_shipment', 0))}
-              className="rounded border border-slate-200 bg-white px-1.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-[#1d3f5c] dark:bg-[#0b1d2e] dark:text-white">
-              <option value="no">No</option>
-              <option value="per_kg">Per kg</option>
-              <option value="per_shipment">Per shipment</option>
-            </select>
-          )}
-          value={oda.choice === 'per_kg' || oda.choice === 'per_shipment'
-            ? <NumInput value={oda.value} max={FLAT_MAX} onChange={(v) => onChange('odaCharges', writeOda(rate.odaCharges, oda.choice as 'per_kg' | 'per_shipment', v))} />
-            : <span className="text-xs text-slate-400">—</span>}
-          unit={oda.choice === 'per_kg' ? '₹/KG' : oda.choice === 'per_shipment' ? '₹' : ''} />
+        <Row label="ODA Charges" tip="Out of Delivery Area surcharge — per KG, flat fee, per KG with a floor, base + extra, slab matrix, or negotiable"
+          note={oda.custom ? 'Custom ODA setup, kept as it is. Pick a type under Edit to replace it.' : undefined}
+          type={<span className="text-xs text-slate-500">{odaSummary(oda)}</span>}
+          value={<OdaPicker state={oda} onChange={(next) => { const w = writeOda(next); onChange('odaCharges', w.odaCharges); onChange('odaMatrix', w.odaMatrix); }} />}
+          unit="" />
         {cardRow('handlingCharges')}
         <Row label="› Weight Threshold" tip="Weight above which handling charge applies" indent unit="KG"
           value={<NumInput value={handlingThreshold} max={1000} decimals={1}

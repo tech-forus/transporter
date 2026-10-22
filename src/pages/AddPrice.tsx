@@ -96,6 +96,11 @@ function priceRateForSave(rate: PriceRate, units: Record<string, 'FLAT' | 'PER K
         : { ...d, perKg, fixed: 0, variable: 0 };
     }
   }
+  // The rate schema used to default ODA's billingType to 'per_kg'; it no longer does (ODA is free-form now),
+  // so set it here to keep sign-up ODA priced exactly as before.
+  if (out.odaCharges && typeof out.odaCharges === 'object' && !out.odaCharges.billingType) {
+    out.odaCharges = { ...out.odaCharges, billingType: 'per_kg', mode: 'legacy' };
+  }
   return out;
 }
 
