@@ -53,13 +53,30 @@ const SUB_META: Record<string, { label: string; prefix?: string; suffix?: string
   fixed: { label: 'Fixed', prefix: '₹' },
   variable: { label: 'Variable', suffix: '%', max: 100 },
   thresholdWeight: { label: 'Above', suffix: 'kg' },
+  threshholdweight: { label: 'Above', suffix: 'kg' },
+  perKg: { label: 'Per kg', suffix: '₹/kg' },
 };
-// Charge rows bill either a flat ₹ (fixed) or a % of base freight (variable), never both — same rule
-// as the sign-up rate setup. Not stored: worked out from which value is filled.
-type ChargeUnit = 'FLAT' | '% ON BASE';
-const PERCENT_BY_DEFAULT = new Set(['fuel', 'gstPct']);
-const deriveUnit = (key: string, r: Rate): ChargeUnit =>
-  Number(r.fixed) > 0 ? 'FLAT' : Number(r.variable) > 0 ? '% ON BASE' : PERCENT_BY_DEFAULT.has(key) ? '% ON BASE' : 'FLAT';
+// How the quote engine combines fixed + variable for each charge (freight-compare-backend/utils/chargeFormulas.js).
+// Shown per row so what the transporter enters matches what shippers are quoted. `varUnit` is what
+// "variable" means for that charge; default is % of freight.
+const HIGHER = 'Higher of the two';
+const FIXED_FIRST = 'Fixed if set, otherwise the %';
+const CHARGE_RULE: Record<string, { how: string; varUnit?: string }> = {
+  docketCharges: { how: HIGHER },
+  fuel: { how: 'Higher of the two, up to the maximum fuel surcharge' },
+  minCharges: { how: 'Minimum freight: higher of the two' },
+  rovCharges: { how: 'Both added together' },
+  insuaranceCharges: { how: HIGHER },
+  odaCharges: { how: 'Only for out-of-delivery-area pincodes' },
+  handlingCharges: { how: 'Fixed, plus the % on weight above the threshold' },
+  greenTax: { how: 'Both added: fixed + per kg', varUnit: '₹/kg' },
+  hamaliCharges: { how: FIXED_FIRST },
+  daccCharges: { how: FIXED_FIRST },
+  miscellanousCharges: { how: 'Fixed if set, otherwise the variable amount', varUnit: '₹' },
+  codCharges: { how: HIGHER },
+  topayCharges: { how: HIGHER },
+  fmCharges: { how: HIGHER },
+};
 const CELL_CLS = 'h-9 w-full rounded-md border border-slate-200 bg-white px-1 text-center text-sm font-semibold tabular-nums text-slate-800 outline-none transition hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-500';
 const FIELD_CLS ='h-10 w-full rounded-lg border border-slate-200 bg-white text-sm font-semibold tabular-nums text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400';
 
@@ -182,14 +199,6 @@ const RatesEditorPage: React.FC = () => {
   const setCharge = (key: string, sub: string | null, value: string) => {
     dirty.current = true;
     setPriceRate((p) => (sub ? { ...p, [key]: { ...(p[key] || {}), [sub]: num(value) } } : { ...p, [key]: num(value) }));
-  };
-  // Units the transporter picked this session; untouched rows use deriveUnit.
-  const [units, setUnits] = useState<Record<string, ChargeUnit>>({});
-  const unitOf = (key: string, r: Rate) => units[key] ?? deriveUnit(key, r);
-  // Switching unit clears the other column, so a charge is never billed both ways.
-  const setUnit = (key: string, unit: ChargeUnit) => {
-    setUnits((u) => ({ ...u, [key]: unit }));
-    setCharge(key, unit === 'FLAT' ? 'variable' : 'fixed', '');
   };
   const setCell = (from: string, to: string, value: string) => {
     dirty.current = true;
@@ -323,24 +332,24 @@ const RatesEditorPage: React.FC = () => {
                   <h2 className="text-base font-bold text-slate-900">Charges</h2>
                   <p className="mb-4 text-xs text-slate-500">Use <b>Fixed</b> for a flat rupee amount, <b>Variable</b> for a percentage. Leave 0 if you do not charge it.</p>
                 </div>
-                {/* Same row layout as the sign-up rate setup (AddPrice.tsx renderChargeRow): one unit per
-                    charge, and only the column for that unit is editable. */}
+                {/* Same row layout as the sign-up rate setup (AddPrice.tsx renderChargeRow). Both columns stay
+                    editable: the quote engine uses them together (see CHARGE_RULE), so hiding one would hide a
+                    value shippers are still charged. */}
                 <div className="overflow-x-auto border-t border-slate-100">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50 text-[11px] font-semibold text-slate-500">
                         <th className="px-5 py-2.5 text-left">Charge</th>
                         <th className="px-2 py-2.5 text-center">Fixed (₹)</th>
-                        <th className="px-2 py-2.5 text-center">Variable (%)</th>
-                        <th className="px-2 py-2.5 text-center">Unit</th>
+                        <th className="px-2 py-2.5 text-center">Variable</th>
+                        <th className="px-3 py-2.5 text-left">How it's charged</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {compound.map(([k, v]) => {
                         const rate = v as Rate;
-                        const unit = unitOf(k, rate);
-                        // Older rate cards can hold both; show both until a unit is picked so nothing billed is hidden.
-                        const both = !units[k] && Number(rate.fixed) > 0 && Number(rate.variable) > 0;
+                        const rule = CHARGE_RULE[k];
+                        const varUnit = k === 'odaCharges' && rate.billingType === 'per_kg' ? '₹/kg' : rule?.varUnit ?? '%';
                         const extras = Object.entries(rate).filter(([sub, x]) => typeof x === 'number' && sub !== 'fixed' && sub !== 'variable');
                         return (
                           <tr key={k}>
@@ -356,25 +365,12 @@ const RatesEditorPage: React.FC = () => {
                               ))}
                             </td>
                             <td className="px-2 py-2">
-                              {both || unit === 'FLAT'
-                                ? <div className="mx-auto w-28"><NumField value={rate.fixed ?? ''} onChange={(val) => setCharge(k, 'fixed', val)} max={1000} cls={CELL_CLS} /></div>
-                                : <span className="block text-center text-slate-300">—</span>}
+                              <div className="mx-auto w-28"><NumField value={rate.fixed ?? ''} onChange={(val) => setCharge(k, 'fixed', val)} max={1000} prefix="₹" cls={`${CELL_CLS} pl-6`} /></div>
                             </td>
                             <td className="px-2 py-2">
-                              {both || unit === '% ON BASE'
-                                ? <div className="mx-auto w-28"><NumField value={rate.variable ?? ''} onChange={(val) => setCharge(k, 'variable', val)} step="0.01" max={k === 'fuel' ? 50 : 100} cls={CELL_CLS} /></div>
-                                : <span className="block text-center text-slate-300">—</span>}
+                              <div className="mx-auto w-28"><NumField value={rate.variable ?? ''} onChange={(val) => setCharge(k, 'variable', val)} step="0.01" max={varUnit === '%' ? (k === 'fuel' ? 50 : 100) : 1000} suffix={varUnit} cls={`${CELL_CLS} pr-10`} /></div>
                             </td>
-                            <td className="px-2 py-2">
-                              <select
-                                value={unit}
-                                onChange={(e) => setUnit(k, e.target.value as ChargeUnit)}
-                                className="mx-auto block rounded-md border border-transparent bg-transparent px-1 py-1.5 text-center text-xs font-semibold text-slate-500 hover:border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              >
-                                <option value="FLAT">FLAT</option>
-                                <option value="% ON BASE">% ON BASE</option>
-                              </select>
-                            </td>
+                            <td className="px-3 py-2 text-xs text-slate-500">{rule?.how ?? ''}</td>
                           </tr>
                         );
                       })}
