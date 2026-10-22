@@ -23,9 +23,15 @@ export function useEmbeddedTheme() {
       document.documentElement.classList.toggle('web-dark', IS_WEB && theme === 'dark');
     };
 
+    // Host's accent picker (blue/purple/black/yellow) — website only, like web-dark; recolours via index.css.
+    const applyAccent = (accent: unknown) => {
+      if (IS_WEB && typeof accent === 'string') document.documentElement.setAttribute('data-accent', accent);
+    };
+
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'fc_theme' && typeof event.data.theme === 'string') {
         applyTheme(event.data.theme);
+        applyAccent(event.data.accent);
       }
     };
     window.addEventListener('message', handler);

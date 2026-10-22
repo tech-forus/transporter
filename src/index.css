@@ -118,3 +118,35 @@ textarea:-webkit-autofill {
    iframe then grows to match: it can never shrink, and short pages show a large empty gap before the host
    footer. Content decides the height there instead. */
 .embedded-web .min-h-screen { min-height: 0; }
+
+/* ── Website accent (html[data-accent], set by useEmbeddedTheme from the host's fc_theme message; web only) ──
+   Mirrors the host site's accent picker so the portal's buttons, tabs, links and the Go public gradient
+   match the colour chosen on freightcompare.ai. "blue" is the portal's native palette, so it needs no rules. */
+html[data-accent="purple"] { --a50:#f5f3ff; --a100:#ede9fe; --a200:#ddd6fe; --a400:#a78bfa; --a500:#8b5cf6; --a600:#7c3aed; --a700:#6d28d9; --a800:#5b21b6; --a-dark-text:#c4b5fd; }
+html[data-accent="black"]  { --a50:#f4f4f5; --a100:#e4e4e7; --a200:#d4d4d8; --a400:#a1a1aa; --a500:#52525b; --a600:#27272a; --a700:#18181b; --a800:#09090b; --a-dark-text:#d4d4d8; }
+html.dark[data-accent="black"] { --a500:#71717a; --a600:#3f3f46; --a700:#27272a; --a800:#18181b; }
+html[data-accent="yellow"] { --a50:#fffbeb; --a100:#fef3c7; --a200:#fde68a; --a400:#fbbf24; --a500:#f59e0b; --a600:#d97706; --a700:#b45309; --a800:#92400e; --a-dark-text:#fcd34d; }
+
+html[data-accent]:not([data-accent="blue"]) :is(.bg-blue-500, .disabled\:bg-blue-400:disabled) { background-color: var(--a500); }
+html[data-accent]:not([data-accent="blue"]) :is(.bg-blue-600, .bg-indigo-600, .hover\:bg-blue-600:hover) { background-color: var(--a600); }
+html[data-accent]:not([data-accent="blue"]) :is(.bg-blue-700, .hover\:bg-blue-700:hover, .hover\:bg-indigo-700:hover) { background-color: var(--a700); }
+html[data-accent]:not([data-accent="blue"]) :is(.bg-blue-50, .hover\:bg-blue-50:hover) { background-color: var(--a50); }
+html[data-accent]:not([data-accent="blue"]) :is(.bg-blue-100, .hover\:bg-blue-100:hover) { background-color: var(--a100); }
+
+html[data-accent]:not([data-accent="blue"]) :is(.text-blue-500, .text-blue-600, .text-indigo-600, .hover\:text-blue-600:hover) { color: var(--a600); }
+html[data-accent]:not([data-accent="blue"]) :is(.text-blue-700, .text-indigo-700, .hover\:text-blue-700:hover) { color: var(--a700); }
+html[data-accent]:not([data-accent="blue"]) :is(.text-blue-800, .hover\:text-blue-800:hover) { color: var(--a800); }
+html[data-accent]:not([data-accent="blue"]) :is(.text-blue-50, .text-blue-100) { color: var(--a100); }
+html[data-accent]:not([data-accent="blue"]) .text-blue-200 { color: var(--a200); }
+html.dark[data-accent]:not([data-accent="blue"]) :is(.text-blue-400, .dark\:text-blue-300, .dark\:text-blue-400) { color: var(--a-dark-text); }
+
+html[data-accent]:not([data-accent="blue"]) :is(.border-blue-500, .border-blue-600, .hover\:border-blue-500:hover, .focus\:border-blue-500:focus) { border-color: var(--a600); }
+html[data-accent]:not([data-accent="blue"]) :is(.border-blue-100, .border-blue-200, .hover\:border-blue-300:hover) { border-color: var(--a200); }
+html[data-accent]:not([data-accent="blue"]) :is(.hover\:border-blue-400:hover, .focus\:border-blue-400:focus) { border-color: var(--a400); }
+html[data-accent]:not([data-accent="blue"]) :is(.focus\:ring-blue-400:focus, .focus\:ring-blue-500:focus) { --tw-ring-color: var(--a500); }
+
+/* Gradients (Go public card: from-blue-600 via-indigo-600 to-violet-700) */
+html[data-accent]:not([data-accent="blue"]) .from-blue-600 { --tw-gradient-from: var(--a500) var(--tw-gradient-from-position); }
+html[data-accent]:not([data-accent="blue"]) .via-indigo-600 { --tw-gradient-stops: var(--tw-gradient-from), var(--a600) var(--tw-gradient-via-position), var(--tw-gradient-to); }
+html[data-accent]:not([data-accent="blue"]) :is(.to-violet-700, .to-indigo-700, .to-blue-700) { --tw-gradient-to: var(--a800) var(--tw-gradient-to-position); }
+html[data-accent]:not([data-accent="blue"]) .shadow-indigo-200 { --tw-shadow-color: var(--a200); }
