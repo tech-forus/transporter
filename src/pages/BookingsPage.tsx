@@ -501,21 +501,25 @@ const BookingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Stats: always shown (0s included) so the dashboard never looks empty/broken.
-            Neutral tiles; colour only where it is a signal (pending > 0 needs the transporter). */}
+        {/* Stats: always shown (0s included) so the dashboard never looks empty/broken. Each tile has its own
+            colour badge; business value is the one solid accent tile; Pending gets an amber edge only when
+            something is waiting. blue-* utilities follow the website accent (index.css). */}
         <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={16} />, alert: false },
-            { label: 'Pending action', value: String(stats.pending), icon: <Bell size={16} />, alert: stats.pending > 0 },
-            { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={16} />, alert: false },
-            { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={16} />, alert: false },
+            { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={18} />, badge: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300' },
+            { label: 'Pending action', value: String(stats.pending), icon: <Bell size={18} />, badge: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300', alert: stats.pending > 0 },
+            { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={18} />, badge: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300' },
+            { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={18} />, badge: 'bg-white/20 text-white', hero: true },
           ].map((c) => (
-            <div key={c.label} className={`rounded-xl border bg-white dark:bg-[#0d2438] px-4 py-3.5 ${c.alert ? 'border-amber-300 dark:border-amber-500/50' : 'border-slate-200 dark:border-[#1d3f5c]'}`}>
-              <div className={`flex items-center gap-1.5 text-xs font-medium ${c.alert ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>
-                {c.icon}
-                <span className="truncate">{c.label}</span>
+            <div key={c.label} className={`flex items-center gap-3 rounded-2xl border px-4 py-4 shadow-sm ${
+              c.hero ? 'border-transparent bg-blue-600 text-white'
+              : c.alert ? 'border-amber-300 bg-white dark:border-amber-500/50 dark:bg-[#0d2438]'
+              : 'border-slate-200 bg-white dark:border-[#1d3f5c] dark:bg-[#0d2438]'}`}>
+              <div className={`flex h-11 w-11 flex-none items-center justify-center rounded-xl ${c.badge}`}>{c.icon}</div>
+              <div className="min-w-0">
+                <p className={`text-2xl font-bold leading-none truncate ${c.hero ? 'text-white' : c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
+                <p className={`mt-1.5 truncate text-xs font-medium ${c.hero ? 'text-white/80' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>{c.label}</p>
               </div>
-              <p className={`mt-2 text-2xl font-semibold leading-none truncate ${c.alert ? 'text-amber-700 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
             </div>
           ))}
         </div>
