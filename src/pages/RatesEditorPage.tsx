@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 import ReconfirmModal, { type DiffItem } from '../components/ReconfirmModal';
 import LaneEndFields from '../components/LaneEndFields';
 import { useRateSetup } from '../hooks/useRateSetup';
+import ChargesEditor, { CHARGE_KEYS, missingRequiredCharges } from '../components/ChargesEditor';
 
 axios.defaults.withCredentials = true;
 
@@ -43,41 +44,10 @@ const LABELS: Record<string, string> = {
 };
 const humanize = (k: string) => LABELS[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()).trim();
 const SCALAR_META: Record<string, { prefix?: string; suffix?: string; max?: number; hint?: string }> = {
-  minWeight: { suffix: 'kg', hint: 'Shipments lighter than this are billed at this weight' },
   divisor: { hint: 'Length × width × height ÷ this = volumetric kg' },
   kFactor: { hint: 'Same as the volumetric divisor' },
-  fuelMax: { suffix: '%', max: 100, hint: 'Upper limit for fuel surcharge' },
   chequeHandlingCharges: { prefix: '₹', hint: 'Flat fee for paying by cheque' },
 };
-const SUB_META: Record<string, { label: string; prefix?: string; suffix?: string; max?: number }> = {
-  fixed: { label: 'Fixed', prefix: '₹' },
-  variable: { label: 'Variable', suffix: '%', max: 100 },
-  thresholdWeight: { label: 'Above', suffix: 'kg' },
-  threshholdweight: { label: 'Above', suffix: 'kg' },
-  perKg: { label: 'Per kg', suffix: '₹/kg' },
-};
-// How the quote engine combines fixed + variable for each charge (freight-compare-backend/utils/chargeFormulas.js).
-// Shown per row so what the transporter enters matches what shippers are quoted. `varUnit` is what
-// "variable" means for that charge; default is % of freight.
-const HIGHER = 'Higher of the two';
-const FIXED_FIRST = 'Fixed if set, otherwise the %';
-const CHARGE_RULE: Record<string, { how: string; varUnit?: string }> = {
-  docketCharges: { how: HIGHER },
-  fuel: { how: 'Higher of the two, up to the maximum fuel surcharge' },
-  minCharges: { how: 'Minimum freight: higher of the two' },
-  rovCharges: { how: 'Both added together' },
-  insuaranceCharges: { how: HIGHER },
-  odaCharges: { how: 'Only for out-of-delivery-area pincodes' },
-  handlingCharges: { how: 'Fixed, plus the % on weight above the threshold' },
-  greenTax: { how: 'Both added: fixed + per kg', varUnit: '₹/kg' },
-  hamaliCharges: { how: FIXED_FIRST },
-  daccCharges: { how: FIXED_FIRST },
-  miscellanousCharges: { how: 'Fixed if set, otherwise the variable amount', varUnit: '₹' },
-  codCharges: { how: HIGHER },
-  topayCharges: { how: HIGHER },
-  fmCharges: { how: HIGHER },
-};
-const CELL_CLS = 'h-9 w-full rounded-md border border-slate-200 bg-white px-1 text-center text-sm font-semibold tabular-nums text-slate-800 outline-none transition hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-500';
 const FIELD_CLS ='h-10 w-full rounded-lg border border-slate-200 bg-white text-sm font-semibold tabular-nums text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400';
 
 // Rates per kg (zone matrix) can never exceed this.
@@ -136,6 +106,8 @@ const RatesEditorPage: React.FC = () => {
   // Public masters use an explicit review + confirm; private masters and per-shipper custom rates autosave.
   const explicitPublish = isPublic && !linkId;
   const lanesValid = lanes.every((l) => !laneProblem(l));
+  // Same required charges as Add Vendor; nothing is saved while one is empty.
+  const chargesMissing = !individual && loaded ? missingRequiredCharges(priceRate).length : 0;
 
   useEffect(() => {
     (async () => {
@@ -170,6 +142,7 @@ const RatesEditorPage: React.FC = () => {
   useEffect(() => {
     if (!loaded || explicitPublish || !dirty.current) return;
     if (individual && (!lanesValid || busy > 0)) return;
+    if (chargesMissing > 0) return;
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(async () => {
       setSaveState('saving');
@@ -177,10 +150,11 @@ const RatesEditorPage: React.FC = () => {
       catch (e: any) { setSaveState('error'); reportError(e, 'Could not save.'); }
     }, 800);
     return () => window.clearTimeout(timer.current);
-  }, [priceRate, zoneRates, lanes, loaded, explicitPublish, individual, lanesValid, busy, put]);
+  }, [priceRate, zoneRates, lanes, loaded, explicitPublish, individual, lanesValid, busy, chargesMissing, put]);
 
   const review = async () => {
     if (individual && !lanesValid) { toast.error('Fix the highlighted lanes first.'); return; }
+    if (chargesMissing > 0) { toast.error('Fill in the required charges first.'); return; }
     if (busy > 0) { toast.error('Still checking nearby pincodes. Try again in a moment.'); return; }
     setPublishing(true);
     try { await put(); toast.success('No changes to publish.'); }
@@ -200,6 +174,10 @@ const RatesEditorPage: React.FC = () => {
     dirty.current = true;
     setPriceRate((p) => (sub ? { ...p, [key]: { ...(p[key] || {}), [sub]: num(value) } } : { ...p, [key]: num(value) }));
   };
+  const setRateKey = (key: string, value: unknown) => {
+    dirty.current = true;
+    setPriceRate((p) => ({ ...p, [key]: value }));
+  };
   const setCell = (from: string, to: string, value: string) => {
     dirty.current = true;
     setZoneRates((z) => ({ ...z, [from]: { ...(z[from] || {}), [to]: num(value) } }));
@@ -214,8 +192,7 @@ const RatesEditorPage: React.FC = () => {
 
   if (!loaded) return <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" /> Loading your rates…</div>;
 
-  const scalar = Object.entries(priceRate).filter(([, v]) => typeof v === 'number');
-  const compound = Object.entries(priceRate).filter(([, v]) => v && typeof v === 'object');
+  const scalar = Object.entries(priceRate).filter(([k, v]) => typeof v === 'number' && !CHARGE_KEYS.has(k));
   const origins = Object.keys(zoneRates);
   const dests = Array.from(new Set(origins.flatMap((o) => Object.keys(zoneRates[o] || {})))).sort();
   const input = 'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400';
@@ -224,6 +201,7 @@ const RatesEditorPage: React.FC = () => {
   const status: { tone: string; text: string; icon: React.ReactNode } | null =
     explicitPublish ? null
     : individual && !lanesValid ? { tone: 'bg-amber-50 text-amber-700 ring-amber-200', text: 'Complete the highlighted lanes to save', icon: <AlertTriangle size={14} /> }
+    : chargesMissing > 0 ? { tone: 'bg-amber-50 text-amber-700 ring-amber-200', text: 'Fill the required charges (*) to save', icon: <AlertTriangle size={14} /> }
     : busy > 0 ? { tone: 'bg-slate-100 text-slate-600 ring-slate-200', text: 'Checking nearby pincodes…', icon: <Loader2 size={14} className="animate-spin" /> }
     : saveState === 'saving' ? { tone: 'bg-amber-50 text-amber-700 ring-amber-200', text: 'Saving…', icon: <Loader2 size={14} className="animate-spin" /> }
     : saveState === 'saved' ? { tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200', text: 'All changes saved', icon: <Check size={14} /> }
@@ -326,59 +304,9 @@ const RatesEditorPage: React.FC = () => {
               </section>
             )}
 
-            {compound.length > 0 && (
-              <section className={`${card} overflow-hidden`}>
-                <div className="px-5 pt-5">
-                  <h2 className="text-base font-bold text-slate-900">Charges</h2>
-                  <p className="mb-4 text-xs text-slate-500">Use <b>Fixed</b> for a flat rupee amount, <b>Variable</b> for a percentage. Leave 0 if you do not charge it.</p>
-                </div>
-                {/* Same row layout as the sign-up rate setup (AddPrice.tsx renderChargeRow). Both columns stay
-                    editable: the quote engine uses them together (see CHARGE_RULE), so hiding one would hide a
-                    value shippers are still charged. */}
-                <div className="overflow-x-auto border-t border-slate-100">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-[11px] font-semibold text-slate-500">
-                        <th className="px-5 py-2.5 text-left">Charge</th>
-                        <th className="px-2 py-2.5 text-center">Fixed (₹)</th>
-                        <th className="px-2 py-2.5 text-center">Variable</th>
-                        <th className="px-3 py-2.5 text-left">How it's charged</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {compound.map(([k, v]) => {
-                        const rate = v as Rate;
-                        const rule = CHARGE_RULE[k];
-                        const varUnit = k === 'odaCharges' && rate.billingType === 'per_kg' ? '₹/kg' : rule?.varUnit ?? '%';
-                        const extras = Object.entries(rate).filter(([sub, x]) => typeof x === 'number' && sub !== 'fixed' && sub !== 'variable');
-                        return (
-                          <tr key={k}>
-                            <td className="px-5 py-2 font-medium text-slate-800">
-                              {humanize(k)}
-                              {extras.map(([sub, x]) => (
-                                <label key={sub} className="mt-1.5 flex items-center gap-2 text-xs font-normal text-slate-500">
-                                  {(SUB_META[sub] || { label: humanize(sub) }).label}
-                                  <div className="w-24">
-                                    <NumField value={x as number} onChange={(val) => setCharge(k, sub, val)} suffix={SUB_META[sub]?.suffix ?? 'kg'} cls={`${CELL_CLS} pr-7`} />
-                                  </div>
-                                </label>
-                              ))}
-                            </td>
-                            <td className="px-2 py-2">
-                              <div className="mx-auto w-28"><NumField value={rate.fixed ?? ''} onChange={(val) => setCharge(k, 'fixed', val)} max={1000} prefix="₹" cls={`${CELL_CLS} pl-6`} /></div>
-                            </td>
-                            <td className="px-2 py-2">
-                              <div className="mx-auto w-28"><NumField value={rate.variable ?? ''} onChange={(val) => setCharge(k, 'variable', val)} step="0.01" max={varUnit === '%' ? (k === 'fuel' ? 50 : 100) : 1000} suffix={varUnit} cls={`${CELL_CLS} pr-10`} /></div>
-                            </td>
-                            <td className="px-3 py-2 text-xs text-slate-500">{rule?.how ?? ''}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )}
+            <section className={`${card} px-3 pb-4 sm:px-4`}>
+              <ChargesEditor rate={priceRate} onChange={setRateKey} showErrors />
+            </section>
           </div>
 
           <section className={`${card} overflow-hidden lg:col-span-2`}>

@@ -79,6 +79,26 @@ const CHARGE_MAX: Record<string, { fixed: number; variable: number }> = {
   appointmentCharges:  { fixed: 1000, variable: 100 },
 };
 
+// What gets saved for each charge row: only the column the unit dropdown shows counts (a value
+// left in the hidden column would still be billed), and PER KG is saved as perKg, which the
+// quote engine bills as ₹ × weight. Handling per kg uses the engine's 'per_kg_minimum' mode.
+function priceRateForSave(rate: PriceRate, units: Record<string, 'FLAT' | 'PER KG' | '% ON BASE'>): PriceRate {
+  const out: any = { ...rate };
+  for (const [key, unit] of Object.entries(units)) {
+    const d = out[key];
+    if (!d || typeof d !== 'object') continue;
+    if (unit === '% ON BASE') out[key] = { ...d, fixed: 0, perKg: 0 };
+    else if (unit === 'FLAT') out[key] = { ...d, variable: 0, perKg: 0, ...(key === 'handlingCharges' ? { type: 'legacy' } : {}) };
+    else {
+      const perKg = Number(d.fixed) || 0;
+      out[key] = key === 'handlingCharges'
+        ? { ...d, type: 'per_kg_minimum', perKg, minimum: 0, fixed: 0, variable: 0, thresholdWeight: Number(d.threshholdweight) || 0 }
+        : { ...d, perKg, fixed: 0, variable: 0 };
+    }
+  }
+  return out;
+}
+
 // Plain-number charges — no FLAT/%-ON-BASE duality, just a single value.
 const NUMBER_FIELD_MAX = {
   divisor: 20000,
@@ -931,7 +951,7 @@ export default function AddPrice() {
     if (isReturningTransporter) {
       try {
         await axios.put(`${API_BASE_URL}/api/transporter/auth/pricing`, {
-          priceRate, zoneRates: zr, service: zonePincodeData,
+          priceRate: priceRateForSave(priceRate, unitMode), zoneRates: zr, service: zonePincodeData,
         }, { withCredentials: true });
         toast.success('Pricing saved!');
         localStorage.removeItem('transporter_price_rate');
@@ -976,7 +996,7 @@ export default function AddPrice() {
     // not companyName (company names aren't unique across accounts) — send
     // it along so /addprice finds the right cached payload.
     const signupEmail = sessionStorage.getItem('transporter_signup_email') || '';
-    const payload = { companyName: companyNameForSubmit, priceRate, zoneRates: zr, email: signupEmail };
+    const payload = { companyName: companyNameForSubmit, priceRate: priceRateForSave(priceRate, unitMode), zoneRates: zr, email: signupEmail };
     try {
       await axios.post(`${API_BASE_URL}/api/transporter/auth/addprice`, payload, {
         headers: { Authorization: `Bearer ${token}` },
