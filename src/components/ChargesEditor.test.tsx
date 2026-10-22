@@ -81,6 +81,24 @@ describe('ChargesEditor', () => {
     expect(readOda({ fixed: 100, variable: 2, mode: 'excess', thresholdWeight: 50 }, undefined).custom).toBe(true);
   });
 
+  it('ODA: Yes → type a rate (the value sticks and is saved as per kg)', () => {
+    const saves: any[] = [];
+    const Harness = () => {
+      const [rate, setRate] = React.useState<Record<string, any>>({ ...base, odaCharges: { fixed: 0, variable: 0 } });
+      return <ChargesEditor rate={rate} onChange={(k, v) => { saves.push([k, v]); setRate((r) => ({ ...r, [k]: v })); }} showErrors />;
+    };
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText('ODA charged'), { target: { value: 'yes' } });
+    const input = screen.getByText('Rate').parentElement!.querySelector('input')!;
+    fireEvent.change(input, { target: { value: '4' } });
+    expect(input.value).toBe('4');
+    expect(saves.filter(([k]) => k === 'odaCharges').pop()[1]).toMatchObject({ billingType: 'per_kg', perKg: 4 });
+    fireEvent.click(screen.getByText('Flat Fee'));
+    const amount = screen.getByText('Flat Amount').parentElement!.querySelector('input')!;
+    fireEvent.change(amount, { target: { value: '250' } });
+    expect(amount.value).toBe('250');
+  });
+
   it("ODA picker opens Add Vendor's options when switched to Yes", () => {
     render(<ChargesEditor rate={{ ...base, odaCharges: { fixed: 0, variable: 0 } }} onChange={vi.fn()} showErrors />);
     fireEvent.change(screen.getByLabelText('ODA charged'), { target: { value: 'yes' } });

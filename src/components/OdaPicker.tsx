@@ -182,10 +182,14 @@ const MatrixEditor: React.FC<{ value: MatrixRow[]; onChange: (m: MatrixRow[]) =>
 };
 
 /** The ODA row's Yes/No + edit button, with Add Vendor's billing-type popup and slab-table modal. */
-const OdaPicker: React.FC<{ state: OdaState; onChange: (s: OdaState) => void }> = ({ state, onChange }) => {
+const OdaPicker: React.FC<{ state: OdaState; onChange: (s: OdaState) => void }> = ({ state: saved, onChange }) => {
   const [open, setOpen] = useState(false);
   const [matrixOpen, setMatrixOpen] = useState(false);
-  const set = (patch: Partial<OdaState>) => onChange({ ...state, custom: false, ...patch });
+  // What the user is editing. Saved data can't tell "Yes, amount not typed yet" from "No" (both are all zeros),
+  // so once the user touches the picker, it works from its own copy instead of re-reading the saved shape.
+  const [draft, setDraft] = useState<OdaState | null>(null);
+  const state = draft ?? saved;
+  const set = (patch: Partial<OdaState>) => { const next = { ...state, custom: false, ...patch }; setDraft(next); onChange(next); };
   const pick = (type: OdaType) => set({ type, enabled: true, matrix: type === 'matrix' && !state.matrix.length ? DEFAULT_MATRIX : state.matrix });
 
   return (
