@@ -164,7 +164,7 @@ const RatesPage: React.FC = () => {
   const allRates = fromZones.flatMap((fz) => toZones.map((tz) => Number(zoneRatesData[fz]?.[tz]) || 0));
   const maxRate = Math.max(1, ...allRates);
   // Heat-map: costlier lanes get a deeper tint, so the pricing shape reads at a glance.
-  const cellTint = (rate: number) => ({ backgroundColor: `rgba(37, 99, 235, ${0.05 + 0.2 * (rate / maxRate)})` });
+  const cellTint = (rate: number) => ({ backgroundColor: `color-mix(in srgb, var(--a600, #2563eb) ${Math.round(6 + 20 * (rate / maxRate))}%, transparent)` });
   const singleOrigin = !isIndividual && fromZones.length === 1 && toZones.length > 1;
 
   const stats = isIndividual
@@ -205,12 +205,12 @@ const RatesPage: React.FC = () => {
       )}
 
       {singleOrigin && (
-        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <Info size={18} className="mt-0.5 flex-none text-amber-600" />
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-slate-700">
+          <Info size={18} className="mt-0.5 flex-none text-blue-600" />
           <p className="flex-1">
             You have priced only <b>{fromZones[0]}</b> as a starting zone. If you also pick up from other zones, add those rates so shippers there can book you.
           </p>
-          <Link to="/profile/rates/edit" className="flex-none font-bold text-amber-800 underline">Add rates</Link>
+          <Link to="/profile/rates/edit" className="flex-none font-semibold text-blue-700 underline">Add rates</Link>
         </div>
       )}
 
@@ -225,12 +225,15 @@ const RatesPage: React.FC = () => {
         </div>
       )}
 
+      {/* Charges in a compact left column, zone matrix beside them on wide
+          screens; stacked on narrow ones. Either side fills the row alone. */}
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start">
       {groups.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-6 items-start">
+        <div className="flex flex-col gap-4 lg:w-80 lg:flex-none">
           {groups.map((g) => (
             <section key={g.title} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-                <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${g.tone}`}>{g.icon}</span>
+              <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+                <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${g.tone}`}>{g.icon}</span>
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">{g.title}</h2>
                   <p className="text-xs text-slate-400">{g.hint}</p>
@@ -238,9 +241,9 @@ const RatesPage: React.FC = () => {
               </div>
               <dl className="divide-y divide-slate-100">
                 {g.items.map((f) => (
-                  <div key={f.label} className="flex items-center justify-between gap-3 px-5 py-3">
-                    <dt className="text-sm text-slate-500">{f.label}</dt>
-                    <dd className="text-sm font-bold tabular-nums text-slate-900 text-right">{f.value}</dd>
+                  <div key={f.label} className="flex items-center justify-between gap-3 px-4 py-2">
+                    <dt className="text-[13px] text-slate-500">{f.label}</dt>
+                    <dd className="text-[13px] font-bold tabular-nums text-slate-900 text-right">{f.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -250,10 +253,10 @@ const RatesPage: React.FC = () => {
       )}
 
       {fromZones.length > 0 && toZones.length > 0 && (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+        <section className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><Grid3x3 size={18} /></span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Grid3x3 size={18} /></span>
               <div>
                 <h2 className="text-sm font-bold text-slate-900">Zone-to-zone rates</h2>
                 <p className="text-xs text-slate-400">Rupees per kg, from the row zone to the column zone. Darker means costlier.</p>
@@ -289,6 +292,7 @@ const RatesPage: React.FC = () => {
           </div>
         </section>
       )}
+      </div>
 
       {isIndividual && laneRates.length > 0 && (
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">

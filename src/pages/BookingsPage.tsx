@@ -85,10 +85,10 @@ interface Booking {
 // `accent` drives the colored left stripe on each card (dashboard-style
 // visual grouping at a glance); `badge` is the pill text/border colors.
 const STATUS_THEME: Record<Booking['transporterAckStatus'], { badge: string; accent: string }> = {
-  pending: { badge: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300', accent: 'bg-amber-500' },
-  acknowledged: { badge: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300', accent: 'bg-blue-500' },
-  confirmed: { badge: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300', accent: 'bg-emerald-500' },
-  declined: { badge: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300', accent: 'bg-red-500' },
+  pending: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-blue-300' },
+  acknowledged: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-blue-500' },
+  confirmed: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-blue-700' },
+  declined: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-slate-400' },
 };
 
 // Fixed picker rather than free text — a decline reason is only useful if
@@ -468,7 +468,7 @@ const BookingsPage: React.FC = () => {
       <div className="max-w-6xl mx-auto py-2">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               Welcome back{(user as any)?.companyName ? `, ${displayCompanyName((user as any).companyName)}` : ''}
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-[#8fb0cf]">
@@ -501,19 +501,19 @@ const BookingsPage: React.FC = () => {
 
         {/* Stats: one card, four columns; icons in the accent colour (blue-* follows the website accent, index.css).
             Always shown (0s included) so the dashboard never looks empty. Amber only when something is pending. */}
-        <div className="mb-8 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-4 dark:border-[#1d3f5c] dark:bg-[#0d2438]">
+        <div className="mb-6 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-4 dark:border-[#1d3f5c] dark:bg-[#0d2438]">
           {[
-            { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={16} /> },
-            { label: 'Pending action', value: String(stats.pending), icon: <Bell size={16} />, alert: stats.pending > 0 },
-            { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={16} /> },
-            { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={16} /> },
+            { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={14} /> },
+            { label: 'Pending action', value: String(stats.pending), icon: <Bell size={14} />, alert: stats.pending > 0 },
+            { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={14} /> },
+            { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={14} /> },
           ].map((c, i) => (
-            <div key={c.label} className={`px-5 py-4 ${i % 2 ? 'border-l' : ''} ${i > 1 ? 'border-t lg:border-t-0' : ''} ${i === 2 ? 'lg:border-l' : ''} border-slate-200 dark:border-[#1d3f5c]`}>
-              <div className={`flex items-center gap-2 text-sm ${c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>
-                <span className={c.alert ? '' : 'text-blue-600 dark:text-blue-400'}>{c.icon}</span>
+            <div key={c.label} className={`px-4 py-2.5 ${i % 2 ? 'border-l' : ''} ${i > 1 ? 'border-t lg:border-t-0' : ''} ${i === 2 ? 'lg:border-l' : ''} border-slate-200 dark:border-[#1d3f5c]`}>
+              <div className={`flex items-center gap-1.5 text-xs ${c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>
+                <span className={c.alert ? '' : 'text-slate-400 dark:text-[#6f93b8]'}>{c.icon}</span>
                 <span className="truncate">{c.label}</span>
               </div>
-              <p className={`mt-2 truncate text-2xl font-semibold tracking-tight ${c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
+              <p className={`mt-1 truncate text-lg font-bold tracking-tight ${c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
             </div>
           ))}
         </div>
@@ -571,7 +571,7 @@ const BookingsPage: React.FC = () => {
 
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-base font-semibold text-slate-900 dark:text-white">{shipperName}</span>
+                      <span className="text-base font-bold text-slate-900 dark:text-white">{shipperName}</span>
                       {b.customerID?.companyName && shipperName !== b.customerID.companyName && (
                         <span className="text-sm text-slate-500 dark:text-[#8fb0cf]">{b.customerID.companyName}</span>
                       )}
@@ -722,7 +722,7 @@ const BookingsPage: React.FC = () => {
             <GoPublicCard sidebar />
             {/* Your Setup — routes covered, rate card status, fleet size (ported from main's Dashboard) */}
             <div className="bg-white dark:bg-[#0d2438] rounded-xl border border-slate-200 dark:border-[#1d3f5c] p-4">
-              <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Your setup</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mb-3">Your setup</p>
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
                   <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><Route size={11} /> Routes</div>
@@ -742,11 +742,11 @@ const BookingsPage: React.FC = () => {
               </Link>
             </div>
             <div className="bg-white dark:bg-[#0d2438] rounded-xl border border-slate-200 dark:border-[#1d3f5c] p-2">
-              <p className="px-3 pt-2 pb-1 text-sm font-semibold text-slate-900 dark:text-white">Quick actions</p>
+              <p className="px-3 pt-2 pb-1 text-sm font-bold text-slate-900 dark:text-white">Quick actions</p>
               {[
-                { to: '/profile/bids', title: 'Available Bids', sub: 'Bids matching your service zones', icon: <Bell className="w-4 h-4" />, tone: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' },
-                { to: '/profile/rates', title: 'Lane Rates', sub: 'Review your saved rates', icon: <Route className="w-4 h-4" />, tone: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' },
-                { to: '/profile', title: 'My Profile', sub: 'Company details and KYC', icon: <UserCog className="w-4 h-4" />, tone: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' },
+                { to: '/profile/bids', title: 'Available Bids', sub: 'Bids matching your service zones', icon: <Bell className="w-4 h-4" />, tone: 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300' },
+                { to: '/profile/rates', title: 'Lane Rates', sub: 'Review your saved rates', icon: <Route className="w-4 h-4" />, tone: 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300' },
+                { to: '/profile', title: 'My Profile', sub: 'Company details and KYC', icon: <UserCog className="w-4 h-4" />, tone: 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300' },
               ].map((l) => (
                 <Link key={l.to} to={l.to} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-center gap-3 min-w-0">

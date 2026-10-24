@@ -169,13 +169,13 @@ const MyDocumentsSection: React.FC = () => {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <DocTile kind="aadhaar" title="Aadhaar card" hint="Of the company representative" icon={<CreditCard size={18} />} tone="bg-blue-50 text-blue-600" info={data.documents.aadhaar} onReplaced={refresh} />
                 <DocTile kind="selfie" title="Live selfie" hint="Matched with your Aadhaar" icon={<Camera size={18} />} tone="bg-violet-50 text-violet-600" info={data.documents.selfie} onReplaced={refresh} />
-                <DocTile kind="businessPhotos" title="Office / warehouse photos" hint="At least 3, different angles" icon={<Building2 size={18} />} tone="bg-emerald-50 text-emerald-600" info={data.documents.businessPhotos} onReplaced={refresh} />
+                <DocTile kind="businessPhotos" title="Office / warehouse photos" hint="At least 3, different angles" icon={<Building2 size={18} />} tone="bg-blue-50 text-blue-600" info={data.documents.businessPhotos} onReplaced={refresh} />
               </div>
             </div>
 
             <Link to="/profile/fleet" className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3.5 hover:border-blue-300 hover:bg-blue-50/30 transition-colors">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><Truck size={18} /></span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Truck size={18} /></span>
                 <div>
                   <p className="text-sm font-bold text-slate-900">Vehicles &amp; drivers</p>
                   <p className="text-xs text-slate-500 flex items-center gap-3">

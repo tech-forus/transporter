@@ -209,7 +209,7 @@ const EditableField = ({
         <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-0.5 flex items-center gap-1">
           {label}
           {status === 'saving' && <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-400" />}
-          {status === 'saved' && <Check className="w-2.5 h-2.5 text-emerald-500" />}
+          {status === 'saved' && <Check className="w-2.5 h-2.5 text-blue-500" />}
           {status === 'idle' && <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400" />}
         </p>
         <p className="text-sm font-semibold text-slate-800 dark:text-white break-words">
@@ -254,7 +254,7 @@ const PwdInput = ({ id, label, value, onChange, disabled }: {
       <input
         id={id} name={id} type="password" required value={value} onChange={onChange} disabled={disabled}
         placeholder="••••••••"
-        className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
+        className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
       />
     </div>
   </div>
@@ -295,7 +295,7 @@ const ChangePasswordForm = () => {
       <div className="flex justify-end mt-3.5">
         <button
           type="submit" disabled={saving}
-          className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm shadow-amber-200 active:scale-95"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm shadow-blue-200 active:scale-95"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
           {saving ? 'Saving…' : 'Save Password'}
@@ -311,7 +311,7 @@ const ChangePasswordForm = () => {
 // (protectTransporter-gated; the backend re-checks !password before
 // writing, so this can never be used as a change-password bypass even if
 // called directly). Mirrors freight-compare-frontend's Profile.tsx
-// CreatePasswordCard, restyled to this app's amber accent.
+// CreatePasswordCard, restyled to this app's accent colour.
 const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: () => void }) => {
   const [step, setStep] = useState<'idle' | 'otp'>('idle');
   const [sending, setSending] = useState(false);
@@ -362,7 +362,7 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
         </p>
         <button
           type="button" onClick={sendOtp} disabled={sending}
-          className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm shadow-amber-200 active:scale-95"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm shadow-blue-200 active:scale-95"
         >
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
           {sending ? 'Sending OTP…' : `Send OTP to ${email}`}
@@ -382,19 +382,19 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
           <input
             id="tpCreateOtp" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
             inputMode="numeric" maxLength={6} disabled={submitting}
-            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
+            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
           />
         </div>
         <PwdInput id="tpCreateNewPassword" label="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={submitting} />
         <PwdInput id="tpCreateConfirmPassword" label="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={submitting} />
       </div>
       <div className="flex items-center justify-between mt-3.5">
-        <button type="button" onClick={sendOtp} disabled={sending || submitting} className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 disabled:opacity-50">
+        <button type="button" onClick={sendOtp} disabled={sending || submitting} className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 disabled:opacity-50">
           Resend OTP
         </button>
         <button
           type="submit" disabled={submitting}
-          className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm shadow-amber-200 active:scale-95"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors shadow-sm shadow-blue-200 active:scale-95"
         >
           <ShieldCheck className="w-3.5 h-3.5" />
           {submitting ? 'Creating…' : 'Create Password'}
@@ -615,7 +615,7 @@ const ProfilePage: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{profile.companyName}</h1>
               {profile.isVerified && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-full px-2.5 py-1 flex-none">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-full px-2.5 py-1 flex-none">
                   <BadgeCheck size={13} /> Verified
                 </span>
               )}
