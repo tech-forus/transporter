@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MapPin, Search, Loader2, Navigation } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { loadGoogleMaps } from '../utils/loadGoogleMaps';
+import { searchPlaces } from '../utils/placesSearch';
 import { geocodeAddress, reverseGeocode, type ResolvedPlace } from '../services/geoApi';
 import { IS_WEB } from '../config/host';
 import { haversineKm } from '../utils/mapProjection';
@@ -106,6 +107,9 @@ const AddressLocationPicker: React.FC<AddressLocationPickerProps> = ({
   const autoRequestedRef = useRef(false);
   const geoInFlightRef = useRef(false);
   const hasLocation = value.lat != null && value.lng != null;
+  // Read by runSearch (memoized once) so it always biases to the latest pin.
+  const pinnedRef = useRef(value);
+  pinnedRef.current = value;
 
   const applyResolvedPlace = useCallback((place: ResolvedPlace) => {
     onChange({
@@ -204,19 +208,16 @@ const AddressLocationPicker: React.FC<AddressLocationPickerProps> = ({
       return;
     }
     setIsSearching(true);
-    placesLibRef.current.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    // Bias to the already-pinned location, like google.com/maps biases to its
+    // viewport — see utils/placesSearch.ts for why this (and its Text Search
+    // fallback) is needed.
+    const pinned = pinnedRef.current;
+    searchPlaces(placesLibRef.current, {
       input: query,
       sessionToken: sessionTokenRef.current,
-      includedRegionCodes: ['in'],
+      bias: pinned.lat != null && pinned.lng != null ? { lat: pinned.lat, lng: pinned.lng } : null,
     })
-      .then(({ suggestions: raw }: any) => {
-        const mapped: PlaceSuggestion[] = (raw || [])
-          .filter((s: any) => s.placePrediction)
-          .map((s: any) => ({
-            placeId: s.placePrediction.placeId,
-            description: s.placePrediction.text?.text || '',
-            place: s.placePrediction.toPlace(),
-          }));
+      .then((mapped: PlaceSuggestion[]) => {
         setSuggestions(mapped);
         setSuggestionsOpen(true);
       })

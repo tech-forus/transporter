@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MapPin, Search, Loader2, Navigation } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { loadGoogleMaps } from '../utils/loadGoogleMaps';
+import { searchPlaces } from '../utils/placesSearch';
 import { reverseGeocode, type ResolvedPlace } from '../services/geoApi';
 import LocationPermissionModal, { type LocationPermissionPhase } from './LocationPermissionModal';
 
@@ -117,19 +118,13 @@ const AddressAutosuggest: React.FC<AddressAutosuggestProps> = ({
       return;
     }
     setIsSearching(true);
-    placesLibRef.current.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    // Autocomplete, then Text Search when it finds nothing — see
+    // utils/placesSearch.ts ("b313 forus electric" returned 0 suggestions).
+    searchPlaces(placesLibRef.current, {
       input: query,
       sessionToken: sessionTokenRef.current,
-      includedRegionCodes: ['in'],
     })
-      .then(({ suggestions: raw }: any) => {
-        const mapped: Suggestion[] = (raw || [])
-          .filter((s: any) => s.placePrediction)
-          .map((s: any) => ({
-            placeId: s.placePrediction.placeId,
-            description: s.placePrediction.text?.text || '',
-            place: s.placePrediction.toPlace(),
-          }));
+      .then((mapped: Suggestion[]) => {
         setSuggestions(mapped);
         setSuggestionsOpen(true);
       })
