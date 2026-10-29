@@ -1,1 +1,4 @@
-/* /index.html 200
+# Short invite links (join.freightcompare.ai/r/CODE). Must stay above the SPA fallback.
+/r/:code  /transporter-signup?ref=:code   302
+/t/:code  /transporter-signup?tref=:code  302
+/*        /index.html                     200
