@@ -383,7 +383,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                 Company / Trade Name <span className="text-red-500">*</span>
               </label>
               <input
-                {...register('companyName', { required: 'Company/trade name is required.', pattern: { value: /^[a-zA-Z0-9\s]*$/, message: 'Only letters, numbers, and spaces are allowed.' } })}
+                {...register('companyName', { required: 'Company/trade name is required.', pattern: { value: /^[\p{L}\p{M}\p{N}\s().,&\-'/@+_:#]*$/u, message: "Company name can use letters, numbers, spaces and . , & ( ) - ' / @ + _ : #" } })}
                 id="companyName" maxLength={200}
                 className={`w-full h-[38px] px-3 border rounded-lg text-[13px] bg-white text-slate-900 focus:outline-none focus:ring-2 ${errors.companyName ? 'border-red-400 focus:ring-red-400/40' : 'border-slate-200 focus:ring-amber-400/40'}`}
               />
