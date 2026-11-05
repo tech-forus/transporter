@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import GoPublicCard from '../components/GoPublicCard';
 import MyDocumentsSection from '../components/MyDocumentsSection';
 import LinkedShippersCard from '../components/LinkedShippersCard';
+import TeamCard, { TeamMember } from '../components/TeamCard';
 
 import {
   Building, Mail, Phone, Clock, Globe, Truck, MapPin, Calendar,
@@ -42,6 +43,7 @@ interface TransporterProfile {
   employeeName?: string;
   employeePhone?: string;
   employeeAddress?: string;
+  team?: TeamMember[];
   email: string;
   accountType?: 'business' | 'individual';
   gstNo?: string;
@@ -678,7 +680,10 @@ const ProfilePage: React.FC = () => {
               <EditableField label="Employee Phone" fieldKey="employeePhone" value={profile.employeePhone} onSave={saveField} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} icon={<Phone size={14} />} />
               <EditableField label="Employee Address" fieldKey="employeeAddress" value={profile.employeeAddress} onSave={saveField} maxLength={300} icon={<MapPin size={14} />} />
             </div>
+            <p className="mt-2 text-xs text-slate-400 dark:text-[#6f93b8]">Shown to shippers as your on-ground contact. To let someone receive and accept bookings on WhatsApp, add them to your WhatsApp Booking Team below.</p>
           </SCard>
+
+          <TeamCard team={profile.team || []} onChange={(team) => setProfile((prev) => (prev ? { ...prev, team } : prev))} />
 
           <SCard icon={<Clock className="w-4 h-4" />} title="Operational Details">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
@@ -696,7 +701,11 @@ const ProfilePage: React.FC = () => {
               )}
               <EditableField label="Delivery Mode" fieldKey="deliveryMode" value={profile.deliveryMode} onSave={saveField} maxLength={50} icon={<Package size={14} />} />
               <EditableField label="Standard Delivery TAT" fieldKey="deliveryTat" value={profile.deliveryTat} onSave={saveField} maxLength={50} icon={<Calendar size={14} />} />
+              <EditableField label="Tracking Link" fieldKey="trackingLink" value={profile.trackingLink} onSave={saveField} maxLength={500} icon={<Route size={14} />} />
             </div>
+            <p className="mt-2 text-xs text-slate-400 dark:text-[#6f93b8]">
+              Tracking Link: your shipment-tracking page, starting with https://. Put <code className="font-mono">{'{awb}'}</code> where the LR / AWB number goes, e.g. <code className="font-mono">https://yoursite.in/track?lr={'{awb}'}</code>. Shippers get this link on WhatsApp when you send the LR.
+            </p>
           </SCard>
 
           <GoPublicCard />
