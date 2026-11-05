@@ -57,6 +57,10 @@ interface AuthUser {
   pickUpAddress?: string[];
   kycStatus?: string;
   profileComplete?: boolean;
+  // A team member signed in with his own password (not the owner): view-only outside bookings.
+  role?: 'employee';
+  memberPhone?: string;
+  mustChange?: boolean;
   iat?: number;
   exp?: number;
 }

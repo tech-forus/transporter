@@ -15,6 +15,7 @@ import {
   Lock, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import EmployeePasswordForm from '../components/EmployeePasswordForm';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 
@@ -408,6 +409,7 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
 
 const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
+  const isEmployee = (user as any)?.role === 'employee'; // a team member: the owner-only sections stay hidden
   const [profile, setProfile] = useState<TransporterProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -674,7 +676,9 @@ const ProfilePage: React.FC = () => {
             </div>
           </SCard>
 
-          <SCard icon={<Users className="w-4 h-4" />} title="On-Ground Contact">
+          {!isEmployee && (
+<>
+<SCard icon={<Users className="w-4 h-4" />} title="On-Ground Contact">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
               <EditableField label="Employee Name" fieldKey="employeeName" value={profile.employeeName} onSave={saveField} maxLength={100} icon={<Users size={14} />} />
               <EditableField label="Employee Phone" fieldKey="employeePhone" value={profile.employeePhone} onSave={saveField} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} icon={<Phone size={14} />} />
@@ -684,8 +688,11 @@ const ProfilePage: React.FC = () => {
           </SCard>
 
           <TeamCard team={profile.team || []} onChange={(team) => setProfile((prev) => (prev ? { ...prev, team } : prev))} />
+</>
+)}
 
-          <SCard icon={<Clock className="w-4 h-4" />} title="Operational Details">
+          {!isEmployee && (
+<SCard icon={<Clock className="w-4 h-4" />} title="Operational Details">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
               {/* Office Start/End are Business-only per transporterModel's
                   own conditional `required` (accountType !== 'individual')
@@ -707,11 +714,14 @@ const ProfilePage: React.FC = () => {
               Tracking Link: your shipment-tracking page, starting with https://. Put <code className="font-mono">{'{awb}'}</code> where the LR / AWB number goes, e.g. <code className="font-mono">https://yoursite.in/track?lr={'{awb}'}</code>. Shippers get this link on WhatsApp when you send the LR.
             </p>
           </SCard>
+)}
 
           <GoPublicCard />
           <LinkedShippersCard />
 
-          <SCard icon={<ShieldCheck className="w-4 h-4" />} title="Verification & Rating">
+          {!isEmployee && (
+<>
+<SCard icon={<ShieldCheck className="w-4 h-4" />} title="Verification & Rating">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
               <StaticField
                 label="Approval Status"
@@ -729,14 +739,20 @@ const ProfilePage: React.FC = () => {
 
           {/* Uploaded documents, fleet summary and rate files: view / replace / manage */}
           <MyDocumentsSection />
+</>
+)}
 
-          <SCard icon={<Lock className="w-4 h-4" />} title={hasPassword ? "Change Password" : "Create Password"}>
+          {isEmployee ? (
+<SCard icon={<Lock className="w-4 h-4" />} title="Change Password"><EmployeePasswordForm /></SCard>
+) : (
+<SCard icon={<Lock className="w-4 h-4" />} title={hasPassword ? "Change Password" : "Create Password"}>
             {hasPassword ? (
               <ChangePasswordForm />
             ) : (
               <CreatePasswordForm email={profile.email} onCreated={() => setHasPassword(true)} />
             )}
           </SCard>
+)}
 
           <Link
             to="/profile/rates"

@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Users, Plus, Trash2, Loader2, ShieldCheck, X } from 'lucide-react';
+import { Users, Plus, Trash2, Loader2, ShieldCheck, X, KeyRound, Copy } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 
-export interface TeamMember { name: string; phone: string; addedAt?: string }
+export interface TeamMember { name: string; phone: string; addedAt?: string; hasLogin?: boolean }
 
 const MAX = 10;
 // What the person typed or pasted -> the 10-digit Indian mobile number. Strips +91 / 91 / 091 / 0091 / a leading 0 when
@@ -27,7 +27,9 @@ const TeamCard = ({ team, onChange }: { team: TeamMember[]; onChange: (t: TeamMe
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
-  useReportIframeHeight([adding, otpSent, team.length]); // the app embeds this page: grow the frame when the form opens
+  // The password just created for a member: shown once here, never stored in readable form.
+  const [created, setCreated] = useState<{ name: string; phone: string; password: string } | null>(null);
+  useReportIframeHeight([adding, otpSent, team.length, !!created]); // the app embeds this page: grow the frame when the form opens
 
   const reset = () => { setAdding(false); setName(''); setPhone(''); setOtp(''); setOtpSent(false); setConsent(false); };
   const api = async <T,>(fn: () => Promise<{ data: T }>) => {
@@ -44,6 +46,11 @@ const TeamCard = ({ team, onChange }: { team: TeamMember[]; onChange: (t: TeamMe
   const confirm = async () => {
     const r = await api<{ message: string; team: TeamMember[] }>(() => axios.post(`${API_BASE_URL}/api/transporter/profile/team/confirm-otp`, { phone, otp }));
     if (r) { onChange(r.team); toast.success(r.message); reset(); }
+  };
+  const createPassword = async (m: TeamMember) => {
+    if (m.hasLogin && !window.confirm(`Make a new password for ${m.name}? The old one stops working.`)) return;
+    const r = await api<{ password: string; team: TeamMember[] }>(() => axios.post(`${API_BASE_URL}/api/transporter/profile/team/${m.phone}/password`));
+    if (r) { onChange(r.team); setCreated({ name: m.name, phone: m.phone, password: r.password }); }
   };
   const remove = async (m: TeamMember) => {
     if (!window.confirm(`Remove ${m.name}? They will stop getting your booking requests.`)) return;
@@ -71,12 +78,26 @@ const TeamCard = ({ team, onChange }: { team: TeamMember[]; onChange: (t: TeamMe
                   <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{m.name}</p>
                   <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">{fmt(m.phone)}</p>
                 </div>
+                <button type="button" onClick={() => createPassword(m)} disabled={busy} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-[#1d3f5c] dark:text-[#8fb0cf] dark:hover:bg-white/5 disabled:opacity-50">
+                  <KeyRound className="w-3.5 h-3.5" /> {m.hasLogin ? 'Reset password' : 'Create password'}
+                </button>
                 <button type="button" onClick={() => remove(m)} disabled={busy} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50" aria-label={`Remove ${m.name}`}>
                   <Trash2 className="w-4 h-4" />
                 </button>
               </li>
             ))}
           </ul>
+        )}
+
+        {created && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+            <p><b>{created.name}</b> can now sign in on the transporter page with <b>{fmt(created.phone)}</b> and this password. It is shown only now, so pass it on before closing this.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="rounded-lg bg-white px-3 py-1.5 text-base font-bold tracking-wider text-slate-900 dark:bg-[#0d2438] dark:text-white">{created.password}</code>
+              <button type="button" onClick={() => { void navigator.clipboard?.writeText(created.password); toast.success('Copied'); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-2 py-1 text-xs font-semibold dark:border-amber-500/40"><Copy className="w-3.5 h-3.5" /> Copy</button>
+              <button type="button" onClick={() => setCreated(null)} className="ml-auto text-xs font-semibold underline">Done, I have passed it on</button>
+            </div>
+          </div>
         )}
 
         {!adding ? (

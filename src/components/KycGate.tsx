@@ -4,6 +4,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config/apiConfig';
 import KycWizardCard from './KycWizardCard';
 import { IS_WEB } from '../config/host';
+import { useAuth } from '../hooks/useAuth';
 
 type KycCheck = 'loading' | 'pass' | 'block';
 
@@ -16,7 +17,7 @@ type KycCheck = 'loading' | 'pass' | 'block';
 // docs/superpowers/specs/2026-09-22-transporter-kyc-design.md "Error Handling".
 axios.defaults.withCredentials = true;
 
-const KycGate: React.FC<PropsWithChildren> = ({ children }) => {
+const KycGateInner: React.FC<PropsWithChildren> = ({ children }) => {
   const [check, setCheck] = useState<KycCheck>('loading');
 
   // `cancelled` guards only the mount-time call below (its cleanup can fire
@@ -71,6 +72,12 @@ const KycGate: React.FC<PropsWithChildren> = ({ children }) => {
   }
 
   return <>{children}</>;
+};
+
+// KYC is the owner's job (their documents stay hidden from a team member), so a team member goes straight through.
+const KycGate: React.FC<PropsWithChildren> = ({ children }) => {
+  const { user } = useAuth();
+  return user?.role === 'employee' ? <>{children}</> : <KycGateInner>{children}</KycGateInner>;
 };
 
 export default KycGate;
