@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import GoPublicCard from '../components/GoPublicCard';
 import MyDocumentsSection from '../components/MyDocumentsSection';
 import LinkedShippersCard from '../components/LinkedShippersCard';
+import TeamCard, { TeamMember } from '../components/TeamCard';
 
 import {
   Building, Mail, Phone, Clock, Globe, Truck, MapPin, Calendar,
@@ -14,6 +15,7 @@ import {
   Lock, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import EmployeePasswordForm from '../components/EmployeePasswordForm';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 
@@ -42,6 +44,7 @@ interface TransporterProfile {
   employeeName?: string;
   employeePhone?: string;
   employeeAddress?: string;
+  team?: TeamMember[];
   email: string;
   accountType?: 'business' | 'individual';
   gstNo?: string;
@@ -406,6 +409,7 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
 
 const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
+  const isEmployee = (user as any)?.role === 'employee'; // a team member: the owner-only sections stay hidden
   const [profile, setProfile] = useState<TransporterProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -672,15 +676,23 @@ const ProfilePage: React.FC = () => {
             </div>
           </SCard>
 
-          <SCard icon={<Users className="w-4 h-4" />} title="On-Ground Contact">
+          {!isEmployee && (
+<>
+<SCard icon={<Users className="w-4 h-4" />} title="On-Ground Contact">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
               <EditableField label="Employee Name" fieldKey="employeeName" value={profile.employeeName} onSave={saveField} maxLength={100} icon={<Users size={14} />} />
               <EditableField label="Employee Phone" fieldKey="employeePhone" value={profile.employeePhone} onSave={saveField} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} icon={<Phone size={14} />} />
               <EditableField label="Employee Address" fieldKey="employeeAddress" value={profile.employeeAddress} onSave={saveField} maxLength={300} icon={<MapPin size={14} />} />
             </div>
+            <p className="mt-2 text-xs text-slate-400 dark:text-[#6f93b8]">Shown to shippers as your on-ground contact. To let someone receive and accept bookings on WhatsApp, add them to your WhatsApp Booking Team below.</p>
           </SCard>
 
-          <SCard icon={<Clock className="w-4 h-4" />} title="Operational Details">
+          <TeamCard team={profile.team || []} onChange={(team) => setProfile((prev) => (prev ? { ...prev, team } : prev))} />
+</>
+)}
+
+          {!isEmployee && (
+<SCard icon={<Clock className="w-4 h-4" />} title="Operational Details">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
               {/* Office Start/End are Business-only per transporterModel's
                   own conditional `required` (accountType !== 'individual')
@@ -696,13 +708,20 @@ const ProfilePage: React.FC = () => {
               )}
               <EditableField label="Delivery Mode" fieldKey="deliveryMode" value={profile.deliveryMode} onSave={saveField} maxLength={50} icon={<Package size={14} />} />
               <EditableField label="Standard Delivery TAT" fieldKey="deliveryTat" value={profile.deliveryTat} onSave={saveField} maxLength={50} icon={<Calendar size={14} />} />
+              <EditableField label="Tracking Link" fieldKey="trackingLink" value={profile.trackingLink} onSave={saveField} maxLength={500} icon={<Route size={14} />} />
             </div>
+            <p className="mt-2 text-xs text-slate-400 dark:text-[#6f93b8]">
+              Tracking Link: your shipment-tracking page, starting with https://. Put <code className="font-mono">{'{awb}'}</code> where the LR / AWB number goes, e.g. <code className="font-mono">https://yoursite.in/track?lr={'{awb}'}</code>. Shippers get this link on WhatsApp when you send the LR.
+            </p>
           </SCard>
+)}
 
           <GoPublicCard />
           <LinkedShippersCard />
 
-          <SCard icon={<ShieldCheck className="w-4 h-4" />} title="Verification & Rating">
+          {!isEmployee && (
+<>
+<SCard icon={<ShieldCheck className="w-4 h-4" />} title="Verification & Rating">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
               <StaticField
                 label="Approval Status"
@@ -720,14 +739,20 @@ const ProfilePage: React.FC = () => {
 
           {/* Uploaded documents, fleet summary and rate files: view / replace / manage */}
           <MyDocumentsSection />
+</>
+)}
 
-          <SCard icon={<Lock className="w-4 h-4" />} title={hasPassword ? "Change Password" : "Create Password"}>
+          {isEmployee ? (
+<SCard icon={<Lock className="w-4 h-4" />} title="Change Password"><EmployeePasswordForm /></SCard>
+) : (
+<SCard icon={<Lock className="w-4 h-4" />} title={hasPassword ? "Change Password" : "Create Password"}>
             {hasPassword ? (
               <ChangePasswordForm />
             ) : (
               <CreatePasswordForm email={profile.email} onCreated={() => setHasPassword(true)} />
             )}
           </SCard>
+)}
 
           <Link
             to="/profile/rates"

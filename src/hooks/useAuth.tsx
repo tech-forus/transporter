@@ -57,6 +57,10 @@ interface AuthUser {
   pickUpAddress?: string[];
   kycStatus?: string;
   profileComplete?: boolean;
+  // A team member signed in with his own password (not the owner): view-only outside bookings.
+  role?: 'employee';
+  memberPhone?: string;
+  mustChange?: boolean;
   iat?: number;
   exp?: number;
 }
@@ -93,7 +97,9 @@ const FC_HOST_ORIGINS = [
   'https://freightcompare.ai',
   'https://www.freightcompare.ai',
   'https://freight-compare-frontend.vercel.app',
-];
+  // A staging/preview build sets VITE_SHIPPER_APP_URL to the website it is paired with.
+  String(import.meta.env.VITE_SHIPPER_APP_URL || '').trim().replace(/\/+$/, ''),
+].filter(Boolean);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);

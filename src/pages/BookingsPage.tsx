@@ -79,8 +79,20 @@ interface Booking {
   customerContactEmail?: string;
   transporterAckStatus: 'pending' | 'acknowledged' | 'confirmed' | 'declined';
   transporterDeclineReason?: string;
+  // WhatsApp team relay: who tapped Accept on WhatsApp, the shipment after acceptance, and files shared on WhatsApp.
+  transporterAckBy?: string;
+  shipmentStatus?: 'picked_up' | 'delivered' | 'completed' | 'cancelled';
+  lrNumber?: string;
+  podIssue?: { text?: string; at?: string };
+  sharedFiles?: { filename: string; fromSide: 'shipper' | 'transporter'; status: string; kind?: 'lr' | 'box_slip' | 'pod' | 'freight_invoice' | 'packing_list' | 'invoice' | 'eway_bill'; at: string }[];
   createdAt: string;
 }
+
+const SHIPMENT_LABEL: Record<NonNullable<Booking['shipmentStatus']>, string> = {
+  picked_up: 'LR issued', delivered: 'Delivered', completed: 'Completed', cancelled: 'Cancelled by shipper',
+};
+const FILE_KIND: Record<string, string> = { lr: 'LR', box_slip: 'Box slip', pod: 'POD', freight_invoice: 'Freight invoice', packing_list: 'Packing list', invoice: 'Goods invoice', eway_bill: 'E-way bill' };
+const fmtPhone = (p?: string) => (p && p.length === 12 ? `+91 ${p.slice(2, 7)} ${p.slice(7)}` : p || '');
 
 // `accent` drives the colored left stripe on each card (dashboard-style
 // visual grouping at a glance); `badge` is the pill text/border colors.
@@ -226,7 +238,37 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
             {booking.transporterAckStatus === 'declined' && (
               <DetailField label="Decline Reason (from you)" value={booking.transporterDeclineReason} />
             )}
+            {(booking.shipmentStatus || booking.lrNumber || booking.transporterAckBy) && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <DetailField label="Shipment" value={booking.shipmentStatus ? SHIPMENT_LABEL[booking.shipmentStatus] : null} />
+                <DetailField label="LR / AWB No." value={booking.lrNumber} />
+                <DetailField label="Handled by (WhatsApp)" value={fmtPhone(booking.transporterAckBy)} />
+              </div>
+            )}
+            {booking.podIssue?.text && (
+              <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2">
+                <span className="font-bold">Issue reported by the shipper:</span> {booking.podIssue.text}
+              </div>
+            )}
+            {(booking.sharedFiles?.length ?? 0) > 0 && (
+              <div className="pt-2 border-t border-slate-100 dark:border-[#1d3f5c]">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">Files shared on WhatsApp</p>
+                <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c] rounded-lg border border-slate-200 dark:border-[#1d3f5c] text-xs">
+                  {booking.sharedFiles!.map((f, i) => (
+                    <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-slate-700 dark:text-[#8fb0cf]">
+                      <span className="font-semibold text-slate-800 dark:text-white break-all">{f.filename}</span>
+                      {f.kind && <span className="rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 text-blue-700 dark:text-blue-300">{FILE_KIND[f.kind]}</span>}
+                      <span>{f.fromSide === 'shipper' ? 'from the shipper' : 'from your team'}</span>
+                      <span className="text-slate-400">· {new Date(f.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                      {f.status === 'failed' && <span className="text-red-600 dark:text-red-400">· not delivered</span>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-[#6f93b8]">The files themselves are in your WhatsApp chat with FreightCompare.</p>
+              </div>
+            )}
 
+            {!(booking.shipmentStatus === 'cancelled' || booking.transporterAckStatus === 'declined') && (
             <div className="pt-2 border-t border-slate-100 dark:border-[#1d3f5c]">
               <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">Shipper's Customer (optional, if notified)</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -235,6 +277,7 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
                 <DetailField label="Email" value={booking.customerContactEmail} />
               </div>
             </div>
+            )}
           </div>
 
           {/* RIGHT: packing list — same slot BookNowModal.tsx uses for it */}
@@ -403,15 +446,24 @@ const BookingsPage: React.FC = () => {
     if (!user?._id) return;
     setActingOn(bookingId);
     try {
+      // expectedStatus: what this screen was showing. If a teammate already decided on WhatsApp, the server says 409
+      // instead of silently overriding them.
+      const shown = bookings.find((b) => b._id === bookingId)?.transporterAckStatus;
       await axios.patch(`${API_BASE_URL}/api/bookings/${bookingId}/ack`, {
         transporterId: user._id,
         status,
+        ...(shown ? { expectedStatus: shown } : {}),
         ...(reason ? { reason } : {}),
       });
       setBookings((prev) => prev.map((b) => (
-        b._id === bookingId ? { ...b, transporterAckStatus: status, ...(reason ? { transporterDeclineReason: reason } : {}) } : b
+        b._id === bookingId ? { ...b, transporterAckStatus: status, transporterAckBy: '', ...(reason ? { transporterDeclineReason: reason } : {}) } : b
       )));
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        toast(err.response.data?.message || 'This booking changed in the meantime.', { icon: 'ℹ️', duration: 6000 });
+        fetchBookings(true);
+        return;
+      }
       console.error('Failed to update booking status:', err);
       toast.error('Could not update this booking — please try again.');
     } finally {
@@ -431,8 +483,8 @@ const BookingsPage: React.FC = () => {
   // to scroll past/expand.
   const byCreatedDesc = (a: Booking, b: Booking) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   const groupedBookings = useMemo(() => ({
-    upcoming: bookings.filter((b) => b.transporterAckStatus === 'pending' || b.transporterAckStatus === 'acknowledged').sort(byCreatedDesc),
-    history: bookings.filter((b) => b.transporterAckStatus === 'confirmed' || b.transporterAckStatus === 'declined').sort(byCreatedDesc),
+    upcoming: bookings.filter((b) => b.shipmentStatus !== 'cancelled' && (b.transporterAckStatus === 'pending' || b.transporterAckStatus === 'acknowledged')).sort(byCreatedDesc),
+    history: bookings.filter((b) => b.shipmentStatus === 'cancelled' || b.transporterAckStatus === 'confirmed' || b.transporterAckStatus === 'declined').sort(byCreatedDesc),
   }), [bookings]);
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
@@ -441,7 +493,7 @@ const BookingsPage: React.FC = () => {
   // notification dot next to the Upcoming tab so a new arrival is visible
   // without needing to catch the (also still-firing) toast in time.
   const newCount = useMemo(
-    () => bookings.filter((b) => b.transporterAckStatus === 'pending' && (Date.now() - new Date(b.createdAt).getTime()) < NEW_BADGE_WINDOW_MS).length,
+    () => bookings.filter((b) => b.transporterAckStatus === 'pending' && b.shipmentStatus !== 'cancelled' && (Date.now() - new Date(b.createdAt).getTime()) < NEW_BADGE_WINDOW_MS).length,
     [bookings]
   );
 
@@ -451,7 +503,7 @@ const BookingsPage: React.FC = () => {
     const totalOrders = bookings.length;
     const totalValue = bookings.reduce((sum, b) => sum + (b.freightCharge || b.invoiceValue || 0), 0);
     const confirmed = bookings.filter((b) => b.transporterAckStatus === 'confirmed').length;
-    const pending = bookings.filter((b) => b.transporterAckStatus === 'pending').length;
+    const pending = bookings.filter((b) => b.transporterAckStatus === 'pending' && b.shipmentStatus !== 'cancelled').length;
     return { totalOrders, totalValue, confirmed, pending };
   }, [bookings]);
 
@@ -549,8 +601,9 @@ const BookingsPage: React.FC = () => {
         ) : (() => {
             const renderCard = (b: Booking) => {
               const shipperName = [b.customerID?.firstName, b.customerID?.lastName].filter(Boolean).join(' ') || b.customerID?.companyName || 'A shipper';
-              const isPending = b.transporterAckStatus === 'pending';
-              const isAckedOnly = b.transporterAckStatus === 'acknowledged';
+              const isCancelled = b.shipmentStatus === 'cancelled';
+              const isPending = b.transporterAckStatus === 'pending' && !isCancelled;
+              const isAckedOnly = b.transporterAckStatus === 'acknowledged' && !isCancelled;
               const isNew = isPending && (Date.now() - new Date(b.createdAt).getTime()) < NEW_BADGE_WINDOW_MS;
               // ShipperInfo.phone is typed as string but the API can hand back
               // a raw number (customers.phone is stored as Number in Mongo) —
@@ -579,8 +632,21 @@ const BookingsPage: React.FC = () => {
                         <span className={`h-1.5 w-1.5 rounded-full ${status.accent}`} />{b.transporterAckStatus}
                       </span>
                       {isNew && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-medium text-white">New</span>}
+                      {b.shipmentStatus && (
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${isCancelled ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'}`}>
+                          {SHIPMENT_LABEL[b.shipmentStatus]}{b.lrNumber && b.shipmentStatus !== 'cancelled' ? ` · LR ${b.lrNumber}` : ''}
+                        </span>
+                      )}
+                      {(b.sharedFiles?.length ?? 0) > 0 && (
+                        <span className="rounded-full bg-slate-100 dark:bg-white/10 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">📎 {b.sharedFiles!.length} file{b.sharedFiles!.length === 1 ? '' : 's'}</span>
+                      )}
                     </div>
+                    {b.transporterAckStatus === 'confirmed' && b.transporterAckBy && (
+                      <p className="mt-1 text-xs text-slate-500 dark:text-[#8fb0cf]">Accepted on WhatsApp by {fmtPhone(b.transporterAckBy)}</p>
+                    )}
 
+                    {/* Declined or cancelled: the shipper's contact details are no longer shown to this transporter. */}
+                    {!(isCancelled || b.transporterAckStatus === 'declined') && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500 dark:text-[#8fb0cf]">
                       {b.customerID?.email && (
                         <a href={`mailto:${b.customerID.email}`} className="inline-flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white">
@@ -601,6 +667,7 @@ const BookingsPage: React.FC = () => {
                         </>
                       )}
                     </div>
+                    )}
 
                     <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg bg-slate-50 px-4 py-3 text-sm sm:grid-cols-4 dark:bg-white/5">
                       <div>

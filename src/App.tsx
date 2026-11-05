@@ -19,6 +19,7 @@ import VerifyOtpPage from './pages/VerifyOtpPage';
 import TransporterKycPage from './pages/TransporterKycPage';
 import FleetPage from './pages/FleetPage';
 import KycGate from './components/KycGate';
+import EmployeeFirstLoginGate from './components/EmployeeFirstLoginGate';
 import ReferralBanner from './components/ReferralBanner';
 import TransporterInviteBanner from './components/TransporterInviteBanner';
 import InviteTransportersPage from './pages/InviteTransportersPage';
@@ -138,6 +139,7 @@ function App() {
         <HostNavigationListener />
         <TransporterProfileGate />
         <ReferralAttachGate />
+        <EmployeeFirstLoginGate />
         <Routes>
           <Route path='/' element={<MainLayout><LandingPage /></MainLayout>} />
           <Route path="/transporter-signin" element={<PublicRoute><MainLayout><SignInPage /></MainLayout></PublicRoute>} />
