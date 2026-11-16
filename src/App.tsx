@@ -14,6 +14,7 @@ import ProfilePage from './pages/ProfilePage';
 import RatesPage from './pages/RatesPage';
 import BidsPage from './pages/BidsPage';
 import BookingsPage from './pages/BookingsPage';
+import MisDisputesPage from './pages/MisDisputesPage';
 import AddPrice from './pages/AddPrice';
 import VerifyOtpPage from './pages/VerifyOtpPage';
 import TransporterKycPage from './pages/TransporterKycPage';
@@ -163,6 +164,7 @@ function App() {
           <Route path="/profile/fleet" element={<PrivateRoute><MainLayout><KycGate><FleetPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/bids" element={<PrivateRoute><MainLayout><KycGate><BidsPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/bookings" element={<PrivateRoute><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></PrivateRoute>} />
+          <Route path="/mis-bills" element={<PrivateRoute><MainLayout><KycGate><MisDisputesPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/transporter-kyc" element={<PrivateRoute><MainLayout><TransporterKycPage /></MainLayout></PrivateRoute>} />
           <Route path="/addprice" element={<MainLayout><AddPrice /></MainLayout>} />
           <Route path="/transporter-verify-otp" element={<MainLayout><VerifyOtpPage /></MainLayout>} />

@@ -11,8 +11,10 @@ import {
   Truck,
   PackageCheck,
   Users,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import MisBell from '../MisBell';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Reusable & Styled Components ---
@@ -94,6 +96,11 @@ const UserProfileDropdown: React.FC = () => {
                             <Link to="/bookings" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
                                 <PackageCheck size={16} /> Bookings
                             </Link>
+                            {user?.role !== 'employee' && (
+                                <Link to="/mis-bills" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
+                                    <FileSpreadsheet size={16} /> Bills
+                                </Link>
+                            )}
                             <Link to="/profile" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
                                 <UserIcon size={16} /> My Profile
                             </Link>
@@ -114,7 +121,7 @@ const UserProfileDropdown: React.FC = () => {
 
 // --- MOBILE NAVIGATION ---
 const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpen, closeMenu }) => {
-    const { isAuthenticated, logout } = useAuth();
+    const { isAuthenticated, logout, user } = useAuth();
     const handleSignOut = () => { logout(); closeMenu(); };
 
     const MobileNavLink: React.FC<{ to: string, icon: React.ReactNode, children: React.ReactNode }> = ({ to, icon, children }) => (
@@ -143,6 +150,7 @@ const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpe
                              <>
                                <MobileNavLink to="/dashboard" icon={<LayoutDashboard size={20}/>}>Dashboard</MobileNavLink>
                                <MobileNavLink to="/bookings" icon={<PackageCheck size={20}/>}>Bookings</MobileNavLink>
+                               {user?.role !== 'employee' && <MobileNavLink to="/mis-bills" icon={<FileSpreadsheet size={20}/>}>Bills</MobileNavLink>}
                                <MobileNavLink to="/profile" icon={<UserIcon size={20}/>}>My Profile</MobileNavLink>
                                <MobileNavLink to="/invite" icon={<Users size={20}/>}>Invite transporters</MobileNavLink>
                                <div className="pt-8 mt-auto">
@@ -171,7 +179,7 @@ const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpe
 
 // --- MAIN HEADER COMPONENT ---
 const Header: React.FC<{ compact?: boolean }> = ({ compact }) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
 
     return (
@@ -181,6 +189,7 @@ const Header: React.FC<{ compact?: boolean }> = ({ compact }) => {
                     <div className={`flex items-center justify-between ${compact ? 'h-14' : 'h-20'}`}>
                         <BrandLogo />
                         <div className="flex items-center gap-4">
+                            {isAuthenticated && user?.role !== 'employee' && <MisBell />}
                             {isAuthenticated ? (
                                 <UserProfileDropdown />
                             ) : (
