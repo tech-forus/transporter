@@ -5,17 +5,14 @@
 //   'web'        embedded in freightcompare.ai (or the local website)
 //   'standalone' opened directly, not embedded
 //
-// ── FOR THE ANDROID APP (freight-compare-frontend, branch android-app) ─────────────────────────────────────
-// Today the app is recognised only by its host origin (Capacitor serves the app from https://localhost, so that is
-// the referrer of these iframes). That breaks if the app's Capacitor server config ever changes (server.hostname,
-// androidScheme 'http', live-reload server.url) or a no-referrer policy is added: the app would then get website
-// behaviour, e.g. no bottom nav bar. To make it explicit, in the next app release:
-//   1. src/context/TransporterFrameContext.tsx: append ?host=app to both URLs in TRANSPORTER_SIGNIN_URL, and set the
-//      <iframe> allow="clipboard-write; camera; geolocation" (camera = KYC live selfie, geolocation = office location).
-//   2. src/pages/TransporterSignupPage.tsx: `?new_session=1` -> `?new_session=1&host=app` and
-//      `?resume=${Date.now()}` -> `?resume=${Date.now()}&host=app`; same allow= change on its <iframe>.
-//   3. android/app/src/main/AndroidManifest.xml: add <uses-permission android:name="android.permission.CAMERA" />.
-// Check on a phone: bottom bar shows (also after killing and reopening the app), KYC selfie opens the camera.
+// ── ANDROID APP (freight-compare-frontend, branch android-app) ─────────────────────────────────────────────
+// DONE in Fleet vc8 / android-app db47571 (2026-11-18): the login/dashboard iframe (TransporterFrameContext) loads
+// ?host=app&frame=viewport, is named 'fc-portal-viewport', is sized to the screen and scrolls itself, and both
+// portal iframes have allow="clipboard-write; camera; geolocation". The signup iframe (TransporterSignupPage) is
+// still content-height (no frame=viewport). CAMERA is in the merged manifest (from a plugin).
+// Older app builds have none of this: they are detected by the https://localhost referrer and get the
+// content-height fallbacks (root-height reporting with a boot-height floor, on-screen popups via useModalIframePin).
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Rule: this portal is shared by the website and the app; any web-vs-app difference uses HOST / IS_WEB below,
 // never a new check elsewhere. Tag PRs web-only / app-only / shared.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
