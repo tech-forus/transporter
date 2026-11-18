@@ -172,6 +172,51 @@ function tryParseZoneMatrixFromSheet(rows: unknown[][], zoneLabels: string[]): {
   return { zoneLabels, zoneMatrix: matrix };
 }
 
+// A single-origin rate list: one row per pincode with a "Zone" column and a
+// "Unit Price"/"Rate" column (e.g. PINCODE | City | State | Zone | ODA | Unit
+// Price). It prices by DESTINATION zone only — there is no from-zone — so the
+// price is applied to every origin row of the matrix. Deliberately strict:
+// needs a Zone and a price header, no origin/from column, at least half of the
+// transporter's known zones present, and exactly ONE distinct price per zone.
+// Anything else (a zone with two prices, unknown zone names) returns null and
+// the file goes to the backend pipeline exactly as before.
+export function tryParsePerZonePriceList(rows: unknown[][], zoneLabels: string[]): { zoneLabels: string[]; zoneMatrix: number[][] } | null {
+  if (zoneLabels.length < 2) return null;
+  const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+  const head = (v: unknown) => norm(v).replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
+  const labelByNorm = new Map(zoneLabels.map(z => [norm(z), z]));
+
+  let headerRowIdx = -1;
+  let zoneCol = -1;
+  let priceCol = -1;
+  for (let ri = 0; ri < Math.min(rows.length, 15); ri++) {
+    const heads = (rows[ri] || []).map(head);
+    if (heads.some(h => /^(from|origin|source)\b/.test(h) || /\b(from|origin)\s+zone\b/.test(h))) continue;
+    const z = heads.findIndex(h => /^((dest|destination|to|delivery)\s+)?zone$/.test(h));
+    const p = heads.findIndex(h => /\b(price|rate)s?\b/.test(h));
+    if (z !== -1 && p !== -1) { headerRowIdx = ri; zoneCol = z; priceCol = p; break; }
+  }
+  if (headerRowIdx === -1) return null;
+
+  const priceByZone = new Map<string, number>();
+  for (let ri = headerRowIdx + 1; ri < rows.length; ri++) {
+    const row = rows[ri];
+    if (!row) continue;
+    const label = labelByNorm.get(norm(row[zoneCol]));
+    if (!label) continue;
+    const price = parseNumericCell(row[priceCol]);
+    if (price == null || price <= 0) continue;
+    const prev = priceByZone.get(label);
+    if (prev == null) priceByZone.set(label, price);
+    else if (Math.abs(prev - price) > 1e-9) return null; // two prices in one zone — not a flat zone list
+  }
+
+  if (priceByZone.size < Math.max(2, Math.ceil(zoneLabels.length / 2))) return null;
+
+  const zoneMatrix = zoneLabels.map(() => zoneLabels.map(to => priceByZone.get(to) ?? 0));
+  return { zoneLabels, zoneMatrix };
+}
+
 export interface ClientParseOutcome {
   handled: boolean;
   result?: ParsedUtsfResult;
@@ -197,6 +242,7 @@ export async function tryParseExcelClientSide(
   const sourcedFields: string[] = [];
   let gstPct: number | null = null;
   let matchedZoneMatrix: number[][] | null = null;
+  let perZoneList = false;
 
   for (const rows of sheets) {
     const chargeResult = tryParseChargesFromSheet(rows);
@@ -212,6 +258,10 @@ export async function tryParseExcelClientSide(
     if (!matchedZoneMatrix && zoneLabels.length >= 2) {
       const zm = tryParseZoneMatrixFromSheet(rows, zoneLabels);
       if (zm) matchedZoneMatrix = zm.zoneMatrix;
+      else {
+        const pl = tryParsePerZonePriceList(rows, zoneLabels);
+        if (pl) { matchedZoneMatrix = pl.zoneMatrix; perZoneList = true; }
+      }
     }
   }
 
@@ -222,7 +272,7 @@ export async function tryParseExcelClientSide(
   const service: ServiceEntry[] = [];
   const zoneCount = matchedZoneMatrix ? zoneLabels.length : 0;
 
-  const result: ParsedUtsfResult & { _gstPct?: number } = {
+  const result: ParsedUtsfResult & { _gstPct?: number; _perZoneList?: boolean } = {
     pricing,
     sourcedFields,
     hasPricingData: sourcedFields.length > 0,
@@ -233,6 +283,7 @@ export async function tryParseExcelClientSide(
     totalPincodes: 0,
     companyName: '',
     ...(gstPct != null ? { _gstPct: gstPct } : {}),
+    ...(perZoneList ? { _perZoneList: true } : {}),
   };
 
   return { handled: true, result };

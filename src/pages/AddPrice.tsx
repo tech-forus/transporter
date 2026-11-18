@@ -695,6 +695,7 @@ export default function AddPrice() {
       const allSourcedFields: string[] = [];
       let anyCompanyName = '';
       let anyGstPct: number | null = null;
+      let anyPerZoneList = false;
 
       for (const parsed of allResults) {
         workingPriceRate = mergePricingInto(workingPriceRate, parsed.pricing);
@@ -709,6 +710,7 @@ export default function AddPrice() {
         if (parsed.companyName && !anyCompanyName) anyCompanyName = parsed.companyName;
         const gst = (parsed as any)._gstPct;
         if (gst != null && anyGstPct == null) anyGstPct = gst;
+        if ((parsed as any)._perZoneList) anyPerZoneList = true;
       }
 
       // gstPct isn't a ParsedPricing field (the real PriceRate stores it as
@@ -746,6 +748,9 @@ export default function AddPrice() {
         toast.success('Everything was found in your documents — review and save below.');
       } else {
         toast.success('Documents read — some details are still missing, see below.');
+      }
+      if (anyPerZoneList) {
+        toast('Your file prices by destination zone, so each rate is applied from every origin zone. Edit any row that differs.', { duration: 7000 });
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Could not process your documents.';
