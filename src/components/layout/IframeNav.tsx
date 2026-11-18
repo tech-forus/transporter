@@ -16,12 +16,12 @@
 // that isn't Dashboard/Profile. Same pattern as Instagram's own bottom-bar
 // "More" sheet: a few real destinations, Sign Out last and visually
 // separated, not the first/only thing offered.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutDashboard, User as UserIcon, MoreHorizontal, ShieldCheck, LogOut, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { HOST } from '../../config/host';
+import { HOST, IS_VIEWPORT_FRAME } from '../../config/host';
 
 // Only the Android app needs this bar. On the website the host header's account menu already has
 // Dashboard/Profile/Bids/Rates/Sign out, and a fixed bottom bar there covered page and modal buttons.
@@ -31,8 +31,21 @@ const IframeNav: React.FC = () => {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
+  // Screen-sized app frame: the keyboard shrinks this iframe, so hide the bar while it is open (as the app's own
+  // tab bars do) instead of sitting on top of the keyboard over the field being typed in.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    if (!IS_VIEWPORT_FRAME) return;
+    let tallest = window.innerHeight;
+    const onResize = () => {
+      tallest = Math.max(tallest, window.innerHeight);
+      setKeyboardOpen(window.innerHeight < tallest * 0.75);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
-  if (!isAuthenticated || !isNativeAppHost) return null;
+  if (!isAuthenticated || !isNativeAppHost || keyboardOpen) return null;
 
   const handleSignOut = () => {
     setMoreOpen(false);
