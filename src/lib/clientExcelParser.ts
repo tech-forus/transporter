@@ -288,3 +288,18 @@ export async function tryParseExcelClientSide(
 
   return { handled: true, result };
 }
+
+// Sign-up path: the UTSF backend returned zones but no zone rates. Try the
+// uploaded Excel/CSV itself against the zone labels the backend just found.
+// Returns the matrix, or null when the file isn't a readable grid / per-zone
+// price list (never throws).
+export async function tryReadZoneMatrixFromFile(file: File, zoneLabels: string[]): Promise<number[][] | null> {
+  try {
+    const sheets = await readWorkbookRows(file);
+    for (const rows of sheets) {
+      const hit = tryParseZoneMatrixFromSheet(rows, zoneLabels) ?? tryParsePerZonePriceList(rows, zoneLabels);
+      if (hit) return hit.zoneMatrix;
+    }
+  } catch { /* unreadable file — caller keeps the backend result */ }
+  return null;
+}

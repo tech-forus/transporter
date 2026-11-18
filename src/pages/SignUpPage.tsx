@@ -26,6 +26,7 @@ import AddressLocationPicker, { type AddressLocationValue } from '../components/
 import { IS_WEB } from '../config/host';
 import OfficeAddressField from '../components/OfficeAddressField';
 import { clearPricingDraft, preparePricingForNewExtraction } from '../utils/pricingDraft';
+import { tryReadZoneMatrixFromFile } from '../lib/clientExcelParser';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 
 // --- Type Definitions for State ---
@@ -1415,6 +1416,18 @@ export default function SignUpPage() {
               zoneLabelsFromUtsf.map(to => utsfZoneRates[from]?.[to] || 0)
             );
             localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabelsFromUtsf, matrix }));
+          } else if (zoneLabelsFromUtsf.length >= 2) {
+            // The backend found zones but no rates (e.g. a single-origin
+            // "Zone + Unit Price" sheet). Read the uploaded Excel/CSV itself.
+            for (const gf of aiFiles) {
+              if (!/\.(xlsx|xls|csv)$/i.test(gf.file.name)) continue;
+              const matrix = await tryReadZoneMatrixFromFile(gf.file, zoneLabelsFromUtsf);
+              if (matrix) {
+                localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabelsFromUtsf, matrix }));
+                appendLog(`[OK] Zone rates read from "${gf.file.name}" — if it lists one price per destination zone, it is applied from every origin zone; edit any row that differs.`);
+                break;
+              }
+            }
           }
         } catch (storageErr) {
           console.error('[AI extraction] Failed to store zone labels/rates:', storageErr);
