@@ -1565,7 +1565,7 @@ export default function SignUpPage() {
     }
 
     if (id === 'employeeAddress') {
-      value = value.replace(/[^a-zA-Z0-9\s,.\-/]/g, '');
+      value = value.replace(/[^a-zA-Z0-9\s,.\-/&]/g, '');
       if (value.length > 200) {
         value = value.slice(0, 200);
       }
@@ -1871,7 +1871,7 @@ export default function SignUpPage() {
       }
     }
 
-    if (data.employeeAddress && /[^a-zA-Z0-9\s,.\-/]/.test(data.employeeAddress)) {
+    if (data.employeeAddress && /[^a-zA-Z0-9\s,.\-/&]/.test(data.employeeAddress)) {
       newErrors.employeeAddress = "Employee office address cannot contain special characters";
     } else if (data.employeeAddress && data.employeeAddress.length > 200) {
       newErrors.employeeAddress = "Employee office address cannot exceed 200 characters";
@@ -2996,7 +2996,7 @@ export default function SignUpPage() {
                               // here directly since AddressAutosuggest's onChange
                               // signature is (text: string), not a ChangeEvent, so
                               // handleFormChange itself can't be reused as-is.
-                              const sanitized = text.replace(/[^a-zA-Z0-9\s,.\-/]/g, '').slice(0, 200);
+                              const sanitized = text.replace(/[^a-zA-Z0-9\s,.\-/&]/g, '').slice(0, 200);
                               setFormData(prev => ({ ...prev, employeeAddress: sanitized }));
                             }}
                             onResolve={() => {
