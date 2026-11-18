@@ -1,6 +1,7 @@
 // src/App.tsx
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import AppErrorBoundary from './components/AppErrorBoundary';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './hooks/useAuth'; // Ensure useAuth.tsx is correct
 import { Toaster, ToastBar, toast } from 'react-hot-toast';
@@ -87,6 +88,12 @@ const TransporterProfileGate: React.FC = () => {
   );
 };
 
+// Remounts the boundary on every route change, so an error on one page doesn't stick to the next one.
+const RouteErrorBoundary: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { pathname } = useLocation();
+  return <AppErrorBoundary key={pathname}>{children}</AppErrorBoundary>;
+};
+
 const HostNavigationListener: React.FC = () => {
   const navigate = useNavigate();
   useEffect(() => {
@@ -141,6 +148,7 @@ function App() {
         <TransporterProfileGate />
         <ReferralAttachGate />
         <EmployeeFirstLoginGate />
+        <RouteErrorBoundary>
         <Routes>
           <Route path='/' element={<MainLayout><LandingPage /></MainLayout>} />
           <Route path="/transporter-signin" element={<PublicRoute><MainLayout><SignInPage /></MainLayout></PublicRoute>} />
@@ -169,6 +177,7 @@ function App() {
           <Route path="/addprice" element={<MainLayout><AddPrice /></MainLayout>} />
           <Route path="/transporter-verify-otp" element={<MainLayout><VerifyOtpPage /></MainLayout>} />
         </Routes>
+        </RouteErrorBoundary>
       </Router>
     </AuthProvider>
     </GoogleOAuthProvider>

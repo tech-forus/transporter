@@ -42,3 +42,18 @@ const detectHost = (): Host => {
 export const HOST: Host = detectHost();
 // Web-only behaviour: the website and the standalone portal. The app keeps its existing behaviour.
 export const IS_WEB = HOST !== 'app';
+
+// App only (Fleet vc8+, 2026-11-18): the host sizes this iframe to the visible screen and lets it scroll inside,
+// instead of growing it to the page height. Then position:fixed (bottom bar, popups) is relative to the screen, as
+// on a normal page. Older app builds grow the iframe to the content, so a fixed popup could open off-screen behind
+// its blurred backdrop and the iframe never shrank after a tall page (blank Dashboard after Profile).
+// The host opts in with ?frame=viewport and names the iframe 'fc-portal-viewport'. window.name survives full
+// reloads inside that iframe and is NOT shared with the app's other (signup) iframe, unlike sessionStorage.
+const detectViewportFrame = (): boolean => {
+  if (HOST !== 'app') return false;
+  try {
+    if (new URLSearchParams(window.location.search).get('frame') === 'viewport') return true;
+  } catch { /* ignore */ }
+  return window.name === 'fc-portal-viewport';
+};
+export const IS_VIEWPORT_FRAME = detectViewportFrame();

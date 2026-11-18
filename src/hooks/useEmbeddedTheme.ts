@@ -19,8 +19,10 @@ export function useEmbeddedTheme() {
 
     const applyTheme = (theme: string) => {
       document.documentElement.classList.toggle('dark', theme === 'dark');
-      // Full-coverage dark theme (index.css) is website-only; the app keeps the per-page dark: styles it had.
-      document.documentElement.classList.toggle('web-dark', IS_WEB && theme === 'dark');
+      // Full-coverage dark theme (index.css). Was website-only until 2026-11-18; in the app the per-page dark:
+      // styles alone left the page background white, so dark-mode text (e.g. the dashboard's
+      // "Welcome back" heading) was white on white. Explicit dark: utilities still win over it.
+      document.documentElement.classList.toggle('web-dark', theme === 'dark');
     };
 
     // Host's accent picker (blue/purple/black/yellow) — website only, like web-dark; recolours via index.css.
