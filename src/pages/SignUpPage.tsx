@@ -26,7 +26,7 @@ import AddressLocationPicker, { type AddressLocationValue } from '../components/
 import { IS_WEB } from '../config/host';
 import OfficeAddressField from '../components/OfficeAddressField';
 import { clearPricingDraft, preparePricingForNewExtraction } from '../utils/pricingDraft';
-import { tryReadZoneMatrixFromFile } from '../lib/clientExcelParser';
+import { tryReadZoneMatrixFromFile, resolveOriginPincode } from '../lib/clientExcelParser';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 
 // --- Type Definitions for State ---
@@ -1421,10 +1421,10 @@ export default function SignUpPage() {
             // "Zone + Unit Price" sheet). Read the uploaded Excel/CSV itself.
             for (const gf of aiFiles) {
               if (!/\.(xlsx|xls|csv)$/i.test(gf.file.name)) continue;
-              const matrix = await tryReadZoneMatrixFromFile(gf.file, zoneLabelsFromUtsf);
+              const matrix = await tryReadZoneMatrixFromFile(gf.file, zoneLabelsFromUtsf, resolveOriginPincode(formData.pincode, formData.employeeAddress));
               if (matrix) {
                 localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabelsFromUtsf, matrix }));
-                appendLog(`[OK] Zone rates read from "${gf.file.name}" — if it lists one price per destination zone, it is applied from every origin zone; edit any row that differs.`);
+                appendLog(`[OK] Zone rates read from "${gf.file.name}" — if it lists prices from a single origin, only that origin's row is filled; add other origins' rows if you ship from them.`);
                 break;
               }
             }

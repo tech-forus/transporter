@@ -42,7 +42,7 @@ import {
   runUtsfExtraction, parseUtsfOutput,
   type UploadItem, type ParsedUtsfResult,
 } from "../lib/standaloneUtsfExtraction";
-import { tryParseExcelClientSide } from "../lib/clientExcelParser";
+import { tryParseExcelClientSide, resolveOriginPincode } from "../lib/clientExcelParser";
 import { Upload, X, CheckCircle2 } from "lucide-react";
 
 // --- Type Definitions ---
@@ -281,6 +281,8 @@ export default function AddPrice() {
   // handleSubmit below — a returning transporter saves via the new
   // authenticated PUT /auth/pricing, never the signup-only POST /auth/addprice.
   const [isReturningTransporter, setIsReturningTransporter] = useState(false);
+  // Office pincode of a signed-in transporter — the origin a single-origin rate sheet is priced from.
+  const [originPincode, setOriginPincode] = useState<string | null>(null);
   // Rates already saved on this account (null when unknown, e.g. mid-signup with no session yet).
   const { hasRates: accountHasRates } = useRateSetup();
   const [returningCheckDone, setReturningCheckDone] = useState(false);
@@ -290,6 +292,7 @@ export default function AddPrice() {
         const res = await axios.get(`${API_BASE_URL}/api/transporter/auth/me`, { withCredentials: true });
         if (res.data?.success && res.data.transporter) {
           setIsReturningTransporter(true);
+          setOriginPincode(resolveOriginPincode(res.data.transporter.pincode, res.data.transporter.employeeAddress));
           setTransporterName(prev => prev || res.data.transporter.companyName || '');
         }
       } catch (_) {
@@ -657,7 +660,7 @@ export default function AddPrice() {
 
       for (const item of excelFiles) {
         appendLog(`[INFO] Checking "${item.file.name}" locally...`);
-        const outcome = await tryParseExcelClientSide(item.file, zoneLabels);
+        const outcome = await tryParseExcelClientSide(item.file, zoneLabels, originPincode);
         if (outcome.handled && outcome.result) localResults.push(outcome.result);
 
         // The client parser can only MATCH zones against labels this
@@ -750,7 +753,7 @@ export default function AddPrice() {
         toast.success('Documents read — some details are still missing, see below.');
       }
       if (anyPerZoneList) {
-        toast('Your file prices by destination zone, so each rate is applied from every origin zone. Edit any row that differs.', { duration: 7000 });
+        toast("Your file lists prices from a single origin, so only that origin's row is filled. Add other origins' rows if you ship from them.", { duration: 7000 });
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Could not process your documents.';

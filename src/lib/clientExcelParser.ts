@@ -174,14 +174,17 @@ function tryParseZoneMatrixFromSheet(rows: unknown[][], zoneLabels: string[]): {
 
 // A single-origin rate list: one row per pincode with a "Zone" column and a
 // "Unit Price"/"Rate" column (e.g. PINCODE | City | State | Zone | ODA | Unit
-// Price). It prices by DESTINATION zone only — there is no from-zone — so the
-// price is applied to every origin row of the matrix. Deliberately strict:
-// needs a Zone and a price header, no origin/from column, at least half of the
-// transporter's known zones present, and exactly ONE distinct price per zone.
-// Anything else (a zone with two prices, unknown zone names) returns null and
-// the file goes to the backend pipeline exactly as before.
-export function tryParsePerZonePriceList(rows: unknown[][], zoneLabels: string[]): { zoneLabels: string[]; zoneMatrix: number[][] } | null {
-  if (zoneLabels.length < 2) return null;
+// Price). It lists prices from ONE origin (the transporter's own office) to each
+// destination zone, so only the ORIGIN row of the matrix is filled — the
+// origin is the zone the office pincode sits in, looked up in the sheet's own
+// PINCODE column. Other origin rows stay empty (the file doesn't price them).
+// Deliberately strict: needs the office pincode, a Zone, a PINCODE and a price
+// header, no origin/from/pickup column (that's a multi-origin list — left to
+// the backend), at least half of the transporter's known zones present, and
+// exactly ONE distinct price per zone. Anything else returns null and the file
+// goes to the backend pipeline exactly as before.
+export function tryParsePerZonePriceList(rows: unknown[][], zoneLabels: string[], originPincode?: string | null): { zoneLabels: string[]; zoneMatrix: number[][] } | null {
+  if (zoneLabels.length < 2 || !originPincode) return null;
   const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
   const head = (v: unknown) => norm(v).replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
   const labelByNorm = new Map(zoneLabels.map(z => [norm(z), z]));
@@ -189,21 +192,25 @@ export function tryParsePerZonePriceList(rows: unknown[][], zoneLabels: string[]
   let headerRowIdx = -1;
   let zoneCol = -1;
   let priceCol = -1;
+  let pinCol = -1;
   for (let ri = 0; ri < Math.min(rows.length, 15); ri++) {
     const heads = (rows[ri] || []).map(head);
-    if (heads.some(h => /^(from|origin|source)\b/.test(h) || /\b(from|origin)\s+zone\b/.test(h))) continue;
+    if (heads.some(h => /^(from|origin|source|pick ?up)\b/.test(h) || /\b(from|origin|pick ?up)\s+(zone|pin ?code|pin)\b/.test(h))) continue;
     const z = heads.findIndex(h => /^((dest|destination|to|delivery)\s+)?zone$/.test(h));
     const p = heads.findIndex(h => /\b(price|rate)s?\b/.test(h));
-    if (z !== -1 && p !== -1) { headerRowIdx = ri; zoneCol = z; priceCol = p; break; }
+    const pc = heads.findIndex(h => /^((dest|destination|to|delivery)\s+)?pin ?(code)?$/.test(h));
+    if (z !== -1 && p !== -1 && pc !== -1) { headerRowIdx = ri; zoneCol = z; priceCol = p; pinCol = pc; break; }
   }
   if (headerRowIdx === -1) return null;
 
   const priceByZone = new Map<string, number>();
+  let originLabel: string | null = null;
   for (let ri = headerRowIdx + 1; ri < rows.length; ri++) {
     const row = rows[ri];
     if (!row) continue;
     const label = labelByNorm.get(norm(row[zoneCol]));
     if (!label) continue;
+    if (originLabel == null && String(row[pinCol] ?? '').replace(/\D/g, '') === originPincode) originLabel = label;
     const price = parseNumericCell(row[priceCol]);
     if (price == null || price <= 0) continue;
     const prev = priceByZone.get(label);
@@ -212,9 +219,20 @@ export function tryParsePerZonePriceList(rows: unknown[][], zoneLabels: string[]
   }
 
   if (priceByZone.size < Math.max(2, Math.ceil(zoneLabels.length / 2))) return null;
+  if (originLabel == null) return null; // office pincode isn't in the sheet — never guess the origin
 
-  const zoneMatrix = zoneLabels.map(() => zoneLabels.map(to => priceByZone.get(to) ?? 0));
+  const zoneMatrix = zoneLabels.map(from => zoneLabels.map(to => (from === originLabel ? priceByZone.get(to) ?? 0 : 0)));
   return { zoneLabels, zoneMatrix };
+}
+
+// Same rule the backend's addPrice uses to pick the dispatch pincode: the
+// employee office address's pincode wins when it differs from the company
+// pincode, else the company pincode.
+export function resolveOriginPincode(companyPincode?: string | number | null, employeeAddress?: string | null): string | null {
+  const company = companyPincode ? String(companyPincode).replace(/\D/g, '') : null;
+  const employee = String(employeeAddress || '').match(/\b\d{6}\b/)?.[0] ?? null;
+  const pick = employee && employee !== company ? employee : (company || employee);
+  return pick && /^\d{6}$/.test(pick) ? pick : null;
 }
 
 export interface ClientParseOutcome {
@@ -230,6 +248,7 @@ export interface ClientParseOutcome {
 export async function tryParseExcelClientSide(
   file: File,
   zoneLabels: string[],
+  originPincode?: string | null,
 ): Promise<ClientParseOutcome> {
   let sheets: unknown[][][];
   try {
@@ -259,7 +278,7 @@ export async function tryParseExcelClientSide(
       const zm = tryParseZoneMatrixFromSheet(rows, zoneLabels);
       if (zm) matchedZoneMatrix = zm.zoneMatrix;
       else {
-        const pl = tryParsePerZonePriceList(rows, zoneLabels);
+        const pl = tryParsePerZonePriceList(rows, zoneLabels, originPincode);
         if (pl) { matchedZoneMatrix = pl.zoneMatrix; perZoneList = true; }
       }
     }
@@ -293,11 +312,11 @@ export async function tryParseExcelClientSide(
 // uploaded Excel/CSV itself against the zone labels the backend just found.
 // Returns the matrix, or null when the file isn't a readable grid / per-zone
 // price list (never throws).
-export async function tryReadZoneMatrixFromFile(file: File, zoneLabels: string[]): Promise<number[][] | null> {
+export async function tryReadZoneMatrixFromFile(file: File, zoneLabels: string[], originPincode?: string | null): Promise<number[][] | null> {
   try {
     const sheets = await readWorkbookRows(file);
     for (const rows of sheets) {
-      const hit = tryParseZoneMatrixFromSheet(rows, zoneLabels) ?? tryParsePerZonePriceList(rows, zoneLabels);
+      const hit = tryParseZoneMatrixFromSheet(rows, zoneLabels) ?? tryParsePerZonePriceList(rows, zoneLabels, originPincode);
       if (hit) return hit.zoneMatrix;
     }
   } catch { /* unreadable file — caller keeps the backend result */ }
