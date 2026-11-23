@@ -26,6 +26,7 @@ import AddressLocationPicker, { type AddressLocationValue } from '../components/
 import { IS_WEB } from '../config/host';
 import OfficeAddressField from '../components/OfficeAddressField';
 import { clearPricingDraft, preparePricingForNewExtraction } from '../utils/pricingDraft';
+import { tryReadZoneMatrixFromFile, resolveOriginPincode } from '../lib/clientExcelParser';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 
 // --- Type Definitions for State ---
@@ -1434,6 +1435,18 @@ export default function SignUpPage() {
               zoneLabelsFromUtsf.map(to => utsfZoneRates[from]?.[to] || 0)
             );
             localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabelsFromUtsf, matrix }));
+          } else if (zoneLabelsFromUtsf.length >= 2) {
+            // The backend found zones but no rates (e.g. a single-origin
+            // "Zone + Unit Price" sheet). Read the uploaded Excel/CSV itself.
+            for (const gf of aiFiles) {
+              if (!/\.(xlsx|xls|csv)$/i.test(gf.file.name)) continue;
+              const matrix = await tryReadZoneMatrixFromFile(gf.file, zoneLabelsFromUtsf, resolveOriginPincode(formData.pincode, formData.employeeAddress));
+              if (matrix) {
+                localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabelsFromUtsf, matrix }));
+                appendLog(`[OK] Zone rates read from "${gf.file.name}" — if it lists prices from a single origin, only that origin's row is filled; add other origins' rows if you ship from them.`);
+                break;
+              }
+            }
           }
         } catch (storageErr) {
           console.error('[AI extraction] Failed to store zone labels/rates:', storageErr);
@@ -1584,7 +1597,7 @@ export default function SignUpPage() {
     }
 
     if (id === 'employeeAddress') {
-      value = value.replace(/[^a-zA-Z0-9\s,.\-/]/g, '');
+      value = value.replace(/[^a-zA-Z0-9\s,.\-/&]/g, '');
       if (value.length > 200) {
         value = value.slice(0, 200);
       }
@@ -1890,7 +1903,7 @@ export default function SignUpPage() {
       }
     }
 
-    if (data.employeeAddress && /[^a-zA-Z0-9\s,.\-/]/.test(data.employeeAddress)) {
+    if (data.employeeAddress && /[^a-zA-Z0-9\s,.\-/&]/.test(data.employeeAddress)) {
       newErrors.employeeAddress = "Employee office address cannot contain special characters";
     } else if (data.employeeAddress && data.employeeAddress.length > 200) {
       newErrors.employeeAddress = "Employee office address cannot exceed 200 characters";
@@ -3041,7 +3054,7 @@ export default function SignUpPage() {
                               // here directly since AddressAutosuggest's onChange
                               // signature is (text: string), not a ChangeEvent, so
                               // handleFormChange itself can't be reused as-is.
-                              const sanitized = text.replace(/[^a-zA-Z0-9\s,.\-/]/g, '').slice(0, 200);
+                              const sanitized = text.replace(/[^a-zA-Z0-9\s,.\-/&]/g, '').slice(0, 200);
                               setFormData(prev => ({ ...prev, employeeAddress: sanitized }));
                             }}
                             onResolve={() => {
