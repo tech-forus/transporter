@@ -35,7 +35,7 @@ import {
   DEFAULT_PRICE_RATE as SHARED_DEFAULT_PRICE_RATE,
   markPriceFieldTouched,
   rememberPricingOwner,
-  clearPricingDraft,
+  clearPricingDraft, saveZonePincodes, loadZonePincodes, hasUnsavedPricingDraft, type ZonePincode,
 } from "../utils/pricingDraft";
 import {
   ACCEPTED_EXTENSIONS, MAX_UPLOAD_FILES, MAX_FILE_SIZE, guessCategory,
@@ -351,7 +351,8 @@ export default function AddPrice() {
 
   const [transporterName, setTransporterName] = useState("");
   const [zoneLabels, setZoneLabels] = useState<string[]>([]);
-  const [zonePincodeData, setZonePincodeData] = useState<ZonePincodeEntry[]>([]);
+  // Restored from the draft so a leave-and-return (or a reload) keeps the service area that was picked; cleared on Save.
+  const [zonePincodeData, setZonePincodeData] = useState<ZonePincodeEntry[]>(() => loadZonePincodes() as ZonePincodeEntry[]);
   const [zoneRates, setZoneRates] = useState<number[][]>([]);
   const [loading, setLoading] = useState(false);
   // Synchronous guard against a double-submit race: a fast double-click/
@@ -413,6 +414,8 @@ export default function AddPrice() {
       localStorage.setItem('transporter_zone_rates', JSON.stringify({ labels: zoneLabels, matrix: zoneRates }));
     }
   }, [zoneRates, zoneLabels]);
+
+  useEffect(() => { saveZonePincodes(zonePincodeData as ZonePincode[]); }, [zonePincodeData]);
 
   // Announce readiness to parent so it can push UTSF prefill via postMessage
   useEffect(() => {
@@ -594,7 +597,9 @@ export default function AddPrice() {
   // has its own upload step on SignUpPage.tsx already) and never again this
   // session once they've dismissed it (extraction ran, or chose manual).
   useEffect(() => {
-    if (returningCheckDone && isReturningTransporter && !wasAiPrefilled && !uploadDismissed) {
+    // A draft already on this device (typed charges, a zone matrix, picked pincodes) means they chose manual entry before:
+    // do not send them back to the upload screen on every visit.
+    if (returningCheckDone && isReturningTransporter && !wasAiPrefilled && !uploadDismissed && !hasUnsavedPricingDraft()) {
       setShowUploadStep(true);
     }
   }, [returningCheckDone, isReturningTransporter, wasAiPrefilled, uploadDismissed]);
@@ -1114,7 +1119,12 @@ export default function AddPrice() {
       if (showZonePicker) { setShowZonePicker(false); return; }
       if (showZoneUploadPanel) { setShowZoneUploadPanel(false); return; }
       if (step > 0) { goBack(); return; }
-      if (isReturningTransporter) { navigate('/dashboard'); return; }
+      if (isReturningTransporter) {
+        // Nothing is saved to the account until Save on the last step: say so before leaving (the draft stays on this device).
+        if (hasUnsavedPricingDraft() && !window.confirm('Leave without saving? What you entered is kept on this device, but your rates are only saved to your account when you press Save on the last step.')) return;
+        navigate('/dashboard');
+        return;
+      }
       goBackToUpload();
     };
     window.addEventListener('message', handler);

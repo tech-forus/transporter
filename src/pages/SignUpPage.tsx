@@ -602,6 +602,25 @@ export default function SignUpPage() {
   // separate First/Last Name inputs; Logistics Network, Employee Details,
   // Pincodes Served and Fleet Size stay the same for both.
   const [accountType, setAccountType] = useState<'business' | 'individual'>('business');
+  // Transporter or aggregator (a business that sells several couriers, e.g. Shipshopy). An invite link can pre-choose it with
+  // ?type=aggregator. An aggregator skips the rate steps: it adds each courier's login next, and each courier brings its own rates.
+  const [orgType, setOrgType] = useState<'transporter' | 'aggregator'>(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('type') || sessionStorage.getItem('transporter_signup_org_type');
+      return t === 'aggregator' ? 'aggregator' : 'transporter';
+    } catch { return 'transporter'; }
+  });
+  const isAggregator = orgType === 'aggregator' && accountType === 'business';
+  const chooseOrgType = (t: 'transporter' | 'aggregator') => {
+    setOrgType(t);
+    try { sessionStorage.setItem('transporter_signup_org_type', t); } catch { /* private window */ }
+    // Couriers replace "Independent" for an aggregator; a transporter with nothing ticked is independent again.
+    setFormData((prev) => {
+      const real = prev.networks.filter((n: string) => n !== 'independent');
+      return { ...prev, networks: t === 'aggregator' ? real : (real.length ? real : ['independent']) };
+    });
+  };
+  useEffect(() => { if (orgType === 'aggregator') chooseOrgType('aggregator'); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   // Pre-checked by default — unticking blocks "Next". Clicking "Terms & Conditions"
   // opens TermsModal; never a forced full-page gate.
@@ -1934,6 +1953,11 @@ export default function SignUpPage() {
     const { address, stateName, pincode, ...rest } = newErrors;
     const page1Errors = accountType === 'individual' ? (() => { const { companyName, ...r } = rest; return r; })() : rest;
 
+    if (isAggregator && !formData.networks.some((n: string) => n !== 'independent' && n !== 'other')) {
+      toast.error('Select the couriers you sell.');
+      return;
+    }
+
     // Mark ALL fields as touched to display errors visually
     const allTouched: Record<string, boolean> = {};
     Object.keys(formData).forEach(k => {
@@ -1982,6 +2006,8 @@ export default function SignUpPage() {
       setCheckingAvailability(false);
     }
 
+    // An aggregator has no rate card of its own (each courier line brings its own), so it goes straight to submit.
+    if (isAggregator) { await handleSubmit(); return; }
     setCurrentStep(1);
   };
 
@@ -2009,7 +2035,7 @@ export default function SignUpPage() {
   // Submit is clicked, so there's nothing to bypass by navigating back and forth.
   const handleSubmit = async () => {
     const extractedService = localStorage.getItem('transporter_extracted_service');
-    if (!file && !extractedService) return toast.error('Please select the service zone sheet.');
+    if (!isAggregator && !file && !extractedService) return toast.error('Please select the service zone sheet.');
 
     const missing: MissingField[] = [];
     if (!formData.companyName.trim()) {
@@ -2102,6 +2128,7 @@ export default function SignUpPage() {
     // "Row 1 (Individual)" in the Step 1 JSX) — tell the backend so it doesn't
     // 400 on gstNo/address/state/pincode/officeStart/officeEnd being blank.
     dataToSubmit.append('accountType', accountType);
+    if (isAggregator) dataToSubmit.append('orgType', 'aggregator');
     // Shipper invite link (?ref=) captured on landing — the server re-validates it.
     const referralCode = getStoredReferral();
     if (referralCode) dataToSubmit.append('referralCode', referralCode);
@@ -2155,7 +2182,7 @@ export default function SignUpPage() {
       // own "Verified! Welcome aboard." toast is the real completion signal
       // for them. Business accounts still go on to fill in pricing at
       // /addprice, a genuinely separate save step, so their toast stays.
-      if (accountType === 'individual') {
+      if (accountType === 'individual' || isAggregator) {
         toast.dismiss(toastId);
       } else {
         toast.success('Transporter added successfully!', { id: toastId });
@@ -2168,7 +2195,7 @@ export default function SignUpPage() {
       // accounts skip straight from Delivery Areas to OTP verification
       // (no Price Configuration step exists for them), so Back from there
       // needs to know to return to signup details, not to /addprice.
-      sessionStorage.setItem("transporter_signup_account_type", accountType);
+      sessionStorage.setItem("transporter_signup_account_type", isAggregator ? 'aggregator' : accountType);
 
       // Clear draft localStorage items upon success
       localStorage.removeItem('transporter_onboarding_form_data');
@@ -2191,7 +2218,7 @@ export default function SignUpPage() {
       // skip that screen entirely, so this is now the only place that ever
       // sends their OTP; without it VerifyOtpPage shows "OTP sent" but none
       // ever went out.
-      if (accountType === 'individual') {
+      if (accountType === 'individual' || isAggregator) {
         try {
           await axios.post(`${API_BASE_URL}/api/transporter/auth/send-otp`, {
             email: formData.email || undefined,
@@ -2557,6 +2584,24 @@ export default function SignUpPage() {
                     <p className="text-xs font-normal text-stone-400 dark:text-[#6f93b8] mt-1">
                       {accountType === 'business' ? '(Fill GST to autofill details)' : '(Owner-operator, no GST needed)'}
                     </p>
+                    {accountType === 'business' && (
+                      <div className="mt-3 rounded-xl border border-stone-200 dark:border-[#1d3f5c] bg-stone-50 dark:bg-white/5 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-stone-500 dark:text-[#8fb0cf]">We are a</p>
+                          <div className="inline-flex rounded-lg border border-stone-200 dark:border-[#1d3f5c] bg-white dark:bg-white/5 p-0.5" role="radiogroup" aria-label="Transporter or aggregator">
+                            {([['transporter', 'Transporter'], ['aggregator', 'Aggregator']] as const).map(([v, label]) => (
+                              <button key={v} type="button" role="radio" aria-checked={orgType === v} onClick={() => chooseOrgType(v)}
+                                className={`px-3 py-1 text-[12px] font-semibold rounded-md transition-colors ${orgType === v ? 'bg-amber-500 text-white shadow' : 'text-stone-500 dark:text-[#8fb0cf]'}`}>{label}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-stone-500 dark:text-[#8fb0cf]">
+                          {orgType === 'aggregator'
+                            ? 'An aggregator sells several couriers (for example Delhivery and Blue Dart). Tick the couriers you sell below; next you will create a separate login for each one, with its own rates and bookings.'
+                            : 'A transporter runs its own vehicles or network and uploads its own rates.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <form className="space-y-2.5" onSubmit={handleNextStep} noValidate>
@@ -2671,9 +2716,9 @@ export default function SignUpPage() {
                           <div className="w-full">
                             <NetworkMultiSelect
                               id="networks"
-                              label="Logistics Network"
+                              label={isAggregator ? 'Couriers you sell' : 'Logistics Network'}
                               icon={<Network size={16} />}
-                              options={NETWORK_OPTIONS}
+                              options={isAggregator ? NETWORK_OPTIONS.filter((o) => o.value !== 'independent') : NETWORK_OPTIONS}
                               value={formData.networks}
                               onChange={(next) => setFormData(prev => ({ ...prev, networks: next }))}
                               required

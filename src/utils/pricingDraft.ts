@@ -11,6 +11,7 @@ export const ZONE_KEY = 'transporter_zone_rates';
 export const EXTRACTED_KEY = 'transporter_extracted_price_rate';
 export const TOUCHED_KEY = 'transporter_price_touched';
 export const OWNER_KEY = 'transporter_pricing_owner_gst';
+export const ZONE_PINCODES_KEY = 'transporter_zone_pincodes';
 
 // Matches the schema defaults (model/priceModel.js) — kFactor/divisor drive volumetric-weight
 // calculations elsewhere, so 0 would be actively wrong.
@@ -62,7 +63,29 @@ export function rememberPricingOwner(gstNo: string) {
 
 /** Removes the draft and all of its bookkeeping. */
 export function clearPricingDraft() {
-  for (const key of [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, TOUCHED_KEY, OWNER_KEY]) remove(key);
+  for (const key of [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, TOUCHED_KEY, OWNER_KEY, ZONE_PINCODES_KEY]) remove(key);
+}
+
+export type ZonePincode = { pincode: number; zone: string; isOda: boolean };
+
+/** Keeps the pincodes picked in the zone picker, so leaving the page and coming back does not lose them. */
+export function saveZonePincodes(list: ZonePincode[]) {
+  if (list.length) write(ZONE_PINCODES_KEY, JSON.stringify(list));
+  else remove(ZONE_PINCODES_KEY);
+}
+
+export function loadZonePincodes(): ZonePincode[] {
+  try {
+    const parsed = JSON.parse(read(ZONE_PINCODES_KEY) || '[]');
+    return Array.isArray(parsed)
+      ? parsed.filter((e) => e && Number.isFinite(Number(e.pincode)) && typeof e.zone === 'string' && e.zone.length > 0).map((e) => ({ pincode: Number(e.pincode), zone: e.zone, isOda: !!e.isOda }))
+      : [];
+  } catch { return []; }
+}
+
+/** Anything typed or picked that has not been saved to the account yet. */
+export function hasUnsavedPricingDraft(): boolean {
+  return readTouched().length > 0 || !!read(ZONE_KEY) || !!read(ZONE_PINCODES_KEY);
 }
 
 /**

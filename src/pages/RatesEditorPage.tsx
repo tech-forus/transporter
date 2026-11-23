@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, ArrowLeft, Check, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Check, Loader2, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import ReconfirmModal, { type DiffItem } from '../components/ReconfirmModal';
+import RatesSheetUpdate from '../components/RatesSheetUpdate';
 import LaneEndFields from '../components/LaneEndFields';
 import { useRateSetup } from '../hooks/useRateSetup';
 import ChargesEditor, { CHARGE_KEYS, missingRequiredCharges } from '../components/ChargesEditor';
@@ -87,6 +88,13 @@ const RatesEditorPage: React.FC = () => {
   const linkId = params.get('linkId');
 
   const [loaded, setLoaded] = useState(false);
+  const [zonesFull, setZonesFull] = useState(false); // zone matrix as a full-screen overlay
+  useEffect(() => {
+    if (!zonesFull) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setZonesFull(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zonesFull]);
   // First-time-setup links only for Google/invite accounts — never legacy carriers (see useRateSetup).
   const { needsSetup } = useRateSetup();
   const [individual, setIndividual] = useState(false);
@@ -96,6 +104,8 @@ const RatesEditorPage: React.FC = () => {
   const [lanes, setLanes] = useState<Lane[]>([]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [diff, setDiff] = useState<{ items: DiffItem[]; affected: number } | null>(null);
+  // Pincodes that came with an uploaded "pincode + price" sheet: sent with the next save, then dropped.
+  const [pendingService, setPendingService] = useState<{ pincode: number; zone: string; isOda: boolean }[] | null>(null);
   const [publishing, setPublishing] = useState(false);
   // Lane ends currently fetching their nearby-pincode list; autosave and publish wait for them.
   const [busy, setBusy] = useState(0);
@@ -133,10 +143,10 @@ const RatesEditorPage: React.FC = () => {
 
   const body = individual
     ? { lanes, linkId: linkId || undefined }
-    : { priceRate, zoneRates, linkId: linkId || undefined };
+    : { priceRate, zoneRates, linkId: linkId || undefined, ...(pendingService ? { service: pendingService } : {}) };
   const put = useCallback((confirmed?: boolean) => axios.put(`${API_BASE_URL}/api/transporter/price/me`, { ...body, confirmed }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [individual, lanes, priceRate, zoneRates, linkId]);
+    [individual, lanes, priceRate, zoneRates, linkId, pendingService]);
 
   // A change waiting for the autosave timer must not be lost when the user clicks Done / Back (unmount) or
   // refreshes / closes the tab (pagehide) inside that window.
@@ -176,7 +186,7 @@ const RatesEditorPage: React.FC = () => {
     timer.current = window.setTimeout(async () => {
       pendingSave.current = false;
       setSaveState('saving');
-      try { await put(); setSaveState('saved'); dirty.current = false; }
+      try { await put(); setSaveState('saved'); dirty.current = false; setPendingService(null); }
       catch (e: any) { setSaveState('error'); reportError(e, 'Could not save.'); }
     }, 800);
     return () => window.clearTimeout(timer.current);
@@ -195,7 +205,7 @@ const RatesEditorPage: React.FC = () => {
   };
   const confirm = async () => {
     setPublishing(true);
-    try { await put(true); setDiff(null); dirty.current = false; toast.success('Rates published.'); }
+    try { await put(true); setDiff(null); dirty.current = false; setPendingService(null); toast.success('Rates published.'); }
     catch (e: any) { reportError(e, 'Could not publish.'); }
     finally { setPublishing(false); }
   };
@@ -263,6 +273,12 @@ const RatesEditorPage: React.FC = () => {
           <div className="flex items-center gap-3">
             {status && (
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${status.tone}`}>{status.icon}{status.text}</span>
+            )}
+            {!individual && !linkId && (
+              <RatesSheetUpdate
+                current={{ priceRate, zoneRates }}
+                onApply={(next) => { dirty.current = true; setPriceRate(next.priceRate); setZoneRates(next.zoneRates); if (next.service) setPendingService(next.service); }}
+              />
             )}
             {explicitPublish && (
               <button onClick={review} disabled={publishing} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60">
@@ -341,10 +357,18 @@ const RatesEditorPage: React.FC = () => {
             )}
           </div>
 
-          <section className={`${card} overflow-hidden lg:col-span-2`}>
-            <div className="px-5 pt-5">
-              <h2 className="text-base font-bold text-slate-900">Zone rates</h2>
-              <p className="mb-3 text-xs text-slate-500">Rupees per kg (max ₹100), from the row zone to the column zone.</p>
+          <section className={zonesFull ? 'fixed inset-0 z-[100] overflow-auto bg-white' : `${card} overflow-hidden lg:col-span-2`}>
+            <div className="flex items-start justify-between gap-3 px-5 pt-5">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Zone rates</h2>
+                <p className="mb-3 text-xs text-slate-500">Rupees per kg (max ₹100), from the row zone to the column zone.</p>
+              </div>
+              {origins.length > 0 && (
+                <button type="button" onClick={() => setZonesFull((v) => !v)} title={zonesFull ? 'Exit full screen (Esc)' : 'Open full screen'}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-50">
+                  {zonesFull ? <><Minimize2 size={14} /> Exit full screen</> : <><Maximize2 size={14} /> Full screen</>}
+                </button>
+              )}
             </div>
             {origins.length === 0 ? (
               <p className="px-5 pb-6 text-sm text-slate-400">

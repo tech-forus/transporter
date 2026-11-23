@@ -15,11 +15,17 @@ import { API_BASE_URL } from '../config/apiConfig';
 
 export const rateSetupPath = (individual: boolean) => (individual ? '/setup/lanes' : '/addprice');
 
+/** After the Google profile step: rates for a business, lanes for an owner-operator, the courier lines for an aggregator. */
+export const pathAfterProfile = (accountType: 'business' | 'individual', orgType?: 'transporter' | 'aggregator') =>
+  (accountType === 'business' && orgType === 'aggregator' ? '/lines' : rateSetupPath(accountType === 'individual'));
+
 export function useRateSetup() {
   // null = still loading (or the check failed) — callers show nothing rather than a wrong nudge.
   const [hasRates, setHasRates] = useState<boolean | null>(null);
   const [individual, setIndividual] = useState(false);
   const [selfServe, setSelfServe] = useState(false);
+  // An aggregator sells through its courier lines, which have their own rates: it is never asked for rates of its own.
+  const [isAggregator, setIsAggregator] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -36,6 +42,7 @@ export function useRateSetup() {
           : Object.values(d.zoneRates || {}).some((row: any) => Object.values(row || {}).some((v) => Number(v) > 0)));
         const t = me.data?.transporter || {};
         setSelfServe(!!t.googleId || t.origin === 'shipper_referral');
+        setIsAggregator(t.orgType === 'aggregator' && !t.parentId);
       })
       .catch(() => setHasRates(null))
       .finally(() => setLoaded(true));
@@ -43,7 +50,8 @@ export function useRateSetup() {
 
   return {
     hasRates,
-    needsSetup: selfServe && hasRates === false,
+    needsSetup: selfServe && hasRates === false && !isAggregator,
+    isAggregator,
     individual,
     loaded,
     setupPath: rateSetupPath(individual),

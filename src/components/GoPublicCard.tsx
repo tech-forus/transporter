@@ -78,7 +78,7 @@ function pendingKycNote(kyc: PublicStatus['kycStatus']): { text: string; link?: 
 
 // Shown on Profile and Dashboard for transporters who joined through a shipper's invite.
 // Legacy transporters (not eligible) never see it.
-const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banner, sidebar }) => {
+const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean; wide?: boolean }> = ({ banner, sidebar, wide }) => {
   const { status, refresh } = usePublicStatus();
   const { needsSetup, setupPath } = useRateSetup();
   const [busy, setBusy] = useState(false);
@@ -130,6 +130,28 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banne
       { label: 'Under review', state: 'now' },
       { label: "You're public", state: 'next' },
     ] as const;
+    if (wide) {
+      return (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-slate-900 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-blue-600 text-white"><Hourglass size={18} /></span>
+          <div className="min-w-[220px] flex-1">
+            <div className="text-sm font-black">Request submitted. Awaiting approval.</div>
+            <div className="text-xs text-slate-600 dark:text-[#a6c1db]">
+              {kycNote.text}{kycNote.link && <> <Link to={kycNote.link} className="underline underline-offset-2">Open KYC</Link></>}
+            </div>
+          </div>
+          <ol className="flex items-center gap-3 text-xs font-bold">
+            {steps.map((s, i) => (
+              <li key={s.label} className="flex items-center gap-1.5">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${s.state === 'done' ? 'bg-emerald-500 text-white' : s.state === 'now' ? 'bg-blue-600 text-white ring-2 ring-blue-200' : 'bg-white text-slate-400 ring-1 ring-slate-200 dark:bg-transparent'}`}>{s.state === 'done' ? <Check size={12} /> : i + 1}</span>
+                <span className={s.state === 'next' ? 'text-slate-400' : ''}>{s.label}</span>
+              </li>
+            ))}
+          </ol>
+          <button onClick={withdraw} disabled={busy} className="text-xs font-semibold text-blue-700 underline underline-offset-2 disabled:opacity-60 dark:text-blue-300">Withdraw request</button>
+        </div>
+      );
+    }
     return (
       <div className={banner ? 'mx-auto max-w-6xl px-4 pt-4' : ''}>
         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-slate-900 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white">
@@ -159,6 +181,33 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean }> = ({ banne
             {kycNote.link && <> <Link to={kycNote.link} className="underline underline-offset-2">Open KYC</Link></>}
           </p>
           <button onClick={withdraw} disabled={busy} className="mt-2 text-xs font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-800 disabled:opacity-60 dark:text-blue-300">Withdraw request</button>
+        </div>
+      </div>
+    );
+  }
+  if (wide) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-blue-600 px-4 py-2 text-white">
+        <span className="flex items-baseline gap-2 whitespace-nowrap">
+          <span className="text-xl font-bold leading-none tracking-tight">{WAITING_SHIPPERS_LABEL}</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-100">shippers are waiting</span>
+        </span>
+        <p className="min-w-[240px] flex-1 truncate text-xs text-blue-50">
+          {v === 'rejected'
+            ? `Your last request wasn't approved${status.rejectionReason ? `: ${status.rejectionReason}` : ''}. Update your info and try again.`
+            : needsSetup
+              ? 'Add your rates first: shippers need prices to book you. After going public, every shipper can find and book you.'
+              : 'Today only your inviting shipper sees you. After going public, every shipper can find and book you.'}
+        </p>
+        <div className="flex flex-none gap-2">
+          {needsSetup ? (
+            <Link to={setupPath} className="rounded-md bg-white px-3.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">Set up rates</Link>
+          ) : (
+            <>
+              <button onClick={go} disabled={busy} className="rounded-md bg-white px-3.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60">Go public</button>
+              <Link to="/profile/rates/edit" className="rounded-md px-3.5 py-1 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
+            </>
+          )}
         </div>
       </div>
     );

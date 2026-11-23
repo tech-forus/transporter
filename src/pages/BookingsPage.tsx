@@ -8,16 +8,16 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
-  RefreshCw, IndianRupee, Clock, Mail, Phone,
+  RefreshCw, ChevronDown, Trash2, IndianRupee, Clock, Mail, Phone,
   CheckCircle2, XCircle, ThumbsUp, Bell, Eye, X,
-  TrendingUp, ClipboardList, Route, ArrowRight, UserCog, Truck, AlertTriangle,
+  TrendingUp, ArrowRight, AlertTriangle, Paperclip, Download,
 } from 'lucide-react';
 import { useRateSetup } from '../hooks/useRateSetup';
-import GoPublicCard, { PUBLIC_STATUS_REFRESH_EVENT } from '../components/GoPublicCard';
+import GoPublicCard, { PUBLIC_STATUS_REFRESH_EVENT, usePublicStatus } from '../components/GoPublicCard';
 import { IS_WEB } from '../config/host';
 
 // Website only. GST returns registered names in ALL CAPS ("SHIPSHOPY PRIVATE LIMITED"); show them in title case for reading.
@@ -26,6 +26,8 @@ const displayCompanyName = (name: string) =>
   !IS_WEB || /[a-z]/.test(name) ? name : name.replace(/\S+/g, (w) => (w.length <= 3 ? w : w[0] + w.slice(1).toLowerCase()));
 import CopyableAddress from '../components/CopyableAddress';
 import { useAuth } from '../hooks/useAuth';
+import BookingActions from '../components/BookingActions';
+import AggregatorBanner from '../components/lines/AggregatorBanner';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 import { useModalIframePin } from '../hooks/useModalIframePin';
@@ -50,6 +52,7 @@ interface ShipperInfo {
 }
 
 interface BookingBox {
+  boxNo?: string;
   count?: number;
   length?: number;
   width?: number;
@@ -83,14 +86,60 @@ interface Booking {
   transporterAckBy?: string;
   shipmentStatus?: 'picked_up' | 'delivered' | 'completed' | 'cancelled';
   lrNumber?: string;
+  podAt?: string;
   podIssue?: { text?: string; at?: string };
-  sharedFiles?: { filename: string; fromSide: 'shipper' | 'transporter'; status: string; kind?: 'lr' | 'box_slip' | 'pod' | 'freight_invoice' | 'packing_list' | 'invoice' | 'eway_bill'; at: string }[];
+  invoiceNo?: string;
+  ewayBillNo?: string;
+  sharedFiles?: { fileId?: string; expired?: boolean; filename: string; fromSide: 'shipper' | 'transporter'; status: string; kind?: 'lr' | 'box_slip' | 'pod' | 'freight_invoice' | 'packing_list' | 'invoice' | 'eway_bill'; at: string }[];
   createdAt: string;
 }
 
 const SHIPMENT_LABEL: Record<NonNullable<Booking['shipmentStatus']>, string> = {
   picked_up: 'LR issued', delivered: 'Delivered', completed: 'Completed', cancelled: 'Cancelled by shipper',
 };
+// Open a stored document: download with the login attached, then show it (PDF, photo) or save it (spreadsheet).
+const openFile = async (bookingId: string, fileId: string, filename: string) => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/api/bookings/${bookingId}/transporter-files/${fileId}`, { responseType: 'blob', timeout: 60000 });
+    const blob = res.data as Blob;
+    const url = URL.createObjectURL(blob);
+    if (/^(application\/pdf|image\/)/i.test(blob.type)) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    toast.error('This file is no longer available.');
+  }
+};
+
+// Save a stored document to the computer (the open button shows it instead).
+// Remove a file this team uploaded (the shipper is not messaged).
+const deleteFile = async (bookingId: string, fileId: string, filename: string, done: () => void) => {
+  if (!window.confirm(`Delete ${filename}? The shipper will no longer be able to open it.`)) return;
+  try {
+    await axios.delete(`${API_BASE_URL}/api/bookings/${bookingId}/portal/files/${fileId}`);
+    toast.success('File deleted.');
+    done();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || 'Could not delete the file.');
+  }
+};
+
+const saveFile = async (bookingId: string, fileId: string, filename: string) => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/api/bookings/${bookingId}/transporter-files/${fileId}`, { responseType: 'blob', timeout: 60000 });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    toast.error('This file is no longer available.');
+  }
+};
+
 const FILE_KIND: Record<string, string> = { lr: 'LR', box_slip: 'Box slip', pod: 'POD', freight_invoice: 'Freight invoice', packing_list: 'Packing list', invoice: 'Goods invoice', eway_bill: 'E-way bill' };
 const fmtPhone = (p?: string) => (p && p.length === 12 ? `+91 ${p.slice(2, 7)} ${p.slice(7)}` : p || '');
 
@@ -164,7 +213,7 @@ function PickupBadge({ pickupDate, pickupTime }: { pickupDate?: string; pickupTi
   const countdown = usePickupCountdown(pickupDate, pickupTime);
   if (!countdown) return null;
   return (
-    <span className="absolute top-4 right-5 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+    <span className="mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
       <Clock size={12} aria-hidden="true" /> Pickup {countdown.label}
     </span>
   );
@@ -191,10 +240,54 @@ const DetailField = ({ label, value }: { label: string; value?: string | number 
   );
 };
 
+// Everything the shipper uploaded for this booking (and anything shared on WhatsApp): open or download each file.
+const BookingFilesModal = ({ booking, onClose, onChanged, readOnly, initialKind }: { booking: Booking; onClose: () => void; onChanged: () => void; readOnly?: boolean; initialKind?: string }) => {
+  const files = booking.sharedFiles || [];
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-[#0d2438] w-[94vw] max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-slate-900 px-5 py-4 text-white relative rounded-t-2xl">
+          <button onClick={onClose} aria-label="Close" className="absolute top-3.5 right-4 text-slate-400 hover:text-white"><X size={20} /></button>
+          <h3 className="text-base font-bold">Files for booking {booking.bookingCode}</h3>
+          <p className="text-slate-400 text-xs mt-0.5">Open a file to read it, or download it.</p>
+        </div>
+        {/* Save the LR / AWB number, or send the LR copy, box slip, POD: the shipper is told on every channel. */}
+        <div className="px-5 pt-1"><BookingActions booking={booking} onChanged={onChanged} readOnly={readOnly} initialKind={initialKind} /></div>
+        <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c] p-2 text-sm">
+          {files.length === 0 && <li className="px-3 py-6 text-center text-slate-500 dark:text-[#8fb0cf]">No files were uploaded for this booking.</li>}
+          {files.map((f, i) => (
+            <li key={i} className="flex items-center gap-3 px-3 py-2.5">
+              <Paperclip size={15} className="shrink-0 text-slate-400" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-slate-800 dark:text-white break-all">{f.filename}</p>
+                <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">
+                  {f.kind ? `${FILE_KIND[f.kind]} · ` : ''}{f.fromSide === 'shipper' ? 'from the shipper' : 'from your team'} · {new Date(f.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              {f.fileId ? (
+                <div className="flex shrink-0 gap-1.5">
+                  <button type="button" onClick={() => openFile(booking._id, f.fileId!, f.filename)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-[#1d3f5c] px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5"><Eye size={13} /> Open</button>
+                  <button type="button" onClick={() => saveFile(booking._id, f.fileId!, f.filename)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"><Download size={13} /> Download</button>
+                  {f.fromSide === 'transporter' && !readOnly && booking.shipmentStatus !== 'completed' && (
+                    <button type="button" aria-label={`Delete ${f.filename}`} title="Delete this file" onClick={() => deleteFile(booking._id, f.fileId!, f.filename, onChanged)} className="inline-flex items-center rounded-lg border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"><Trash2 size={13} /></button>
+                  )}
+                </div>
+              ) : (
+                <span className="shrink-0 text-xs text-slate-400">{f.expired ? 'Deleted after 12 months' : 'Only in WhatsApp'}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
 // Booking detail modal — same fields the shipper's Book Now form collects
 // (see freight-compare-frontend's BookNowModal.tsx), rendered read-only so
 // the transporter sees exactly what was submitted, including gaps.
-const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: () => void }) => {
+const BookingDetailModal = ({ booking, onClose, onChanged, readOnly }: { booking: Booking; onClose: () => void; onChanged: () => void; readOnly?: boolean }) => {
   const shipperName = [booking.customerID?.firstName, booking.customerID?.lastName].filter(Boolean).join(' ') || booking.customerID?.companyName || 'A shipper';
   const boxes = booking.boxes || [];
   const unit = booking.dimensionUnit || 'cm';
@@ -233,6 +326,8 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <DetailField label="Invoice Value (₹)" value={booking.invoiceValue > 0 ? booking.invoiceValue.toLocaleString('en-IN') : null} />
+              <DetailField label="Invoice No" value={booking.invoiceNo || null} />
+              <DetailField label="E-way Bill No" value={booking.ewayBillNo || null} />
               <DetailField label="Freight Charge (₹)" value={booking.freightCharge > 0 ? booking.freightCharge.toLocaleString('en-IN') : null} />
             </div>
             {booking.transporterAckStatus === 'declined' && (
@@ -245,6 +340,7 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
                 <DetailField label="Handled by (WhatsApp)" value={fmtPhone(booking.transporterAckBy)} />
               </div>
             )}
+            <BookingActions booking={booking} onChanged={onChanged} readOnly={readOnly} />
             {booking.podIssue?.text && (
               <div className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2">
                 <span className="font-bold">Issue reported by the shipper:</span> {booking.podIssue.text}
@@ -252,19 +348,24 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
             )}
             {(booking.sharedFiles?.length ?? 0) > 0 && (
               <div className="pt-2 border-t border-slate-100 dark:border-[#1d3f5c]">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">Files shared on WhatsApp</p>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-1.5">Files</p>
                 <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c] rounded-lg border border-slate-200 dark:border-[#1d3f5c] text-xs">
                   {booking.sharedFiles!.map((f, i) => (
                     <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-slate-700 dark:text-[#8fb0cf]">
-                      <span className="font-semibold text-slate-800 dark:text-white break-all">{f.filename}</span>
+                      {f.fileId ? (
+                        <button type="button" onClick={() => openFile(booking._id, f.fileId!, f.filename)} className="font-semibold text-blue-700 dark:text-blue-300 hover:underline break-all text-left">{f.filename}</button>
+                      ) : (
+                        <span className="font-semibold text-slate-800 dark:text-white break-all">{f.filename}</span>
+                      )}
                       {f.kind && <span className="rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 text-blue-700 dark:text-blue-300">{FILE_KIND[f.kind]}</span>}
                       <span>{f.fromSide === 'shipper' ? 'from the shipper' : 'from your team'}</span>
                       <span className="text-slate-400">· {new Date(f.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       {f.status === 'failed' && <span className="text-red-600 dark:text-red-400">· not delivered</span>}
+                      {!f.fileId && <span className="text-slate-400">· {f.expired ? 'deleted after 12 months' : 'only in WhatsApp'}</span>}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-[#6f93b8]">The files themselves are in your WhatsApp chat with FreightCompare.</p>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-[#6f93b8]">Click a file to open it. Files over 5 MB stay in your WhatsApp chat with FreightCompare.</p>
               </div>
             )}
 
@@ -288,6 +389,7 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
                 <table className="w-full text-xs border-collapse">
                   <thead>
                     <tr className="text-slate-500 dark:text-[#8fb0cf] uppercase text-[10px] bg-slate-100 dark:bg-white/5">
+                      <th className="text-left py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">Box no</th>
                       <th className="text-left py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">Qty</th>
                       <th className="text-left py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">Desc</th>
                       <th className="text-center py-1.5 px-2 border border-slate-200 dark:border-[#1d3f5c]">L ({unit})</th>
@@ -299,6 +401,7 @@ const BookingDetailModal = ({ booking, onClose }: { booking: Booking; onClose: (
                   <tbody>
                     {boxes.map((b, i) => (
                       <tr key={i} className="bg-white dark:bg-[#0d2438]">
+                        <td className="py-1.5 px-2 text-left text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.boxNo || '-'}</td>
                         <td className="py-1.5 px-2 text-center font-semibold text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.count ?? '-'}</td>
                         <td className="py-1.5 px-2 text-left text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.description || '-'}</td>
                         <td className="py-1.5 px-2 text-center text-slate-700 dark:text-[#8fb0cf] border border-slate-200 dark:border-[#1d3f5c]">{b.length ?? '-'}</td>
@@ -362,6 +465,67 @@ const DeclineReasonModal = ({
   document.body
 );
 
+// "Actions" dropdown for a table row. Opens on hover (and on click, for touch). Rendered in a portal with fixed
+// coordinates so the table's horizontal-scroll wrapper cannot clip it.
+type MenuItem = { label: string; icon: React.ReactNode; onClick: () => void; tone?: 'primary' | 'danger'; disabled?: boolean };
+const ActionsMenu = ({ items }: { items: MenuItem[] }) => {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const open = () => {
+    window.clearTimeout(timer.current);
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+  };
+  const closeSoon = () => { timer.current = window.setTimeout(() => setPos(null), 160); };
+  useEffect(() => {
+    if (!pos) return undefined;
+    const close = () => setPos(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [pos]);
+  if (items.length === 0) return null;
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onMouseEnter={open}
+        onMouseLeave={closeSoon}
+        onClick={() => (pos ? setPos(null) : open())}
+        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5 whitespace-nowrap"
+      >
+        Actions <ChevronDown size={12} className={`transition-transform ${pos ? 'rotate-180' : ''}`} />
+      </button>
+      {pos && createPortal(
+        <div
+          style={{ position: 'fixed', top: pos.top, right: pos.right }}
+          onMouseEnter={() => window.clearTimeout(timer.current)}
+          onMouseLeave={closeSoon}
+          className="z-[9998] min-w-[180px] rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-[#1d3f5c] dark:bg-[#0d2438]"
+        >
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              disabled={it.disabled}
+              onClick={() => { setPos(null); it.onClick(); }}
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold disabled:opacity-50 ${
+                it.tone === 'danger' ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                : it.tone === 'primary' ? 'text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-white/5'
+                : 'text-slate-700 hover:bg-slate-50 dark:text-white dark:hover:bg-white/5'}`}
+            >
+              {it.icon} {it.label}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+};
+
 const BookingsPage: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -369,6 +533,11 @@ const BookingsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
+  const [filesId, setFilesId] = useState<string | null>(null);
+  const [filesKind, setFilesKind] = useState<string | undefined>(undefined);
+  const openFiles = (id: string, kind?: string) => { setFilesKind(kind); setFilesId(id); };
+  const filesBooking = bookings.find((x) => x._id === filesId) || null; // from the live list, so a file just sent shows at once
+  const readOnlyLogin = !!user?.isLine && user?.role !== 'employee';
   const [decliningBooking, setDecliningBooking] = useState<Booking | null>(null);
 
   // Tracks booking ids already seen this page session — anything that shows
@@ -376,6 +545,10 @@ const BookingsPage: React.FC = () => {
   // not state: it's bookkeeping for the effect below, not something that
   // should trigger a re-render on its own.
   const knownIdsRef = useRef<Set<string> | null>(null);
+
+  // /dashboard?booking=<id> (from the header bell or the notifications page) opens that booking.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wantedId = searchParams.get('booking');
 
   const fetchBookings = useCallback(async (silent = false) => {
     if (!user?._id) return;
@@ -408,6 +581,11 @@ const BookingsPage: React.FC = () => {
     }
   }, [user?._id]);
 
+  // The open booking follows the latest data: after saving an AWB the card shows it at once.
+  useEffect(() => {
+    setViewingBooking((cur) => (cur ? bookings.find((b) => b._id === cur._id) || cur : cur));
+  }, [bookings]);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchBookings();
@@ -415,32 +593,22 @@ const BookingsPage: React.FC = () => {
     return () => clearInterval(id);
   }, [isAuthenticated, fetchBookings]);
 
-  // "Your Setup" summary (ported from main's Dashboard, 2026-10-15): a light read-back of the transporter's own
-  // routes + rate card + fleet, so they can see their setup without opening the full editor. Uses the existing
-  // GET /api/transporter/auth/price-summary; a failure just leaves the card showing dashes.
-  const [priceSummary, setPriceSummary] = useState<{ hasPriceCard: boolean; originZoneCount?: number; destinationRateCount?: number } | null>(null);
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    axios.get(`${API_BASE_URL}/api/transporter/auth/price-summary`)
-      .then((res) => { if (res.data?.success) setPriceSummary(res.data); })
-      .catch(() => setPriceSummary(null));
-  }, [isAuthenticated]);
-
   // Business and owner-operator alike: no rates yet → every "rates" entry point goes to first-time setup.
-  const { hasRates, needsSetup, setupPath } = useRateSetup();
+  const { needsSetup, isAggregator, setupPath } = useRateSetup();
+  const publicEligible = !!usePublicStatus().status?.eligible;
   const ratesLink = needsSetup ? setupPath : '/profile/rates';
 
   // Without this the embedding parent iframe never learns this page grew
   // (e.g. a modal opening), so it stays sized for the plain list and the
   // modal renders partly off the visible page instead of centered in view
   // — same fix every other page here already has.
-  useReportIframeHeight([bookings.length, viewingBooking, decliningBooking, loading, error, priceSummary, needsSetup]);
+  useReportIframeHeight([bookings.length, viewingBooking, filesBooking, decliningBooking, loading, error, needsSetup]);
 
   // Without this, the two modals below — centered via `fixed inset-0` — center
   // themselves against this iframe's full auto-grown content height instead of
   // the physically visible screen, which is what made "View Details" open a
   // popup the user had to scroll far down to actually see.
-  useModalIframePin(!!viewingBooking || !!decliningBooking);
+  useModalIframePin(!!viewingBooking || !!filesBooking || !!decliningBooking);
 
   const setAckStatus = async (bookingId: string, status: 'acknowledged' | 'confirmed' | 'declined', reason?: string) => {
     if (!user?._id) return;
@@ -488,6 +656,17 @@ const BookingsPage: React.FC = () => {
   }), [bookings]);
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
+  useEffect(() => {
+    if (!wantedId || bookings.length === 0) return;
+    const hit = bookings.find((x) => x._id === wantedId);
+    if (hit) {
+      setActiveTab(groupedBookings.history.some((x) => x._id === wantedId) ? 'history' : 'upcoming');
+      setViewingBooking(hit);
+    } else {
+      toast('That booking is no longer in your list.', { icon: 'ℹ️' });
+    }
+    setSearchParams({}, { replace: true });
+  }, [wantedId, bookings, groupedBookings, setSearchParams]);
 
   // Count of pending bookings still inside the "New" window — drives the
   // notification dot next to the Upcoming tab so a new arrival is visible
@@ -517,7 +696,7 @@ const BookingsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="max-w-6xl mx-auto py-2">
+      <div className="mx-auto w-full max-w-[1600px] px-4 pt-4 pb-48 sm:px-6 lg:px-8">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -538,14 +717,16 @@ const BookingsPage: React.FC = () => {
           </button>
         </header>
 
-        {needsSetup && (
-          <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
-            <AlertTriangle size={20} className="flex-none text-amber-600 dark:text-amber-400" />
+        <div className="mb-5"><GoPublicCard wide /></div>
+        {isAggregator && <div className="mb-5"><AggregatorBanner /></div>}
+        {needsSetup && !publicEligible && (
+          <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+            <AlertTriangle size={20} className="flex-none text-blue-600 dark:text-blue-300" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Add your rates to start receiving bookings</p>
-              <p className="text-xs text-amber-800/80 dark:text-amber-300/80">Shippers can't see or book you until your rates are set up.</p>
+              <p className="text-sm font-bold text-blue-800 dark:text-white">Add your rates to start receiving bookings</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">Shippers can't see or book you until your rates are set up.</p>
             </div>
-            <Link to={setupPath} className="inline-flex flex-none items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 transition-colors">
+            <Link to={setupPath} className="inline-flex flex-none items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
               Set up rates <ArrowRight size={14} />
             </Link>
           </div>
@@ -553,25 +734,24 @@ const BookingsPage: React.FC = () => {
 
         {/* Stats: one card, four columns; icons in the accent colour (blue-* follows the website accent, index.css).
             Always shown (0s included) so the dashboard never looks empty. Amber only when something is pending. */}
-        <div className="mb-6 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-4 dark:border-[#1d3f5c] dark:bg-[#0d2438]">
+        <div className="mb-4 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-4 dark:border-[#1d3f5c] dark:bg-[#0d2438]">
           {[
             { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={14} /> },
             { label: 'Pending action', value: String(stats.pending), icon: <Bell size={14} />, alert: stats.pending > 0 },
             { label: 'Confirmed', value: String(stats.confirmed), icon: <CheckCircle2 size={14} /> },
             { label: 'Total business value', value: `₹${stats.totalValue.toLocaleString('en-IN')}`, icon: <IndianRupee size={14} /> },
           ].map((c, i) => (
-            <div key={c.label} className={`px-4 py-2.5 ${i % 2 ? 'border-l' : ''} ${i > 1 ? 'border-t lg:border-t-0' : ''} ${i === 2 ? 'lg:border-l' : ''} border-slate-200 dark:border-[#1d3f5c]`}>
-              <div className={`flex items-center gap-1.5 text-xs ${c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>
+            <div key={c.label} className={`flex items-center justify-between gap-2 px-4 py-1.5 ${i % 2 ? 'border-l' : ''} ${i > 1 ? 'border-t lg:border-t-0' : ''} ${i === 2 ? 'lg:border-l' : ''} border-slate-200 dark:border-[#1d3f5c]`}>
+              <div className={`flex min-w-0 items-center gap-1.5 text-xs ${c.alert ? 'text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-[#8fb0cf]'}`}>
                 <span className={c.alert ? '' : 'text-slate-400 dark:text-[#6f93b8]'}>{c.icon}</span>
                 <span className="truncate">{c.label}</span>
               </div>
-              <p className={`mt-1 truncate text-lg font-bold tracking-tight ${c.alert ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
+              <p className={`shrink-0 text-sm font-bold tracking-tight ${c.alert ? 'text-blue-700 dark:text-blue-300' : 'text-slate-900 dark:text-white'}`}>{c.value}</p>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 min-w-0">
+        <div className="min-w-0">
         {loading && bookings.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <RefreshCw size={24} className="animate-spin text-blue-500 mr-3" />
@@ -599,143 +779,105 @@ const BookingsPage: React.FC = () => {
             </Link>
           </div>
         ) : (() => {
-            const renderCard = (b: Booking) => {
+            const digitsOnly = (v?: string | number | null) => String(v ?? '').replace(/\D/g, '');
+            // ERP-style register: one row per booking, one column per value, gridlines on every cell.
+            const th = 'border border-slate-200 dark:border-[#1d3f5c] bg-slate-100 dark:bg-white/5 px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-[#8fb0cf] whitespace-nowrap';
+            const td = 'border border-slate-200 dark:border-[#1d3f5c] px-3 py-2 align-top text-xs text-slate-700 dark:text-[#c9dbec]';
+            const btn = 'inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5 whitespace-nowrap';
+            // Same rule BookingActions uses: only an accepted, still-open booking on an owner / employee login can send documents.
+            const canSendDocs = (b: Booking) => b.transporterAckStatus === 'confirmed' && !readOnlyLogin && !['cancelled', 'completed'].includes(b.shipmentStatus || '') && !b.podAt;
+            const renderRow = (b: Booking, i: number) => {
               const shipperName = [b.customerID?.firstName, b.customerID?.lastName].filter(Boolean).join(' ') || b.customerID?.companyName || 'A shipper';
               const isCancelled = b.shipmentStatus === 'cancelled';
               const isPending = b.transporterAckStatus === 'pending' && !isCancelled;
               const isAckedOnly = b.transporterAckStatus === 'acknowledged' && !isCancelled;
               const isNew = isPending && (Date.now() - new Date(b.createdAt).getTime()) < NEW_BADGE_WINDOW_MS;
-              // ShipperInfo.phone is typed as string but the API can hand back
-              // a raw number (customers.phone is stored as Number in Mongo) —
-              // String(v) first so .replace never runs on a number and crashes
-              // the whole page (confirmed live: this exact TypeError blanked
-              // the page before this fix).
-              const digitsOnly = (v?: string | number | null) => String(v ?? '').replace(/\D/g, '');
+              const showContact = !(isCancelled || b.transporterAckStatus === 'declined');
               const status = STATUS_THEME[b.transporterAckStatus];
-              const sep = <span className="text-slate-300 dark:text-[#1d3f5c]">·</span>;
               return (
-                <div
-                  key={b._id}
-                  className="relative flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-slate-300 dark:border-[#1d3f5c] dark:bg-[#0d2438]"
-                >
-                  {(isPending || isAckedOnly) && (
-                    <PickupBadge pickupDate={b.pickupDate} pickupTime={b.pickupTime} />
-                  )}
-
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-base font-bold text-slate-900 dark:text-white">{shipperName}</span>
-                      {b.customerID?.companyName && shipperName !== b.customerID.companyName && (
-                        <span className="text-sm text-slate-500 dark:text-[#8fb0cf]">{b.customerID.companyName}</span>
-                      )}
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${status.badge}`}>
+                <tr key={b._id} className={i % 2 ? 'bg-slate-50/60 dark:bg-white/[0.03]' : 'bg-white dark:bg-[#0d2438]'}>
+                  <td className={td}>
+                    <p className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{b.bookingCode}</p>
+                    <p className="text-[11px] text-slate-400 whitespace-nowrap">{new Date(b.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                  </td>
+                  <td className={td}>
+                    <p className="font-semibold text-slate-900 dark:text-white">{shipperName}</p>
+                    {b.customerID?.companyName && shipperName !== b.customerID.companyName && <p className="text-[11px] text-slate-500">{b.customerID.companyName}</p>}
+                  </td>
+                  <td className={`${td} min-w-[230px]`}>
+                    {showContact && (b.customerID?.phone || b.customerID?.email) ? (
+                      <div className="space-y-0.5">
+                        {b.customerID?.phone && (
+                          <p className="flex items-center gap-1.5 whitespace-nowrap">
+                            <a href={`tel:${digitsOnly(b.customerID.phone)}`} className="inline-flex items-center gap-1 hover:text-blue-700"><Phone size={11} /> {b.customerID.phone}</a>
+                            <a href={`https://wa.me/91${digitsOnly(b.customerID.phone)}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-emerald-600 hover:text-emerald-700"><WhatsAppIcon size={12} /></a>
+                          </p>
+                        )}
+                        {b.customerID?.email && <a href={`mailto:${b.customerID.email}`} className="flex items-center gap-1 break-all hover:text-blue-700"><Mail size={11} className="shrink-0" /> {b.customerID.email}</a>}
+                      </div>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className={`${td} whitespace-nowrap font-semibold tabular-nums`}>{b.pickupPincode} <ArrowRight size={11} className="inline text-slate-400" /> {b.dropPincode}</td>
+                  <td className={`${td} whitespace-nowrap tabular-nums`}>{b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'}<br /><span className="text-slate-500">{b.totalChargeableWeight} kg</span></td>
+                  <td className={`${td} whitespace-nowrap text-right font-bold tabular-nums text-slate-900 dark:text-white`}>₹{(b.freightCharge || b.invoiceValue || 0).toLocaleString('en-IN')}</td>
+                  <td className={`${td} whitespace-nowrap tabular-nums`}>
+                    {b.pickupDate || '—'} {b.pickupTime || ''}
+                    {(isPending || isAckedOnly) && <div><PickupBadge pickupDate={b.pickupDate} pickupTime={b.pickupTime} /></div>}
+                  </td>
+                  <td className={td}>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${status.badge}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${status.accent}`} />{b.transporterAckStatus}
                       </span>
-                      {isNew && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-medium text-white">New</span>}
+                      {isNew && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-medium text-white">New</span>}
                       {b.shipmentStatus && (
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${isCancelled ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'}`}>
-                          {SHIPMENT_LABEL[b.shipmentStatus]}{b.lrNumber && b.shipmentStatus !== 'cancelled' ? ` · LR ${b.lrNumber}` : ''}
-                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${isCancelled ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'}`}>{SHIPMENT_LABEL[b.shipmentStatus]}</span>
                       )}
-                      {(b.sharedFiles?.length ?? 0) > 0 && (
-                        <span className="rounded-full bg-slate-100 dark:bg-white/10 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">📎 {b.sharedFiles!.length} file{b.sharedFiles!.length === 1 ? '' : 's'}</span>
-                      )}
+                      {b.transporterAckStatus === 'declined' && b.transporterDeclineReason && <span className="text-[11px] text-red-600">{b.transporterDeclineReason}</span>}
                     </div>
-                    {b.transporterAckStatus === 'confirmed' && b.transporterAckBy && (
-                      <p className="mt-1 text-xs text-slate-500 dark:text-[#8fb0cf]">Accepted on WhatsApp by {fmtPhone(b.transporterAckBy)}</p>
-                    )}
-
-                    {/* Declined or cancelled: the shipper's contact details are no longer shown to this transporter. */}
-                    {!(isCancelled || b.transporterAckStatus === 'declined') && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500 dark:text-[#8fb0cf]">
-                      {b.customerID?.email && (
-                        <a href={`mailto:${b.customerID.email}`} className="inline-flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white">
-                          <Mail size={14} /> {b.customerID.email}
-                        </a>
-                      )}
-                      {b.customerID?.phone && (
-                        <>
-                          {b.customerID?.email && sep}
-                          <a href={`tel:${digitsOnly(b.customerID.phone)}`} className="inline-flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white">
-                            <Phone size={14} /> {b.customerID.phone}
-                          </a>
-                          {sep}
-                          <a href={`https://wa.me/91${digitsOnly(b.customerID.phone)}`} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white">
-                            <WhatsAppIcon size={14} /> WhatsApp
-                          </a>
-                        </>
-                      )}
+                  </td>
+                  <td className={`${td} whitespace-nowrap`}>{b.lrNumber || <span className="text-slate-300">—</span>}</td>
+                  <td className={td}>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setViewingBooking(b)} className={btn}><Eye size={12} /> View</button>
+                      <ActionsMenu items={[
+                        ...((isPending || isAckedOnly) ? [{ label: 'Confirm booking', icon: <CheckCircle2 size={13} />, tone: 'primary' as const, disabled: actingOn === b._id, onClick: () => setAckStatus(b._id, 'confirmed') }] : []),
+                        ...(isPending ? [{ label: 'Acknowledge', icon: <ThumbsUp size={13} />, disabled: actingOn === b._id, onClick: () => setAckStatus(b._id, 'acknowledged') }] : []),
+                        ...(canSendDocs(b) ? [
+                          { label: 'Send LR / AWB', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'lr') },
+                          { label: 'Send box slip', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'box_slip') },
+                          { label: 'Send POD', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'pod') },
+                        ] : []),
+                        ...(!readOnlyLogin && (isPending || isAckedOnly) ? [{ label: 'Send LR / POD (confirm first)', icon: <Paperclip size={13} />, disabled: true, onClick: () => undefined }] : []),
+                        { label: `View files${(b.sharedFiles?.length ?? 0) > 0 ? ` (${b.sharedFiles!.length})` : ''}`, icon: <Paperclip size={13} />, onClick: () => openFiles(b._id) },
+                        ...((isPending || isAckedOnly) ? [{ label: 'Decline', icon: <XCircle size={13} />, tone: 'danger' as const, disabled: actingOn === b._id, onClick: () => handleDeclineClick(b) }] : []),
+                      ]} />
                     </div>
-                    )}
-
-                    <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg bg-slate-50 px-4 py-3 text-sm sm:grid-cols-4 dark:bg-white/5">
-                      <div>
-                        <dt className="text-xs text-slate-500 dark:text-[#8fb0cf]">Freight</dt>
-                        <dd className="mt-0.5 font-semibold text-slate-900 dark:text-white">₹{(b.freightCharge || b.invoiceValue || 0).toLocaleString('en-IN')}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-slate-500 dark:text-[#8fb0cf]">Route</dt>
-                        <dd className="mt-0.5 inline-flex items-center gap-1 font-medium text-slate-900 dark:text-white">{b.pickupPincode} <ArrowRight size={12} className="text-slate-400" /> {b.dropPincode}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-slate-500 dark:text-[#8fb0cf]">Load</dt>
-                        <dd className="mt-0.5 font-medium text-slate-900 dark:text-white">{b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'} · {b.totalChargeableWeight} kg</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-slate-500 dark:text-[#8fb0cf]">Pickup</dt>
-                        <dd className="mt-0.5 font-medium text-slate-900 dark:text-white">{b.pickupDate || '—'} {b.pickupTime || ''}</dd>
-                      </div>
-                    </dl>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => setViewingBooking(b)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5"
-                    >
-                      <Eye size={14} /> View details
-                    </button>
-                    {isPending && (
-                      <button
-                        onClick={() => setAckStatus(b._id, 'acknowledged')}
-                        disabled={actingOn === b._id}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5"
-                      >
-                        <ThumbsUp size={13} /> Acknowledge
-                      </button>
-                    )}
-                    {(isPending || isAckedOnly) && (
-                      <>
-                        <button
-                          onClick={() => setAckStatus(b._id, 'confirmed')}
-                          disabled={actingOn === b._id}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                          <CheckCircle2 size={13} /> Confirm
-                        </button>
-                        <button
-                          onClick={() => handleDeclineClick(b)}
-                          disabled={actingOn === b._id}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20"
-                        >
-                          <XCircle size={13} /> Decline
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {/* Decline reason — shown for a declined booking regardless of
-                      which tab it's viewed from, full-width so it always reads
-                      as its own line rather than trailing after the buttons. */}
-                  {b.transporterAckStatus === 'declined' && b.transporterDeclineReason && (
-                    <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40 rounded-lg px-3 py-2">
-                      <ClipboardList size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-                      <span><span className="font-bold">Decline reason:</span> {b.transporterDeclineReason}</span>
-                    </div>
-                  )}
-                </div>
+                  </td>
+                </tr>
               );
             };
+            const renderTable = (list: Booking[]) => (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#1d3f5c]">
+                <table className="w-full min-w-[1150px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr>
+                      <th className={th}>Booking</th>
+                      <th className={th}>Shipper</th>
+                      <th className={th}>Contact</th>
+                      <th className={th}>Route</th>
+                      <th className={th}>Load</th>
+                      <th className={`${th} text-right`}>Freight</th>
+                      <th className={th}>Pickup</th>
+                      <th className={th}>Status</th>
+                      <th className={th}>LR / AWB</th>
+                      <th className={th}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>{list.map(renderRow)}</tbody>
+                </table>
+              </div>
+            );
 
             return (
               <div>
@@ -768,13 +910,13 @@ const BookingsPage: React.FC = () => {
 
                 {activeTab === 'upcoming' ? (
                   groupedBookings.upcoming.length > 0 ? (
-                    <div className="space-y-3">{groupedBookings.upcoming.map(renderCard)}</div>
+                    renderTable(groupedBookings.upcoming)
                   ) : (
                     <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">Nothing needs your response right now.</p>
                   )
                 ) : (
                   groupedBookings.history.length > 0 ? (
-                    <div className="space-y-3">{groupedBookings.history.map(renderCard)}</div>
+                    renderTable(groupedBookings.history)
                   ) : (
                     <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">No confirmed or declined bookings yet.</p>
                   )
@@ -782,57 +924,12 @@ const BookingsPage: React.FC = () => {
               </div>
             );
           })()}
-          </div>
-
-          {/* Sidebar: go-public status + quick actions */}
-          <aside className="space-y-4 lg:sticky lg:top-24">
-            <GoPublicCard sidebar />
-            {/* Your Setup — routes covered, rate card status, fleet size (ported from main's Dashboard) */}
-            <div className="bg-white dark:bg-[#0d2438] rounded-xl border border-slate-200 dark:border-[#1d3f5c] p-4">
-              <p className="text-sm font-bold text-slate-900 dark:text-white mb-3">Your setup</p>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
-                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><Route size={11} /> Routes</div>
-                  <p className="text-base font-semibold text-slate-900 dark:text-white">{priceSummary?.hasPriceCard ? priceSummary.destinationRateCount ?? 0 : '—'}</p>
-                </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
-                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><ClipboardList size={11} /> Rate card</div>
-                  <p className="text-base font-semibold text-slate-900 dark:text-white">{hasRates === null ? '—' : hasRates ? 'Set up' : 'Not started'}</p>
-                </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#08141f] p-2.5">
-                  <div className="flex items-center gap-1 text-slate-400 dark:text-[#6f93b8] text-[11px] font-medium mb-1"><Truck size={11} /> Fleet</div>
-                  <p className="text-base font-semibold text-slate-900 dark:text-white">{(user as any)?.noOfTrucks ? `${(user as any).noOfTrucks} trucks` : '—'}</p>
-                </div>
-              </div>
-              <Link to={ratesLink} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5">
-                <Route size={13} /> {needsSetup ? 'Add your routes & rates' : priceSummary?.hasPriceCard ? 'Edit routes & rates' : 'Add your routes & rates'}
-              </Link>
-            </div>
-            <div className="bg-white dark:bg-[#0d2438] rounded-xl border border-slate-200 dark:border-[#1d3f5c] p-2">
-              <p className="px-3 pt-2 pb-1 text-sm font-bold text-slate-900 dark:text-white">Quick actions</p>
-              {[
-                { to: '/profile/bids', title: 'Available Bids', sub: 'Bids matching your service zones', icon: <Bell className="w-4 h-4" />, tone: 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300' },
-                { to: '/profile/rates', title: 'Lane Rates', sub: 'Review your saved rates', icon: <Route className="w-4 h-4" />, tone: 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300' },
-                { to: '/profile', title: 'My Profile', sub: 'Company details and KYC', icon: <UserCog className="w-4 h-4" />, tone: 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300' },
-              ].map((l) => (
-                <Link key={l.to} to={l.to} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-9 h-9 flex items-center justify-center rounded-xl flex-none ${l.tone}`}>{l.icon}</div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-800 dark:text-white">{l.title}</p>
-                      <p className="text-xs text-slate-400 dark:text-[#6f93b8] truncate">{l.sub}</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-300 dark:text-[#5c7c9a] flex-none" />
-                </Link>
-              ))}
-            </div>
-          </aside>
         </div>
       </div>
 
+      {filesBooking && <BookingFilesModal booking={filesBooking} initialKind={filesKind} onClose={() => setFilesId(null)} onChanged={() => fetchBookings(true)} readOnly={readOnlyLogin} />}
       {viewingBooking && (
-        <BookingDetailModal booking={viewingBooking} onClose={() => setViewingBooking(null)} />
+        <BookingDetailModal booking={viewingBooking} onClose={() => setViewingBooking(null)} onChanged={() => fetchBookings(true)} readOnly={readOnlyLogin} />
       )}
 
       {decliningBooking && (

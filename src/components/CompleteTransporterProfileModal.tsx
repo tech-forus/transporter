@@ -12,6 +12,7 @@
 // computation from watch() is transiently true for one render even on a
 // fully-successful GST lookup, mounting AddressAutosuggest and firing its
 // current-location side effects unexpectedly).
+import OrgTypeAndNetworks, { type OrgType } from './OrgTypeAndNetworks';
 import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { motion } from 'framer-motion';
@@ -31,6 +32,9 @@ axios.defaults.withCredentials = true; // same established pattern as ProfilePag
 
 type FormValues = {
   accountType: 'business' | 'individual';
+  // Asked on this step like on the e-mail sign-up: aggregator or transporter, and the networks / couriers.
+  orgType: OrgType;
+  networks: string[];
   gstNo: string;
   companyName: string;
   address: string;
@@ -66,7 +70,7 @@ const digitsOnlyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 interface Props {
   email: string;
   firstNameHint: string;
-  onComplete: (accountType: 'business' | 'individual') => void;
+  onComplete: (accountType: 'business' | 'individual', orgType?: OrgType) => void;
 }
 
 // Unfinished form survives a refresh (e.g. after allowing location) for this tab only — sessionStorage, so
@@ -118,6 +122,9 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
     mode: 'onBlur',
     defaultValues: {
       accountType: 'business',
+      // An invite for an aggregator (?type=aggregator) arrives with "Aggregator" already chosen.
+      orgType: new URLSearchParams(window.location.search).get('type') === 'aggregator' ? 'aggregator' : 'transporter',
+      networks: [],
       gstNo: '', companyName: '', address: '', state: '', pincode: '',
       officeStart: '09:00', officeEnd: '18:00',
       phone: '', whatsapp: '', sameAsPhone: true,
@@ -338,6 +345,8 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
           return;
         }
         payload.whatsapp = data.whatsapp;
+        payload.orgType = data.orgType;
+        payload.networks = data.networks || [];
         payload.gstNo = data.gstNo;
         payload.companyName = data.companyName;
         payload.address = data.address;
@@ -365,7 +374,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
         writeDraft(email, null);
         loginWithToken(res.data.token);
         toast.success('Profile completed — welcome aboard!');
-        onComplete(data.accountType);
+        onComplete(data.accountType, data.orgType);
       } else {
         toast.error(res.data?.message || 'Could not save your details.');
       }
@@ -453,6 +462,15 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                 </button>
               </div>
             </div>
+
+            {!isIndividualValue && (
+              <OrgTypeAndNetworks
+                orgType={watch('orgType') || 'transporter'}
+                networks={watch('networks') || []}
+                onOrgType={(t) => setValue('orgType', t)}
+                onNetworks={(n) => setValue('networks', n)}
+              />
+            )}
 
             {/* Website: GST first (it autofills the company name below). The app keeps its original order. */}
             {!IS_WEB && companyField}
@@ -566,7 +584,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
                     />
                     <button
                       type="button" onClick={handleVerifyPhoneOtp} disabled={verifyingOtp || !otpValue.trim()}
-                      className="flex-shrink-0 inline-flex items-center gap-1 h-[34px] px-3 text-xs font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed transition-colors"
+                      className="flex-shrink-0 inline-flex items-center gap-1 h-[34px] px-3 text-xs font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed transition-colors"
                     >
                       {verifyingOtp ? <Loader2 size={13} className="animate-spin" /> : 'Verify'}
                     </button>
@@ -681,7 +699,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
               </button>
               <button
                 type="submit" disabled={submitting || (!confirmGstAddress && (!watch('lat') || (!IS_WEB && !watch('flatNumber')?.trim())))}
-                className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 text-base font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed shadow-lg shadow-amber-500/40 transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 text-base font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed shadow-lg shadow-amber-500/40 transition-colors"
               >
                 {submitting ? (<><Loader2 className="w-5 h-5 animate-spin" /> Saving...</>) : 'Complete Profile & Continue'}
               </button>
@@ -689,7 +707,7 @@ const CompleteTransporterProfileModal: React.FC<Props> = ({ email, firstNameHint
           ) : (
             <button
               type="button" disabled={!phoneVerified} onClick={handleContinueToAddress}
-              className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 text-base font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed shadow-lg shadow-amber-500/40 transition-colors"
+              className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 text-base font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed shadow-lg shadow-amber-500/40 transition-colors"
             >
               {!phoneVerified ? 'Verify Mobile Number to Continue' : 'Continue to Address'}
             </button>

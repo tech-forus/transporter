@@ -191,7 +191,7 @@ export default function LiveSelfieCapture({ capturedFile, onCapture, onRetake }:
   // mounted before the getUserMedia promise resolves so the ref is set.
   return (
     <div className="space-y-3">
-      <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 aspect-square flex items-center justify-center">
+      <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 aspect-square max-h-[55vh] flex items-center justify-center">
         {/* Preview is mirrored (natural "looking in a mirror" feel) via CSS
             only — the captured canvas frame is drawn from the raw,
             unmirrored video track, so the saved file isn't flipped. */}

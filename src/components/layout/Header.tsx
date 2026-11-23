@@ -12,6 +12,7 @@ import {
   PackageCheck,
   Users,
   FileSpreadsheet,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import MisBell from '../MisBell';
@@ -104,6 +105,14 @@ const UserProfileDropdown: React.FC = () => {
                             <Link to="/profile" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
                                 <UserIcon size={16} /> My Profile
                             </Link>
+                            <Link to="/track" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
+                                <Search size={16} /> Track a shipment
+                            </Link>
+                            {user?.role !== 'employee' && !user?.isLine && (
+                                <Link to="/lines" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
+                                    <Truck size={16} /> Courier lines
+                                </Link>
+                            )}
                             <Link to="/invite" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
                                 <Users size={16} /> Invite transporters
                             </Link>
@@ -152,6 +161,8 @@ const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpe
                                <MobileNavLink to="/bookings" icon={<PackageCheck size={20}/>}>Bookings</MobileNavLink>
                                {user?.role !== 'employee' && <MobileNavLink to="/mis-bills" icon={<FileSpreadsheet size={20}/>}>Bills</MobileNavLink>}
                                <MobileNavLink to="/profile" icon={<UserIcon size={20}/>}>My Profile</MobileNavLink>
+                               <MobileNavLink to="/track" icon={<Search size={20}/>}>Track a shipment</MobileNavLink>
+                               {user?.role !== 'employee' && !user?.isLine && <MobileNavLink to="/lines" icon={<Truck size={20}/>}>Courier lines</MobileNavLink>}
                                <MobileNavLink to="/invite" icon={<Users size={20}/>}>Invite transporters</MobileNavLink>
                                <div className="pt-8 mt-auto">
                                 <button onClick={handleSignOut} className="w-full text-center px-6 py-3 bg-slate-100 text-slate-700 rounded-lg font-medium">
@@ -189,6 +200,11 @@ const Header: React.FC<{ compact?: boolean }> = ({ compact }) => {
                     <div className={`flex items-center justify-between ${compact ? 'h-14' : 'h-20'}`}>
                         <BrandLogo />
                         <div className="flex items-center gap-4">
+                            {isAuthenticated && (
+                                <Link to="/track" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
+                                    <Search size={16} /> Track
+                                </Link>
+                            )}
                             {isAuthenticated && user?.role !== 'employee' && <MisBell />}
                             {isAuthenticated ? (
                                 <UserProfileDropdown />

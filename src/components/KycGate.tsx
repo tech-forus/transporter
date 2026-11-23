@@ -29,7 +29,7 @@ const KycGateInner: React.FC<PropsWithChildren> = ({ children }) => {
       .get(`${API_BASE_URL}/api/transporter/kyc/status`)
       .then(({ data }) => {
         if (isCancelled?.()) return;
-        const passable = data?.kycStatus === 'submitted' || data?.kycStatus === 'verified' || data?.kycStatus === 'exempt';
+        const passable = data?.managedByOrganisation === true || data?.kycStatus === 'submitted' || data?.kycStatus === 'verified' || data?.kycStatus === 'exempt';
         setCheck(passable ? 'pass' : 'block');
       })
       .catch(() => {
@@ -55,14 +55,16 @@ const KycGateInner: React.FC<PropsWithChildren> = ({ children }) => {
     // actually interact with until they clear the gate.
     return (
       <div className="relative min-h-[60vh]">
-        <div className="pointer-events-none select-none blur-sm" aria-hidden="true">
+        {/* Web: the overlay (wizard card) is what sizes this block, so a tall card is never clipped by a short
+            dashboard behind it; the blurred page is just a clipped backdrop. App keeps the original layout. */}
+        <div className={`pointer-events-none select-none blur-sm ${IS_WEB ? 'absolute inset-0 overflow-hidden' : ''}`} aria-hidden="true">
           {children}
         </div>
         {/* Website: pinned near the top and centered horizontally. Vertical centering over a tall dashboard put the
             card half a page down; top-aligned it is in view on arrival, and a taller card only grows downward, so the
             page (and the host iframe, which sizes to it) grows to fit instead of cutting off the top. The app keeps
             its original centering. */}
-        <div className={`absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] flex p-4 z-40 ${IS_WEB ? 'items-start justify-center pt-6' : 'items-center justify-center'}`}>
+        <div className={`bg-slate-900/50 backdrop-blur-[2px] flex p-4 z-40 ${IS_WEB ? 'relative min-h-[60vh] items-start justify-center pt-6 pb-10' : 'absolute inset-0 items-center justify-center'}`}>
           <div className={IS_WEB ? 'flex justify-center w-full' : 'contents'}>
             <KycWizardCard onComplete={() => { setCheck('loading'); checkStatus(); }} />
           </div>

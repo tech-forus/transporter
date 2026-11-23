@@ -33,7 +33,7 @@ const EMPTY_PRICING = (): ParsedPricing => ({
   minCharges: 0, greenTax: 0, daccCharges: 0, miscellanousCharges: 0,
 });
 
-async function readWorkbookRows(file: File): Promise<unknown[][][]> {
+export async function readWorkbookRows(file: File): Promise<unknown[][][]> {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
   return wb.SheetNames.map(name => XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 }) as unknown[][]);

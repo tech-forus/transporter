@@ -160,3 +160,23 @@ html[data-accent]:not([data-accent="blue"]) .shadow-indigo-200 { --tw-shadow-col
 /* Dark mode: the light tints above are light-only (they would paint over dark: styles). These are their dark
    equivalents for the few spots that rely on them without a dark: variant. */
 html.dark[data-accent]:not([data-accent="blue"]) :is(.border-blue-100, .border-blue-200) { border-color: color-mix(in srgb, var(--a500) 35%, transparent); }
+html.dark[data-accent]:not([data-accent="blue"]) .dark\:bg-blue-900\/20 { background-color: color-mix(in srgb, var(--a500) 15%, transparent); }
+
+/* Notices/warnings: amber -> website accent (purple by default), light and dark. Web only (html[data-accent]).
+   Errors stay red and success stays green; only the amber notice palette is remapped. */
+html[data-accent]:not(.dark) :is(.bg-amber-50, .bg-amber-50\/70, .hover\:bg-amber-50:hover, .bg-yellow-50) { background-color: var(--a50, #eff6ff); }
+html[data-accent]:not(.dark) :is(.bg-amber-100, .hover\:bg-amber-100:hover, .bg-yellow-100) { background-color: var(--a100, #dbeafe); }
+html[data-accent]:not(.dark) :is(.border-amber-200, .border-amber-300, .ring-amber-200, .ring-amber-300) { border-color: var(--a200, #bfdbfe); --tw-ring-color: var(--a200, #bfdbfe); }
+html[data-accent]:not(.dark) :is(.text-amber-600, .text-amber-700, .hover\:text-amber-700:hover, .group:hover .group-hover\:text-amber-700) { color: var(--a600, #2563eb); }
+html[data-accent]:not(.dark) :is(.text-amber-800, .text-amber-900, .hover\:text-amber-800:hover, .text-yellow-800) { color: var(--a800, #1e40af); }
+html[data-accent]:is(.dark) :is(.bg-amber-50, .bg-amber-100, .bg-amber-50\/70, .bg-yellow-50, .bg-yellow-100, .dark\:bg-amber-900\/20, .dark\:bg-amber-500\/10) { background-color: color-mix(in srgb, var(--a500, #3b82f6) 15%, transparent); }
+html[data-accent]:is(.dark) :is(.border-amber-200, .border-amber-300, .dark\:border-amber-500\/40, .dark\:border-amber-800\/40) { border-color: color-mix(in srgb, var(--a500, #3b82f6) 35%, transparent); }
+html[data-accent]:is(.dark) :is(.text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900, .dark\:text-amber-100, .dark\:text-amber-200, .dark\:text-amber-300, .dark\:text-amber-400) { color: var(--a-dark-text, #93c5fd); }
+/* amber warning icons and solid amber CTAs */
+html[data-accent] :is(.text-amber-500, .text-orange-500) { color: var(--a500, #3b82f6); }
+html[data-accent] :is(.bg-amber-600, .hover\:bg-amber-600:hover) { background-color: var(--a600, #2563eb); }
+html[data-accent] :is(.hover\:bg-amber-700:hover) { background-color: var(--a700, #1d4ed8); }
+html[data-accent] :is(.focus\:ring-amber-400\/40:focus, .focus\:ring-amber-400:focus, .focus\:ring-amber-500:focus) { --tw-ring-color: var(--a500, #3b82f6); }
+html[data-accent] :is(.focus\:border-amber-400:focus, .focus\:border-amber-500:focus) { border-color: var(--a500, #3b82f6); }
+html[data-accent] :is(.bg-amber-500, .bg-orange-500) { background-color: var(--a500, #3b82f6); }
+html[data-accent] .border-amber-500 { border-color: var(--a500, #3b82f6); }

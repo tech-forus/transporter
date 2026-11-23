@@ -96,12 +96,15 @@ export default function VerifyOtpPage() {
       const payload = email ? { email, otp } : { phone, otp };
       const { data } = await http.post('/api/transporter/auth/verify-otp', payload);
       if (data.token) {
+        const wasAggregator = sessionStorage.getItem('transporter_signup_account_type') === 'aggregator';
         loginWithToken(data.token);
+        sessionStorage.removeItem('transporter_signup_org_type');
         sessionStorage.removeItem('transporter_signup_email');
         sessionStorage.removeItem('transporter_signup_phone');
         toast.success(data.message || 'Verified! Welcome aboard.');
         // Invited (referral) signups get the "go public" offer first; everyone else goes straight to the dashboard.
-        navigate(data.transporter?.origin === 'shipper_referral' ? '/go-public' : '/dashboard', { replace: true });
+        // An aggregator's next step is adding its couriers; invited signups get the "go public" offer first; everyone else the dashboard.
+        navigate(wasAggregator ? '/lines' : data.transporter?.origin === 'shipper_referral' ? '/go-public' : '/dashboard', { replace: true });
       } else {
         toast.error(data.message || 'Verification failed.');
       }
@@ -122,7 +125,7 @@ export default function VerifyOtpPage() {
   // details reopens as an edit of what was just submitted, not a blank form.
   const handleBack = () => {
     const accountType = sessionStorage.getItem('transporter_signup_account_type');
-    if (accountType === 'individual') {
+    if (accountType === 'individual' || accountType === 'aggregator') {
       localStorage.setItem('transporter_onboarding_current_step', '0');
       navigate('/transporter-signup');
     } else {

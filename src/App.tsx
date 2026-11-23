@@ -15,12 +15,16 @@ import RatesPage from './pages/RatesPage';
 import BidsPage from './pages/BidsPage';
 import BookingsPage from './pages/BookingsPage';
 import MisDisputesPage from './pages/MisDisputesPage';
+import NotificationsPage from './pages/NotificationsPage';
+import LinesPage from './pages/LinesPage';
 import AddPrice from './pages/AddPrice';
 import VerifyOtpPage from './pages/VerifyOtpPage';
 import TransporterKycPage from './pages/TransporterKycPage';
 import FleetPage from './pages/FleetPage';
 import KycGate from './components/KycGate';
 import EmployeeFirstLoginGate from './components/EmployeeFirstLoginGate';
+import ManagingBanner from './components/lines/ManagingBanner';
+import TrackPage from './pages/TrackPage';
 import ReferralBanner from './components/ReferralBanner';
 import TransporterInviteBanner from './components/TransporterInviteBanner';
 import InviteTransportersPage from './pages/InviteTransportersPage';
@@ -28,7 +32,7 @@ import ReferralAttachGate from './components/ReferralAttachGate';
 import GoPublicPage from './pages/GoPublicPage';
 import RatesEditorPage from './pages/RatesEditorPage';
 import SetupLanesPage from './pages/SetupLanesPage';
-import { rateSetupPath } from './hooks/useRateSetup';
+import { pathAfterProfile } from './hooks/useRateSetup';
 import { captureReferralFromUrl } from './utils/referral';
 
 // Remember a shipper invite code the moment the app loads — an already-signed-in transporter
@@ -82,7 +86,7 @@ const TransporterProfileGate: React.FC = () => {
       firstNameHint=""
       // loginWithToken (inside the modal) already cleared profileComplete, unmounting this. Next comes the
       // same rates step normal signup has: AddPrice for Business, the lane step for owner-operators.
-      onComplete={(accountType) => navigate(rateSetupPath(accountType === 'individual'), { replace: true })}
+      onComplete={(accountType, orgType) => navigate(pathAfterProfile(accountType, orgType), { replace: true })}
     />
   );
 };
@@ -141,6 +145,7 @@ function App() {
         <TransporterProfileGate />
         <ReferralAttachGate />
         <EmployeeFirstLoginGate />
+        <ManagingBanner />
         <Routes>
           <Route path='/' element={<MainLayout><LandingPage /></MainLayout>} />
           <Route path="/transporter-signin" element={<PublicRoute><MainLayout><SignInPage /></MainLayout></PublicRoute>} />
@@ -164,6 +169,9 @@ function App() {
           <Route path="/profile/fleet" element={<PrivateRoute><MainLayout><KycGate><FleetPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/bids" element={<PrivateRoute><MainLayout><KycGate><BidsPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/bookings" element={<PrivateRoute><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></PrivateRoute>} />
+          <Route path="/lines" element={<PrivateRoute><MainLayout><LinesPage /></MainLayout></PrivateRoute>} />
+          <Route path="/notifications" element={<PrivateRoute><MainLayout><NotificationsPage /></MainLayout></PrivateRoute>} />
+          <Route path="/track" element={<PrivateRoute><MainLayout><TrackPage /></MainLayout></PrivateRoute>} />
           <Route path="/mis-bills" element={<PrivateRoute><MainLayout><KycGate><MisDisputesPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/transporter-kyc" element={<PrivateRoute><MainLayout><TransporterKycPage /></MainLayout></PrivateRoute>} />
           <Route path="/addprice" element={<MainLayout><AddPrice /></MainLayout>} />

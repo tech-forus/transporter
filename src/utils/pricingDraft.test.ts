@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   DEFAULT_PRICE_RATE, PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, TOUCHED_KEY, OWNER_KEY,
-  markPriceFieldTouched, rememberPricingOwner, preparePricingForNewExtraction, clearPricingDraft,
+  markPriceFieldTouched, rememberPricingOwner, preparePricingForNewExtraction, clearPricingDraft, saveZonePincodes, loadZonePincodes, hasUnsavedPricingDraft,
 } from './pricingDraft';
 
 const GST = '29ABCDE1234F1Z5';
@@ -109,5 +109,38 @@ describe('markPriceFieldTouched / clearPricingDraft', () => {
     rememberPricingOwner(GST); markPriceFieldTouched('fuel');
     clearPricingDraft();
     for (const k of [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, TOUCHED_KEY, OWNER_KEY]) expect(localStorage.getItem(k)).toBeNull();
+  });
+});
+
+describe('the picked service area survives leaving and coming back (review: manual rates "not saved")', () => {
+  beforeEach(() => localStorage.clear());
+  const pins = [{ pincode: 110020, zone: 'N1', isOda: false }, { pincode: 411001, zone: 'W1', isOda: true }];
+
+  it('round-trips the zone pincodes, and clearing the draft clears them too', () => {
+    saveZonePincodes(pins);
+    expect(loadZonePincodes()).toEqual(pins);
+    clearPricingDraft();
+    expect(loadZonePincodes()).toEqual([]);
+  });
+
+  it('ignores junk in storage and keeps only well-formed rows', () => {
+    localStorage.setItem('transporter_zone_pincodes', 'not json');
+    expect(loadZonePincodes()).toEqual([]);
+    localStorage.setItem('transporter_zone_pincodes', JSON.stringify([{ pincode: 110020, zone: 'N1', isOda: false }, { pincode: 'x', zone: '' }, null]));
+    expect(loadZonePincodes()).toEqual([{ pincode: 110020, zone: 'N1', isOda: false }]);
+  });
+
+  it('knows there is unsaved work: typed charges, a zone matrix or picked pincodes; nothing once cleared', () => {
+    expect(hasUnsavedPricingDraft()).toBe(false);
+    markPriceFieldTouched('docketCharges');
+    expect(hasUnsavedPricingDraft()).toBe(true);
+    clearPricingDraft();
+    localStorage.setItem('transporter_zone_rates', matrix);
+    expect(hasUnsavedPricingDraft()).toBe(true);
+    clearPricingDraft();
+    saveZonePincodes(pins);
+    expect(hasUnsavedPricingDraft()).toBe(true);
+    clearPricingDraft();
+    expect(hasUnsavedPricingDraft()).toBe(false);
   });
 });
