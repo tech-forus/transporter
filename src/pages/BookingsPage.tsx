@@ -287,7 +287,7 @@ const BookingFilesModal = ({ booking, onClose, onChanged, readOnly, initialKind 
 // Booking detail modal — same fields the shipper's Book Now form collects
 // (see freight-compare-frontend's BookNowModal.tsx), rendered read-only so
 // the transporter sees exactly what was submitted, including gaps.
-const BookingDetailModal = ({ booking, onClose, onChanged, readOnly }: { booking: Booking; onClose: () => void; onChanged: () => void; readOnly?: boolean }) => {
+const BookingDetailModal = ({ booking, onClose, onChanged, readOnly, pin }: { booking: Booking; onClose: () => void; onChanged: () => void; readOnly?: boolean; pin?: React.CSSProperties }) => {
   const shipperName = [booking.customerID?.firstName, booking.customerID?.lastName].filter(Boolean).join(' ') || booking.customerID?.companyName || 'A shipper';
   const boxes = booking.boxes || [];
   const unit = booking.dimensionUnit || 'cm';
@@ -295,10 +295,12 @@ const BookingDetailModal = ({ booking, onClose, onChanged, readOnly }: { booking
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+      style={pin}
       onClick={onClose}
     >
       <div
         className="bg-white dark:bg-[#0d2438] w-[94vw] max-w-6xl rounded-2xl shadow-2xl max-h-[94vh] overflow-y-auto"
+        style={pin?.height ? { maxHeight: '100%' } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-slate-900 px-6 py-4 text-white relative rounded-t-2xl">
@@ -434,12 +436,14 @@ const DeclineReasonModal = ({
   onPick,
   onSkip,
   onClose,
+  pin,
 }: {
   onPick: (reason: string) => void;
   onSkip: () => void;
   onClose: () => void;
+  pin?: React.CSSProperties;
 }) => createPortal(
-  <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+  <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" style={pin} onClick={onClose}>
     <div className="bg-white dark:bg-[#0d2438] w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
       <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">Why decline this booking?</h3>
       <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mb-4">Optional, but it helps the shipper understand what happened.</p>
@@ -608,7 +612,7 @@ const BookingsPage: React.FC = () => {
   // themselves against this iframe's full auto-grown content height instead of
   // the physically visible screen, which is what made "View Details" open a
   // popup the user had to scroll far down to actually see.
-  useModalIframePin(!!viewingBooking || !!filesBooking || !!decliningBooking);
+  const modalPin = useModalIframePin(!!viewingBooking || !!filesBooking || !!decliningBooking);
 
   const setAckStatus = async (bookingId: string, status: 'acknowledged' | 'confirmed' | 'declined', reason?: string) => {
     if (!user?._id) return;
@@ -929,7 +933,7 @@ const BookingsPage: React.FC = () => {
 
       {filesBooking && <BookingFilesModal booking={filesBooking} initialKind={filesKind} onClose={() => setFilesId(null)} onChanged={() => fetchBookings(true)} readOnly={readOnlyLogin} />}
       {viewingBooking && (
-        <BookingDetailModal booking={viewingBooking} onClose={() => setViewingBooking(null)} onChanged={() => fetchBookings(true)} readOnly={readOnlyLogin} />
+        <BookingDetailModal booking={viewingBooking} onClose={() => setViewingBooking(null)} onChanged={() => fetchBookings(true)} readOnly={readOnlyLogin} pin={modalPin} />
       )}
 
       {decliningBooking && (
@@ -937,6 +941,7 @@ const BookingsPage: React.FC = () => {
           onPick={(reason) => confirmDecline(reason)}
           onSkip={() => confirmDecline(undefined)}
           onClose={() => setDecliningBooking(null)}
+          pin={modalPin}
         />
       )}
     </div>

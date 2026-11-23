@@ -1,5 +1,5 @@
 // src/components/layout/MainLayout.tsx
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import Header from './Header';
 import Footer from './Footer'; // NEW: Import Footer
 import TransporterAssistant from '../TransporterAssistant';
@@ -7,7 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import IframeNav from './IframeNav';
 import { useLocation } from 'react-router-dom';
 import { useReportIframeHeight } from '../../hooks/useReportIframeHeight';
-import { IS_WEB } from '../../config/host';
+import { IS_VIEWPORT_FRAME, IS_WEB } from '../../config/host';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -26,6 +26,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, compact, fillScreen }
   // (Fleet, Go Public, Invite, Rates editor, ...) no longer inherits the previous page's height. No-op standalone.
   const { pathname } = useLocation();
   useReportIframeHeight([pathname], IS_WEB);
+  // Screen-sized app iframe scrolls itself: a new page starts at the top (as in a browser), not at the
+  // previous page's scroll offset.
+  useEffect(() => {
+    if (IS_VIEWPORT_FRAME) window.scrollTo(0, 0);
+  }, [pathname]);
+
+  if (isIframe && IS_VIEWPORT_FRAME) {
+    // No height is reported in this mode, so the resize loop described below can't happen. pb clears the
+    // fixed bottom bar (IframeNav, h ~56px) so the last card isn't hidden under it.
+    return (
+      <div className={`bg-transparent w-full ${isAuthenticated ? 'pb-20' : ''}`}>
+        {children}
+        <IframeNav />
+      </div>
+    );
+  }
 
   if (isIframe) {
     // No min-h-screen and no extra bottom padding here, deliberately — both
