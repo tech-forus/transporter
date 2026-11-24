@@ -140,6 +140,9 @@ const HostNavigationListener: React.FC = () => {
       // The website's own sign-up route forwards exactly these invite params into the portal frame.
       const keep = new URLSearchParams();
       const current = new URLSearchParams(search);
+      // A marketing link (?mref=) is credited from a SameSite=Lax cookie that the API only receives from this domain, not from the
+      // website's cross-site frame. Leave those sign-ups here so the marketer keeps the credit.
+      if (current.has('mref')) return;
       ['ref', 'tref', 'type'].forEach((k) => { const v = current.get(k); if (v) keep.set(k, v); });
       window.location.replace(`${WEBSITE_ORIGIN}/transporter/get-started${keep.toString() ? `?${keep}` : ''}`);
     } else if (APP_PAGE.test(pathname) && !hasDraft) {
