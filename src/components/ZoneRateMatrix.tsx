@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, KeyboardEvent } from "react";
-import { SlidersHorizontal, Upload, Copy, Trash2, AlertCircle, CheckCircle2, X, Eye, EyeOff } from "lucide-react";
+import { SlidersHorizontal, Upload, Copy, Trash2, AlertCircle, CheckCircle2, X, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useModalIframePin } from "../hooks/useModalIframePin";
 
 interface ZoneRateMatrixProps {
   zoneLabels: string[];
@@ -34,6 +35,18 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
   const [showAllRows, setShowAllRows] = useState(true);
 
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
+
+  // Full-page view: wide cells so every rate reads in full. Esc closes; the page behind does not scroll.
+  const [expanded, setExpanded] = useState(false);
+  const expandedPin = useModalIframePin(expanded);
+  useEffect(() => {
+    if (!expanded) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') setExpanded(false); };
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = prevOverflow; window.removeEventListener('keydown', onKey); };
+  }, [expanded]);
 
   // A rate card that only priced ONE origin zone leaves every other origin row
   // empty. Typing into such a row usually means the user mis-clicked, so it
@@ -281,7 +294,10 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
   }
 
   return (
-    <div className="space-y-2">
+    <div
+      className={expanded ? 'fixed inset-0 z-[60] bg-white dark:bg-[#08141f] p-4 sm:p-6 overflow-auto space-y-3' : 'space-y-2'}
+      style={expanded ? expandedPin : undefined}
+    >
       {/* Heading + action buttons share one row */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         {title && (
@@ -301,6 +317,15 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
             actually shrink to the available width so flex-wrap can do its
             job. */}
         <div className="flex flex-wrap gap-1.5 min-w-0 ml-auto">
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-50 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition"
+            title={expanded ? 'Close full page (Esc)' : 'Open full page'}
+          >
+            {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            {expanded ? 'Close' : 'Expand'}
+          </button>
           {!showAllRows && (
             <button
               type="button"
@@ -515,7 +540,8 @@ export default function ZoneRateMatrix({ zoneLabels, zoneRates, onRatesChange, o
 
       {/* Matrix Table */}
       <div className="overflow-x-auto border border-slate-200 rounded-lg">
-        <table className="w-full text-base border-collapse table-fixed">
+        {/* A minimum width per zone column, so a rate like 13.25 is never cut off; a wide matrix scrolls sideways instead. */}
+        <table className="w-full text-base border-collapse table-fixed" style={{ minWidth: 72 + activeZoneIndices.length * (expanded ? 110 : 84) }}>
           <thead className="bg-slate-100">
             <tr>
               <th className="p-2 font-semibold text-slate-600 text-left border-r border-slate-200 sticky left-0 bg-slate-100 z-10 w-16">
