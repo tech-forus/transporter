@@ -735,7 +735,8 @@ export default function AddPrice() {
           const origin = byPin && labels.has(byPin) ? byPin : ps.originGuess;
           const oi = workingZoneLabels.indexOf(origin);
           if (oi < 0 || workingZoneRates[oi]?.some((v) => v > 0)) continue; // never overwrite a row that already has rates
-          workingZoneRates = workingZoneRates.map((row, i) => (i !== oi ? row : workingZoneLabels.map((z, j) => row[j] || ps!.destinationPrices[z] || 0)));
+          // The table can still be empty/short while zones exist: size it to the zones first.
+          workingZoneRates = workingZoneLabels.map((_, i) => workingZoneLabels.map((z, j) => workingZoneRates[i]?.[j] || (i === oi ? ps!.destinationPrices[z] || 0 : 0)));
           anyPerZoneList = true;
         }
       }

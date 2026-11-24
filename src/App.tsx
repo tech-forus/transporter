@@ -43,6 +43,8 @@ captureReferralFromUrl();
 import CompleteTransporterProfileModal from './components/CompleteTransporterProfileModal';
 import { useNeedsTransporterProfileGate } from './hooks/useTransporterProfileGate';
 import { useEmbeddedTheme } from './hooks/useEmbeddedTheme';
+import { HOST } from './config/host';
+import { PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, ZONE_PINCODES_KEY } from './utils/pricingDraft';
 
 
 
@@ -116,8 +118,23 @@ const RouteErrorBoundary: React.FC<React.PropsWithChildren> = ({ children }) => 
   return <AppErrorBoundary key={pathname}>{children}</AppErrorBoundary>;
 };
 
+// The portal is meant to be seen inside the website (its header, footer and accent). Opened directly on join.freightcompare.ai, a signed-in
+// page is handed to the website, which loads it in its own frame and jumps to the same page (?go=). Invite links, sign-up/sign-in, the
+// privacy and delete-account pages are NOT in this list, so they keep working where they are. Embedded (website/app) never redirects.
+const WEBSITE_ORIGIN = 'https://freightcompare.ai';
+const APP_PAGE = /^\/(dashboard|go-public|setup\/lanes|profile|invite|bidding|bookings|lines|notifications|track|mis-bills|transporter-kyc|addprice)(\/|$)/;
+
 const HostNavigationListener: React.FC = () => {
   const navigate = useNavigate();
+  useEffect(() => {
+    const { hostname, pathname, search } = window.location;
+    // Unsaved rate drafts live in THIS origin's storage; the website frame is another origin, so with a draft here, stay (never strand it).
+    let hasDraft = false;
+    try { hasDraft = [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, ZONE_PINCODES_KEY].some((k) => !!localStorage.getItem(k)); } catch { /* storage unavailable */ }
+    if (HOST === 'standalone' && hostname === 'join.freightcompare.ai' && APP_PAGE.test(pathname) && !hasDraft) {
+      window.location.replace(`${WEBSITE_ORIGIN}/transporter/login?go=${encodeURIComponent(pathname + search)}`);
+    }
+  }, []);
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'request_transporter_navigate' && typeof event.data.path === 'string') {
