@@ -119,8 +119,9 @@ const RouteErrorBoundary: React.FC<React.PropsWithChildren> = ({ children }) => 
 };
 
 // The portal is meant to be seen inside the website (its header, footer and accent). Opened directly on join.freightcompare.ai, a signed-in
-// page is handed to the website, which loads it in its own frame and jumps to the same page (?go=). Invite links, sign-up/sign-in, the
-// privacy and delete-account pages are NOT in this list, so they keep working where they are. Embedded (website/app) never redirects.
+// page is handed to the website, which loads it in its own frame and jumps to the same page (?go=); sign-in and sign-up go to the website's
+// own routes (invite codes kept). Short invite links (/r /t /m) land on /transporter-signup and follow it. The privacy and delete-account
+// pages are NOT handled here and stay where they are. Embedded (website/app) never redirects.
 const WEBSITE_ORIGIN = 'https://freightcompare.ai';
 const APP_PAGE = /^\/(dashboard|go-public|setup\/lanes|profile|invite|bidding|bookings|lines|notifications|track|mis-bills|transporter-kyc|addprice)(\/|$)/;
 
@@ -132,7 +133,16 @@ const HostNavigationListener: React.FC = () => {
     // Only the pages that edit that draft (rates wizard, lanes, rates editor) need it; /dashboard, /lines, /bookings... always move to the website.
     let hasDraft = false;
     try { hasDraft = /^\/(addprice|setup\/lanes|profile\/rates\/edit)/.test(pathname) && [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, ZONE_PINCODES_KEY].some((k) => !!localStorage.getItem(k)); } catch { /* storage unavailable */ }
-    if (HOST === 'standalone' && hostname === 'join.freightcompare.ai' && APP_PAGE.test(pathname) && !hasDraft) {
+    if (HOST !== 'standalone' || hostname !== 'join.freightcompare.ai') return;
+    if (pathname === '/transporter-signin') {
+      window.location.replace(`${WEBSITE_ORIGIN}/transporter/login`);
+    } else if (pathname === '/transporter-signup') {
+      // The website's own sign-up route forwards exactly these invite params into the portal frame.
+      const keep = new URLSearchParams();
+      const current = new URLSearchParams(search);
+      ['ref', 'tref', 'type'].forEach((k) => { const v = current.get(k); if (v) keep.set(k, v); });
+      window.location.replace(`${WEBSITE_ORIGIN}/transporter/get-started${keep.toString() ? `?${keep}` : ''}`);
+    } else if (APP_PAGE.test(pathname) && !hasDraft) {
       window.location.replace(`${WEBSITE_ORIGIN}/transporter/login?go=${encodeURIComponent(pathname + search)}`);
     }
   }, []);
