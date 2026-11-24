@@ -42,7 +42,8 @@ import {
   runUtsfExtraction, parseUtsfOutput,
   type UploadItem, type ParsedUtsfResult,
 } from "../lib/standaloneUtsfExtraction";
-import { tryParseExcelClientSide, resolveOriginPincode } from "../lib/clientExcelParser";
+import { tryParseExcelClientSide, resolveOriginPincode, readWorkbookRows } from "../lib/clientExcelParser";
+import { parsePincodePriceRows } from "../lib/pincodePriceSheet";
 import { Upload, X, CheckCircle2 } from "lucide-react";
 
 // --- Type Definitions ---
@@ -719,6 +720,24 @@ export default function AddPrice() {
         const gst = (parsed as any)._gstPct;
         if (gst != null && anyGstPct == null) anyGstPct = gst;
         if ((parsed as any)._perZoneList) anyPerZoneList = true;
+      }
+
+      // A "pincode + zone + one price per zone" sheet (the usual delivery-pincode list) can only be read client-side once the zones are
+      // known, and the server read of it returns the zones but no prices. So when zones now exist and the table is still empty, read the
+      // price list directly: the origin is the zone of the office pincode when it is in the sheet, else the cheapest zone (the local one).
+      if (workingZoneLabels.length >= 2) {
+        for (const item of excelFiles) {
+          let ps: ReturnType<typeof parsePincodePriceRows> = null;
+          try { ps = (await readWorkbookRows(item.file)).map(parsePincodePriceRows).find((x) => !!x) ?? null; } catch { /* unreadable: leave to the user */ }
+          if (!ps) continue;
+          const labels = new Set(workingZoneLabels);
+          const byPin = originPincode ? ps.service.find((s) => String(s.pincode) === originPincode)?.zone : undefined;
+          const origin = byPin && labels.has(byPin) ? byPin : ps.originGuess;
+          const oi = workingZoneLabels.indexOf(origin);
+          if (oi < 0 || workingZoneRates[oi]?.some((v) => v > 0)) continue; // never overwrite a row that already has rates
+          workingZoneRates = workingZoneRates.map((row, i) => (i !== oi ? row : workingZoneLabels.map((z, j) => row[j] || ps!.destinationPrices[z] || 0)));
+          anyPerZoneList = true;
+        }
       }
 
       // gstPct isn't a ParsedPricing field (the real PriceRate stores it as
