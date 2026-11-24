@@ -129,8 +129,9 @@ const HostNavigationListener: React.FC = () => {
   useEffect(() => {
     const { hostname, pathname, search } = window.location;
     // Unsaved rate drafts live in THIS origin's storage; the website frame is another origin, so with a draft here, stay (never strand it).
+    // Only the pages that edit that draft (rates wizard, lanes, rates editor) need it; /dashboard, /lines, /bookings... always move to the website.
     let hasDraft = false;
-    try { hasDraft = [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, ZONE_PINCODES_KEY].some((k) => !!localStorage.getItem(k)); } catch { /* storage unavailable */ }
+    try { hasDraft = /^\/(addprice|setup\/lanes|profile\/rates\/edit)/.test(pathname) && [PRICE_KEY, ZONE_KEY, EXTRACTED_KEY, ZONE_PINCODES_KEY].some((k) => !!localStorage.getItem(k)); } catch { /* storage unavailable */ }
     if (HOST === 'standalone' && hostname === 'join.freightcompare.ai' && APP_PAGE.test(pathname) && !hasDraft) {
       window.location.replace(`${WEBSITE_ORIGIN}/transporter/login?go=${encodeURIComponent(pathname + search)}`);
     }
