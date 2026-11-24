@@ -44,6 +44,7 @@ import {
 } from "../lib/standaloneUtsfExtraction";
 import { tryParseExcelClientSide, resolveOriginPincode, readWorkbookRows } from "../lib/clientExcelParser";
 import { parsePincodePriceRows } from "../lib/pincodePriceSheet";
+import { useAuth } from "../hooks/useAuth";
 import { Upload, X, CheckCircle2 } from "lucide-react";
 
 // --- Type Definitions ---
@@ -284,6 +285,7 @@ export default function AddPrice() {
   const [isReturningTransporter, setIsReturningTransporter] = useState(false);
   // Office pincode of a signed-in transporter — the origin a single-origin rate sheet is priced from.
   const [originPincode, setOriginPincode] = useState<string | null>(null);
+  const { user: authUser, loginWithToken } = useAuth();
   // Rates already saved on this account (null when unknown, e.g. mid-signup with no session yet).
   const { hasRates: accountHasRates } = useRateSetup();
   const [returningCheckDone, setReturningCheckDone] = useState(false);
@@ -1002,6 +1004,10 @@ export default function AddPrice() {
         // the iframe to the signup landing page — sending it here was wrong
         // and bounced a successful save to /transporter-signin instead of
         // /dashboard (caught live 2026-09-22).
+        // Managing a courier for the organisation: leave that mode and go back to Courier lines (as the rates editor does).
+        if (authUser?.actingFor) {
+          try { const r = await axios.post(`${API_BASE_URL}/api/transporter/lines/manage-exit`); loginWithToken(r.data.token); navigate('/lines'); return; } catch { /* fall through to the dashboard */ }
+        }
         navigate('/dashboard');
       } catch (err: any) {
         toast.error(err.response?.data?.message || 'Save failed.');
