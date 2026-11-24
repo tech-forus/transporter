@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { clearRatesDraft, loadRatesDraft, ratesDraftKey, saveRatesDraft } from '../utils/ratesDraft';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, ArrowLeft, Check, Loader2, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
@@ -86,6 +88,15 @@ const NumField: React.FC<{
 const RatesEditorPage: React.FC = () => {
   const [params] = useSearchParams();
   const linkId = params.get('linkId');
+  const { user, loginWithToken } = useAuth();
+  const navigate = useNavigate();
+  // Unsaved work survives leaving the page (see utils/ratesDraft.ts). `restoredAt` = a draft was put back on open.
+  const draftKey = ratesDraftKey(user?._id || 'anon', linkId);
+  const [unpublished, setUnpublished] = useState(false);
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  const [leaveTo, setLeaveTo] = useState<string | null>(null); // the "unpublished changes" dialog, and where Done was heading
+  const leaveAfter = useRef<string | null>(null); // go there once the publish succeeded
+  const server = useRef<{ priceRate: Rate; zoneRates: Zones; lanes: Lane[] }>({ priceRate: {}, zoneRates: {}, lanes: [] });
 
   const [loaded, setLoaded] = useState(false);
   const [zonesFull, setZonesFull] = useState(false); // zone matrix as a full-screen overlay
@@ -133,13 +144,17 @@ const RatesEditorPage: React.FC = () => {
         const isInd = Array.isArray(d.lanes);
         setIndividual(isInd);
         setIsPublic(!linkId && d.visibility === 'public');
-        if (isInd) setLanes(d.lanes.map((l: any) => ({ ...l, price: Number(l.price), _key: newKey() })));
-        else { setPriceRate(d.priceRate || {}); setZoneRates(d.zoneRates || {}); }
+        const lanesIn: Lane[] = isInd ? d.lanes.map((l: any) => ({ ...l, price: Number(l.price), _key: newKey() })) : [];
+        server.current = { priceRate: d.priceRate || {}, zoneRates: d.zoneRates || {}, lanes: lanesIn };
+        const draft = loadRatesDraft(draftKey);
+        if (isInd) setLanes(draft?.lanes ? draft.lanes.map((l: any) => ({ ...l, _key: l._key || newKey() })) : lanesIn);
+        else { setPriceRate(draft?.priceRate || d.priceRate || {}); setZoneRates(draft?.zoneRates || d.zoneRates || {}); if (draft?.service) setPendingService(draft.service); }
+        if (draft) { dirty.current = true; setUnpublished(true); setRestoredAt(draft.savedAt); }
       } catch { if (!cancelled) toast.error('Could not load your rates.'); }
       finally { if (!cancelled) setLoaded(true); }
     })();
     return () => { cancelled = true; };
-  }, [linkId]);
+  }, [linkId, draftKey]);
 
   const body = individual
     ? { lanes, linkId: linkId || undefined }
@@ -186,26 +201,60 @@ const RatesEditorPage: React.FC = () => {
     timer.current = window.setTimeout(async () => {
       pendingSave.current = false;
       setSaveState('saving');
-      try { await put(); setSaveState('saved'); dirty.current = false; setPendingService(null); }
+      try { await put(); setSaveState('saved'); dirty.current = false; setPendingService(null); clearRatesDraft(draftKey); setUnpublished(false); setRestoredAt(null); }
       catch (e: any) { setSaveState('error'); reportError(e, 'Could not save.'); }
     }, 800);
     return () => window.clearTimeout(timer.current);
   }, [priceRate, zoneRates, lanes, loaded, explicitPublish, individual, lanesValid, busy, chargesMissing, put]);
+
+  // The draft: written shortly after every edit, and once more on leaving, so nothing typed is lost (even when the
+  // required charges are still empty and the server save is held back).
+  const draftRef = useRef({ priceRate, zoneRates, lanes, service: pendingService, individual });
+  draftRef.current = { priceRate, zoneRates, lanes, service: pendingService, individual };
+  const writeDraft = useCallback(() => {
+    const d = draftRef.current;
+    saveRatesDraft(draftKey, d.individual ? { lanes: d.lanes } : { priceRate: d.priceRate, zoneRates: d.zoneRates, service: d.service });
+  }, [draftKey]);
+  useEffect(() => {
+    if (!loaded || !dirty.current) return;
+    setUnpublished(true);
+    const t = window.setTimeout(writeDraft, 300);
+    return () => window.clearTimeout(t);
+  }, [priceRate, zoneRates, lanes, pendingService, loaded, writeDraft]);
+  useEffect(() => () => { if (dirty.current) writeDraft(); }, [writeDraft]);
+
+  const discardDraft = () => {
+    clearRatesDraft(draftKey); dirty.current = false; setUnpublished(false); setRestoredAt(null); setPendingService(null);
+    setPriceRate(server.current.priceRate); setZoneRates(server.current.zoneRates); setLanes(server.current.lanes);
+  };
+  // Done / back: with unpublished changes ask first (the draft is kept either way).
+  const leave = (to: string) => (e: React.MouseEvent) => {
+    if (explicitPublish && unpublished) { e.preventDefault(); setLeaveTo(to); }
+  };
 
   const review = async () => {
     if (individual && !lanesValid) { toast.error('Fix the highlighted lanes first.'); return; }
     if (chargesMissing > 0) { toast.error('Fill in the required charges first.'); return; }
     if (busy > 0) { toast.error('Still checking nearby pincodes. Try again in a moment.'); return; }
     setPublishing(true);
-    try { await put(); toast.success('No changes to publish.'); }
+    try { await put(); toast.success('No changes to publish.'); clearRatesDraft(draftKey); dirty.current = false; setUnpublished(false); setRestoredAt(null); await finish(); }
     catch (e: any) {
       if (e?.response?.status === 409) setDiff({ items: e.response.data.diff, affected: e.response.data.affectedShippers });
       else reportError(e, 'Could not review changes.');
     } finally { setPublishing(false); }
   };
+  // After a successful publish: where the user was heading, else back out of the editor. An organisation owner who was
+  // managing a courier's rates goes back to the organisation's courier list.
+  const finish = async () => {
+    if (leaveAfter.current) { navigate(leaveAfter.current); return; }
+    if (user?.actingFor) {
+      try { const r = await axios.post(`${API_BASE_URL}/api/transporter/lines/manage-exit`); loginWithToken(r.data.token); navigate('/lines'); return; } catch { /* fall through */ }
+    }
+    navigate('/profile/rates');
+  };
   const confirm = async () => {
     setPublishing(true);
-    try { await put(true); setDiff(null); dirty.current = false; setPendingService(null); toast.success('Rates published.'); }
+    try { await put(true); setDiff(null); dirty.current = false; setPendingService(null); clearRatesDraft(draftKey); setUnpublished(false); setRestoredAt(null); toast.success('Rates published.'); await finish(); }
     catch (e: any) { reportError(e, 'Could not publish.'); }
     finally { setPublishing(false); }
   };
@@ -259,7 +308,7 @@ const RatesEditorPage: React.FC = () => {
       <div className={`${embedded ? '' : 'sticky top-20 z-20 bg-white/90 backdrop-blur'} mb-5 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Link to="/profile/rates" aria-label="Back to rates" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-blue-600">
+            <Link to="/profile/rates" onClick={leave('/profile/rates')} aria-label="Back to rates" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-blue-600">
               <ArrowLeft size={16} />
             </Link>
             <div>
@@ -281,14 +330,39 @@ const RatesEditorPage: React.FC = () => {
               />
             )}
             {explicitPublish && (
-              <button onClick={review} disabled={publishing} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60">
+              <button onClick={() => { leaveAfter.current = null; review(); }} disabled={publishing} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60">
                 {publishing ? 'Checking…' : 'Review & publish'}
               </button>
             )}
-            <Link to="/profile/rates" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm shadow-blue-200 hover:bg-blue-700">Done</Link>
+            <Link to="/profile/rates" onClick={leave('/profile/rates')} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm shadow-blue-200 hover:bg-blue-700">Done</Link>
           </div>
         </div>
       </div>
+
+      {unpublished && (
+        <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          <span>
+            <b>{explicitPublish ? 'Not live yet.' : 'Draft kept.'}</b>{' '}
+            {restoredAt ? `We put back your unsaved changes from ${new Date(restoredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. ` : ''}
+            {explicitPublish ? 'Press “Review & publish” to make them live.' : 'It saves once the required charges are filled.'}
+          </span>
+          <button type="button" onClick={discardDraft} className="text-xs font-bold underline">Discard changes</button>
+        </div>
+      )}
+
+      {leaveTo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div role="dialog" aria-modal="true" aria-label="Unpublished changes" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-extrabold text-slate-900">Your changes are not live yet</h3>
+            <p className="mt-2 text-sm text-slate-600">Shippers still see your old rates. You can publish now, or leave and finish later: we keep your changes as a draft.</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => { setLeaveTo(null); navigate(leaveTo); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700">Leave, keep draft</button>
+              <button type="button" onClick={() => { leaveAfter.current = leaveTo; setLeaveTo(null); review(); }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">Review &amp; publish</button>
+              <button type="button" onClick={() => setLeaveTo(null)} className="px-2 text-sm text-slate-500">Stay</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {individual ? (
         <section className={`${card} p-5`}>
@@ -408,7 +482,7 @@ const RatesEditorPage: React.FC = () => {
         </div>
       )}
 
-      {diff && <ReconfirmModal diff={diff.items} affectedShippers={diff.affected} saving={publishing} onConfirm={confirm} onCancel={() => setDiff(null)} />}
+      {diff && <ReconfirmModal diff={diff.items} affectedShippers={diff.affected} saving={publishing} onConfirm={confirm} onCancel={() => { leaveAfter.current = null; setDiff(null); }} />}
     </div>
   );
 };

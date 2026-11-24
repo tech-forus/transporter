@@ -4,6 +4,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config/apiConfig';
 import KycWizardCard from './KycWizardCard';
 import { useAuth } from '../hooks/useAuth';
+import { IS_WEB } from '../config/host';
 
 type KycCheck = 'loading' | 'pass' | 'block' | 'error';
 

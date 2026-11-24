@@ -18,6 +18,7 @@ import BookingsPage from './pages/BookingsPage';
 import MisDisputesPage from './pages/MisDisputesPage';
 import NotificationsPage from './pages/NotificationsPage';
 import LinesPage from './pages/LinesPage';
+import AggregatorDashboardPage from './pages/AggregatorDashboardPage';
 import AddPrice from './pages/AddPrice';
 import VerifyOtpPage from './pages/VerifyOtpPage';
 import TransporterKycPage from './pages/TransporterKycPage';
@@ -64,6 +65,23 @@ export const PublicRoute: React.FC<React.PropsWithChildren> = ({ children }) => 
   }
 
   return (isAuthenticated)? <Navigate to="/dashboard" replace /> : <>{children}</>;
+};
+
+// An aggregator organisation (not one of its courier lines or desk staff) sells through couriers: its Dashboard shows the bookings of
+// ALL its couriers (AggregatorDashboardPage), and setting the couriers up is the Courier lines page.
+export const isAggregatorOwner = (user: any) => user?.orgType === 'aggregator' && !user.isLine && user.role !== 'employee';
+
+// Every login ends on /dashboard: an aggregator sees its all-couriers dashboard, everyone else the single-carrier bookings feed.
+export const DashboardSwitch: React.FC = () => {
+  const { user } = useAuth();
+  return isAggregatorOwner(user) ? <AggregatorDashboardPage /> : <BookingsPage />;
+};
+
+// "/bookings" is the same screen as the dashboard for an aggregator (one place for all its bookings).
+export const DashboardHome: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { user } = useAuth();
+  const { search } = useLocation(); // keep "?booking=<id>" (from the bell / notifications) so the booking still opens
+  return isAggregatorOwner(user) ? <Navigate to={`/dashboard${search}`} replace /> : <>{children}</>;
 };
 
 // Lets the host page (freight-compare-frontend's TransporterProfileDropdown,
@@ -165,7 +183,7 @@ function App() {
           {/* KycGate now sits INSIDE MainLayout (not wrapping it) — Header/
               Footer stay visible and usable while a blocked transporter sees
               only the page body blurred behind the KYC wizard overlay. */}
-          <Route path="/dashboard" element={<PrivateRoute><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></PrivateRoute>} />
+          <Route path="/dashboard" element={<PrivateRoute><MainLayout><KycGate><DashboardSwitch /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/go-public" element={<PrivateRoute><MainLayout fillScreen><KycGate><GoPublicPage /></KycGate></MainLayout></PrivateRoute>} />
           {/* First-time lane setup — outside KycGate, like /addprice, so rates come before KYC as in normal signup. */}
           <Route path="/setup/lanes" element={<PrivateRoute><MainLayout><SetupLanesPage /></MainLayout></PrivateRoute>} />
@@ -176,8 +194,8 @@ function App() {
           <Route path="/invite" element={<PrivateRoute><MainLayout><KycGate><InviteTransportersPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/fleet" element={<PrivateRoute><MainLayout><KycGate><FleetPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/bids" element={<PrivateRoute><MainLayout><KycGate><BidsPage /></KycGate></MainLayout></PrivateRoute>} />
-          <Route path="/bookings" element={<PrivateRoute><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></PrivateRoute>} />
-          <Route path="/lines" element={<PrivateRoute><MainLayout><LinesPage /></MainLayout></PrivateRoute>} />
+          <Route path="/bookings" element={<PrivateRoute><DashboardHome><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></DashboardHome></PrivateRoute>} />
+          <Route path="/lines" element={<PrivateRoute><MainLayout><KycGate><LinesPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/notifications" element={<PrivateRoute><MainLayout><NotificationsPage /></MainLayout></PrivateRoute>} />
           <Route path="/track" element={<PrivateRoute><MainLayout><TrackPage /></MainLayout></PrivateRoute>} />
           <Route path="/mis-bills" element={<PrivateRoute><MainLayout><KycGate><MisDisputesPage /></KycGate></MainLayout></PrivateRoute>} />

@@ -63,6 +63,9 @@ interface BookingBox {
 
 interface Booking {
   _id: string;
+  // Organisation view (linesMode): which courier line this booking belongs to.
+  lineId?: string;
+  line?: string;
   bookingCode: string;
   customerID: ShipperInfo | null;
   pickupPincode: string;
@@ -90,7 +93,7 @@ interface Booking {
   podIssue?: { text?: string; at?: string };
   invoiceNo?: string;
   ewayBillNo?: string;
-  sharedFiles?: { fileId?: string; expired?: boolean; filename: string; fromSide: 'shipper' | 'transporter'; status: string; kind?: 'lr' | 'box_slip' | 'pod' | 'freight_invoice' | 'packing_list' | 'invoice' | 'eway_bill'; at: string }[];
+  sharedFiles?: { fileId?: string; size?: number; expired?: boolean; filename: string; fromSide: 'shipper' | 'transporter'; status: string; kind?: 'lr' | 'box_slip' | 'pod' | 'freight_invoice' | 'packing_list' | 'invoice' | 'eway_bill'; at: string }[];
   createdAt: string;
 }
 
@@ -240,50 +243,77 @@ const DetailField = ({ label, value }: { label: string; value?: string | number 
   );
 };
 
-// Everything the shipper uploaded for this booking (and anything shared on WhatsApp): open or download each file.
+// Colours by what a document is, so a list can be read at a glance (neutral grey for anything else).
+const KIND_TONE: Record<string, string> = {
+  lr: 'bg-blue-50 text-blue-700 border-blue-200',
+  pod: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  box_slip: 'bg-amber-50 text-amber-800 border-amber-200',
+  freight_invoice: 'bg-rose-50 text-rose-700 border-rose-200',
+  invoice: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  packing_list: 'bg-teal-50 text-teal-700 border-teal-200',
+  eway_bill: 'bg-orange-50 text-orange-800 border-orange-200',
+};
+const fileSize = (n?: number) => (n ? (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`) : '');
+
+// Everything on this booking from either side (and anything shared on WhatsApp), as a table: open or download each file.
 const BookingFilesModal = ({ booking, onClose, onChanged, readOnly, initialKind }: { booking: Booking; onClose: () => void; onChanged: () => void; readOnly?: boolean; initialKind?: string }) => {
   const files = booking.sharedFiles || [];
+  const th = 'border-b border-slate-200 dark:border-[#1d3f5c] bg-slate-50 dark:bg-white/5 px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 whitespace-nowrap';
+  const td = 'border-b border-slate-100 dark:border-[#1d3f5c] px-3 py-2.5 align-middle text-xs text-slate-700 dark:text-[#c9dbec]';
+  const neutral = 'inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-[#1d3f5c] bg-white dark:bg-transparent px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5';
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-[#0d2438] w-[94vw] max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-[#0d2438] w-[94vw] max-w-5xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="bg-slate-900 px-5 py-4 text-white relative rounded-t-2xl">
           <button onClick={onClose} aria-label="Close" className="absolute top-3.5 right-4 text-slate-400 hover:text-white"><X size={20} /></button>
           <h3 className="text-base font-bold">Files for booking {booking.bookingCode}</h3>
-          <p className="text-slate-400 text-xs mt-0.5">Open a file to read it, or download it.</p>
+          <p className="text-slate-400 text-xs mt-0.5">Documents from both sides. Open a file to read it, or download it.</p>
         </div>
         {/* Save the LR / AWB number, or send the LR copy, box slip, POD: the shipper is told on every channel. */}
-        <div className="px-5 pt-1"><BookingActions booking={booking} onChanged={onChanged} readOnly={readOnly} initialKind={initialKind} /></div>
-        <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c] p-2 text-sm">
-          {files.length === 0 && <li className="px-3 py-6 text-center text-slate-500 dark:text-[#8fb0cf]">No files were uploaded for this booking.</li>}
-          {files.map((f, i) => (
-            <li key={i} className="flex items-center gap-3 px-3 py-2.5">
-              <Paperclip size={15} className="shrink-0 text-slate-400" />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-800 dark:text-white break-all">{f.filename}</p>
-                <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">
-                  {f.kind ? `${FILE_KIND[f.kind]} · ` : ''}{f.fromSide === 'shipper' ? 'from the shipper' : 'from your team'} · {new Date(f.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-              {f.fileId ? (
-                <div className="flex shrink-0 gap-1.5">
-                  <button type="button" onClick={() => openFile(booking._id, f.fileId!, f.filename)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-[#1d3f5c] px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5"><Eye size={13} /> Open</button>
-                  <button type="button" onClick={() => saveFile(booking._id, f.fileId!, f.filename)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"><Download size={13} /> Download</button>
-                  {f.fromSide === 'transporter' && !readOnly && booking.shipmentStatus !== 'completed' && (
-                    <button type="button" aria-label={`Delete ${f.filename}`} title="Delete this file" onClick={() => deleteFile(booking._id, f.fileId!, f.filename, onChanged)} className="inline-flex items-center rounded-lg border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"><Trash2 size={13} /></button>
-                  )}
-                </div>
-              ) : (
-                <span className="shrink-0 text-xs text-slate-400">{f.expired ? 'Deleted after 12 months' : 'Only in WhatsApp'}</span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="px-5 pt-1"><BookingActions booking={booking} onChanged={onChanged} onDone={onClose} readOnly={readOnly} initialKind={initialKind} /></div>
+        <div className="p-4">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#1d3f5c]">
+            {/* Fixed column widths: the file name gets the room, and Open / Download / Delete sit in the same place on every row. */}
+            <table className="w-full table-fixed border-collapse">
+              <colgroup><col /><col className="w-[120px]" /><col className="w-[90px]" /><col className="w-[140px]" /><col className="w-[70px]" /><col className="w-[260px]" /></colgroup>
+              <thead>
+                <tr><th className={th}>File</th><th className={th}>Type</th><th className={th}>From</th><th className={th}>Date</th><th className={th}>Size</th><th className={`${th} text-right`}>Actions</th></tr>
+              </thead>
+              <tbody>
+                {files.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500 dark:text-[#8fb0cf]">No files were uploaded for this booking.</td></tr>}
+                {files.map((f, i) => (
+                  <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                    <td className={td}><span className="flex items-center gap-2"><Paperclip size={13} className="shrink-0 text-slate-400" /><span className="min-w-0 break-words font-semibold text-slate-900 dark:text-white" title={f.filename}>{f.filename}</span></span></td>
+                    <td className={`${td} whitespace-nowrap`}>
+                      {f.kind ? <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${KIND_TONE[f.kind] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>{FILE_KIND[f.kind] || f.kind}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className={`${td} whitespace-nowrap`}>{f.fromSide === 'shipper' ? 'Shipper' : 'Your team'}</td>
+                    <td className={`${td} whitespace-nowrap tabular-nums`}>{new Date(f.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className={`${td} whitespace-nowrap tabular-nums text-slate-500`}>{fileSize(f.size) || '—'}</td>
+                    <td className={`${td} text-right`}>
+                      {f.fileId ? (
+                        <div className="grid grid-cols-[1fr_1fr_32px] items-center gap-1.5">
+                          <button type="button" onClick={() => openFile(booking._id, f.fileId!, f.filename)} className={`${neutral} justify-center`}><Eye size={13} /> Open</button>
+                          <button type="button" onClick={() => saveFile(booking._id, f.fileId!, f.filename)} className={`${neutral} justify-center`}><Download size={13} /> Download</button>
+                          {f.fromSide === 'transporter' && !readOnly && booking.shipmentStatus !== 'completed' ? (
+                            <button type="button" aria-label={`Delete ${f.filename}`} title="Delete this file" onClick={() => deleteFile(booking._id, f.fileId!, f.filename, onChanged)} className="inline-flex h-[26px] items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={13} /></button>
+                          ) : <span />}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">{f.expired ? 'Deleted after 12 months' : 'Only in WhatsApp'}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>,
     document.body,
   );
 };
-
 // Booking detail modal — same fields the shipper's Book Now form collects
 // (see freight-compare-frontend's BookNowModal.tsx), rendered read-only so
 // the transporter sees exactly what was submitted, including gaps.
@@ -291,6 +321,16 @@ const BookingDetailModal = ({ booking, onClose, onChanged, readOnly, pin }: { bo
   const shipperName = [booking.customerID?.firstName, booking.customerID?.lastName].filter(Boolean).join(' ') || booking.customerID?.companyName || 'A shipper';
   const boxes = booking.boxes || [];
   const unit = booking.dimensionUnit || 'cm';
+
+  // Opening a booking reads the shipper's documents (invoice, e-way bill, packing list) and fills the invoice / e-way bill numbers that
+  // are still empty; the list is refreshed when something was filled. The server also does this as soon as a document arrives.
+  useEffect(() => {
+    if (readOnly || (booking.invoiceNo && booking.ewayBillNo)) return;
+    axios.post(`${API_BASE_URL}/api/bookings/${booking._id}/portal/detect-details`)
+      .then((r) => { if (r.data?.filled?.length) onChanged(); })
+      .catch(() => { /* best effort */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking._id]);
 
   return createPortal(
     <div
@@ -530,7 +570,29 @@ const ActionsMenu = ({ items }: { items: MenuItem[] }) => {
   );
 };
 
-const BookingsPage: React.FC = () => {
+// Where a booking stands (same rules as the server's dashboard, services/lineDashboard.js), so the aggregator's list can be sorted by
+// what each booking needs next instead of a single "Upcoming / History" split (an accepted booking used to vanish into History).
+type Stage = 'pendingAccept' | 'awaitingLr' | 'inTransit' | 'awaitingPod' | 'done' | 'closed';
+const stageOf = (b: Booking): Stage => {
+  if (b.transporterAckStatus === 'declined' || b.shipmentStatus === 'cancelled') return 'closed';
+  if (b.podAt || b.shipmentStatus === 'completed') return 'done';
+  if (b.shipmentStatus === 'delivered') return 'awaitingPod';
+  if (b.shipmentStatus === 'picked_up' || b.lrNumber) return 'inTransit';
+  if (b.transporterAckStatus === 'confirmed') return 'awaitingLr';
+  return 'pendingAccept';
+};
+const STAGE_TABS: { key: Stage; label: string; action: boolean; hint: string }[] = [
+  { key: 'pendingAccept', label: 'Needs reply', action: true, hint: 'Nobody has answered yet: confirm or decline.' },
+  { key: 'awaitingLr', label: 'Needs AWB', action: true, hint: 'Accepted: add the LR / AWB number when the courier picks it up.' },
+  { key: 'inTransit', label: 'In transit', action: false, hint: 'Picked up and on the way.' },
+  { key: 'awaitingPod', label: 'Needs POD', action: true, hint: 'Delivered: send the proof of delivery (POD).' },
+  { key: 'done', label: 'Done', action: false, hint: 'Delivered with the proof received.' },
+  { key: 'closed', label: 'Declined / cancelled', action: false, hint: 'Declined by the courier or cancelled by the shipper.' },
+];
+
+// `linesMode`: an aggregator organisation's bookings screen (on Courier lines): every courier's bookings in one list, with the same
+// Confirm / Decline / Send LR / box slip / POD / files actions a transporter has. Each action is sent for that booking's courier.
+const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) => {
   const { user, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
@@ -560,7 +622,7 @@ const BookingsPage: React.FC = () => {
     setError(null);
     try {
       const res = await axios.get<{ success: boolean; data: Booking[] }>(
-        `${API_BASE_URL}/api/bookings/transporter/${user._id}`
+        linesMode ? `${API_BASE_URL}/api/transporter/lines/bookings` : `${API_BASE_URL}/api/bookings/transporter/${user._id}`
       );
       const fresh = res.data.data;
 
@@ -583,7 +645,7 @@ const BookingsPage: React.FC = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [user?._id]);
+  }, [user?._id, linesMode]);
 
   // The open booking follows the latest data: after saving an AWB the card shows it at once.
   useEffect(() => {
@@ -622,7 +684,7 @@ const BookingsPage: React.FC = () => {
       // instead of silently overriding them.
       const shown = bookings.find((b) => b._id === bookingId)?.transporterAckStatus;
       await axios.patch(`${API_BASE_URL}/api/bookings/${bookingId}/ack`, {
-        transporterId: user._id,
+        transporterId: linesMode ? bookings.find((b) => b._id === bookingId)?.lineId : user._id,
         status,
         ...(shown ? { expectedStatus: shown } : {}),
         ...(reason ? { reason } : {}),
@@ -660,10 +722,23 @@ const BookingsPage: React.FC = () => {
   }), [bookings]);
 
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
+  // linesMode: one tab per stage (what each booking needs next), opening on the first stage that has something to do.
+  const [stageTab, setStageTab] = useState<Stage | 'all' | null>(null);
+  const byStage = useMemo(() => {
+    const m: Record<string, Booking[]> = {};
+    for (const b of bookings) (m[stageOf(b)] ||= []).push(b);
+    for (const k of Object.keys(m)) m[k].sort(byCreatedDesc);
+    return m;
+  }, [bookings]);
+  useEffect(() => {
+    if (!linesMode || stageTab !== null || bookings.length === 0) return;
+    setStageTab((['pendingAccept', 'awaitingLr', 'awaitingPod', 'inTransit'] as Stage[]).find((k) => byStage[k]?.length) || 'done');
+  }, [linesMode, stageTab, bookings.length, byStage]);
   useEffect(() => {
     if (!wantedId || bookings.length === 0) return;
     const hit = bookings.find((x) => x._id === wantedId);
     if (hit) {
+      if (linesMode) setStageTab(stageOf(hit));
       setActiveTab(groupedBookings.history.some((x) => x._id === wantedId) ? 'history' : 'upcoming');
       setViewingBooking(hit);
     } else {
@@ -700,8 +775,11 @@ const BookingsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="mx-auto w-full max-w-[1600px] px-4 pt-4 pb-48 sm:px-6 lg:px-8">
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      {/* Bottom space (also in linesMode): the Actions menu opens downwards, and the page the portal is embedded in sizes to this
+          content, so without it the menu is cut off by the footer. */}
+      <div className={linesMode ? 'w-full pb-48' : 'mx-auto w-full max-w-[1600px] px-4 pt-4 pb-48 sm:px-6 lg:px-8'}>
+        {/* linesMode (the aggregator dashboard) has no heading here: its Refresh button sits at the end of the stage tabs. */}
+        {!linesMode && <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               Welcome back{(user as any)?.companyName ? `, ${displayCompanyName((user as any).companyName)}` : ''}
@@ -719,11 +797,11 @@ const BookingsPage: React.FC = () => {
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
-        </header>
+        </header>}
 
-        <div className="mb-5"><GoPublicCard wide /></div>
-        {isAggregator && <div className="mb-5"><AggregatorBanner /></div>}
-        {needsSetup && !publicEligible && (
+        {!linesMode && <div className="mb-5"><GoPublicCard wide /></div>}
+        {!linesMode && isAggregator && <div className="mb-5"><AggregatorBanner /></div>}
+        {!linesMode && needsSetup && !publicEligible && (
           <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
             <AlertTriangle size={20} className="flex-none text-blue-600 dark:text-blue-300" />
             <div className="min-w-0 flex-1">
@@ -738,7 +816,7 @@ const BookingsPage: React.FC = () => {
 
         {/* Stats: one card, four columns; icons in the accent colour (blue-* follows the website accent, index.css).
             Always shown (0s included) so the dashboard never looks empty. Amber only when something is pending. */}
-        <div className="mb-4 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-4 dark:border-[#1d3f5c] dark:bg-[#0d2438]">
+        <div className={`mb-4 grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-4 dark:border-[#1d3f5c] dark:bg-[#0d2438] ${linesMode ? 'hidden' : ''}`}>
           {[
             { label: `Order${stats.totalOrders === 1 ? '' : 's'} via FreightCompare`, value: String(stats.totalOrders), icon: <TrendingUp size={14} /> },
             { label: 'Pending action', value: String(stats.pending), icon: <Bell size={14} />, alert: stats.pending > 0 },
@@ -777,16 +855,22 @@ const BookingsPage: React.FC = () => {
               <Bell size={20} />
             </div>
             <p className="text-slate-700 dark:text-[#8fb0cf] font-semibold">No bookings yet</p>
-            <p className="text-sm text-slate-400 dark:text-[#6f93b8] mt-1 max-w-sm mx-auto">When a shipper books you directly, it will show up here. Keep your rates up to date so shippers can find and book you.</p>
-            <Link to={ratesLink} className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl hover:bg-blue-100 transition-colors">
-              {needsSetup ? 'Set up my rates' : 'Review my lane rates'} <ArrowRight size={14} />
-            </Link>
+            <p className="text-sm text-slate-400 dark:text-[#6f93b8] mt-1 max-w-sm mx-auto">
+              {linesMode ? 'When a shipper books one of your couriers, it shows up here and you can confirm it, decline it and send the AWB.' : 'When a shipper books you directly, it will show up here. Keep your rates up to date so shippers can find and book you.'}
+            </p>
+            {!linesMode && (
+              <Link to={ratesLink} className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl hover:bg-blue-100 transition-colors">
+                {needsSetup ? 'Set up my rates' : 'Review my lane rates'} <ArrowRight size={14} />
+              </Link>
+            )}
           </div>
         ) : (() => {
             const digitsOnly = (v?: string | number | null) => String(v ?? '').replace(/\D/g, '');
             // ERP-style register: one row per booking, one column per value, gridlines on every cell.
-            const th = 'border border-slate-200 dark:border-[#1d3f5c] bg-slate-100 dark:bg-white/5 px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-[#8fb0cf] whitespace-nowrap';
-            const td = 'border border-slate-200 dark:border-[#1d3f5c] px-3 py-2 align-top text-xs text-slate-700 dark:text-[#c9dbec]';
+            // linesMode (the aggregator's all-couriers list) is tighter so it fits the page without a sideways scrollbar.
+            const pad = linesMode ? 'px-2' : 'px-3';
+            const th = `border border-slate-200 dark:border-[#1d3f5c] bg-slate-100 dark:bg-white/5 ${pad} py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-[#8fb0cf] whitespace-nowrap`;
+            const td = `border border-slate-200 dark:border-[#1d3f5c] ${pad} py-2 align-top text-xs text-slate-700 dark:text-[#c9dbec]`;
             const btn = 'inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5 whitespace-nowrap';
             // Same rule BookingActions uses: only an accepted, still-open booking on an owner / employee login can send documents.
             const canSendDocs = (b: Booking) => b.transporterAckStatus === 'confirmed' && !readOnlyLogin && !['cancelled', 'completed'].includes(b.shipmentStatus || '') && !b.podAt;
@@ -804,11 +888,12 @@ const BookingsPage: React.FC = () => {
                     <p className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{b.bookingCode}</p>
                     <p className="text-[11px] text-slate-400 whitespace-nowrap">{new Date(b.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                   </td>
+                  {linesMode && <td className={`${td} font-semibold text-slate-900 dark:text-white`}>{b.line || '—'}</td>}
                   <td className={td}>
                     <p className="font-semibold text-slate-900 dark:text-white">{shipperName}</p>
                     {b.customerID?.companyName && shipperName !== b.customerID.companyName && <p className="text-[11px] text-slate-500">{b.customerID.companyName}</p>}
                   </td>
-                  <td className={`${td} min-w-[230px]`}>
+                  <td className={`${td} ${linesMode ? 'min-w-[150px] max-w-[190px]' : 'min-w-[230px]'}`}>
                     {showContact && (b.customerID?.phone || b.customerID?.email) ? (
                       <div className="space-y-0.5">
                         {b.customerID?.phone && (
@@ -821,10 +906,13 @@ const BookingsPage: React.FC = () => {
                       </div>
                     ) : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className={`${td} whitespace-nowrap font-semibold tabular-nums`}>{b.pickupPincode} <ArrowRight size={11} className="inline text-slate-400" /> {b.dropPincode}</td>
-                  <td className={`${td} whitespace-nowrap tabular-nums`}>{b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'}<br /><span className="text-slate-500">{b.totalChargeableWeight} kg</span></td>
+                  <td className={`${td} whitespace-nowrap font-semibold tabular-nums`}>
+                    {b.pickupPincode} <ArrowRight size={11} className="inline text-slate-400" /> {b.dropPincode}
+                    {linesMode && <p className="text-[11px] font-normal text-slate-500">{b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'} · {b.totalChargeableWeight} kg</p>}
+                  </td>
+                  {!linesMode && <td className={`${td} whitespace-nowrap tabular-nums`}>{b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'}<br /><span className="text-slate-500">{b.totalChargeableWeight} kg</span></td>}
                   <td className={`${td} whitespace-nowrap text-right font-bold tabular-nums text-slate-900 dark:text-white`}>₹{(b.freightCharge || b.invoiceValue || 0).toLocaleString('en-IN')}</td>
-                  <td className={`${td} whitespace-nowrap tabular-nums`}>
+                  <td className={`${td} tabular-nums ${linesMode ? '' : 'whitespace-nowrap'}`}>
                     {b.pickupDate || '—'} {b.pickupTime || ''}
                     {(isPending || isAckedOnly) && <div><PickupBadge pickupDate={b.pickupDate} pickupTime={b.pickupTime} /></div>}
                   </td>
@@ -863,14 +951,15 @@ const BookingsPage: React.FC = () => {
             };
             const renderTable = (list: Booking[]) => (
               <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#1d3f5c]">
-                <table className="w-full min-w-[1150px] border-collapse">
+                <table className={`w-full border-collapse ${linesMode ? '' : 'min-w-[1150px]'}`}>
                   <thead className="sticky top-0 z-10">
                     <tr>
                       <th className={th}>Booking</th>
+                      {linesMode && <th className={th}>Courier</th>}
                       <th className={th}>Shipper</th>
                       <th className={th}>Contact</th>
-                      <th className={th}>Route</th>
-                      <th className={th}>Load</th>
+                      <th className={th}>{linesMode ? 'Route / load' : 'Route'}</th>
+                      {!linesMode && <th className={th}>Load</th>}
                       <th className={`${th} text-right`}>Freight</th>
                       <th className={th}>Pickup</th>
                       <th className={th}>Status</th>
@@ -882,6 +971,41 @@ const BookingsPage: React.FC = () => {
                 </table>
               </div>
             );
+
+            if (linesMode) {
+              const tab = stageTab ?? 'pendingAccept';
+              const shown = tab === 'all' ? [...bookings].sort(byCreatedDesc) : byStage[tab] || [];
+              const hint = tab === 'all' ? 'Every booking, newest first.' : STAGE_TABS.find((t) => t.key === tab)?.hint;
+              const tabCls = (on: boolean, hot: boolean) => `relative flex items-center gap-1.5 px-1 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${on ? 'border-blue-600 text-blue-700 dark:text-blue-300' : `border-transparent ${hot ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-[#6f93b8]'} hover:text-slate-900 dark:hover:text-white`}`;
+              return (
+                <div>
+                  <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-slate-200 dark:border-[#1d3f5c]">
+                    {STAGE_TABS.map((t) => {
+                      const n = byStage[t.key]?.length || 0;
+                      return (
+                        <button key={t.key} onClick={() => setStageTab(t.key)} className={tabCls(tab === t.key, n > 0)}>
+                          {t.label}
+                          <span className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-black ${n > 0 && t.action ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500 dark:bg-white/10'}`}>{n}</span>
+                          {t.key === 'pendingAccept' && newCount > 0 && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="New booking" />}
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => setStageTab('all')} className={tabCls(tab === 'all', true)}>All <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-black text-slate-500 dark:bg-white/10">{bookings.length}</span></button>
+                    <button
+                      type="button"
+                      onClick={() => { fetchBookings(); }}
+                      disabled={loading}
+                      title="Refresh bookings"
+                      className="ml-auto mb-1 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white"
+                    >
+                      <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+                    </button>
+                  </div>
+                  {hint && <p className="mb-3 text-xs text-slate-500 dark:text-[#8fb0cf]">{hint}</p>}
+                  {shown.length > 0 ? renderTable(shown) : <p className="text-sm italic text-slate-400 dark:text-[#6f93b8]">Nothing here right now.</p>}
+                </div>
+              );
+            }
 
             return (
               <div>

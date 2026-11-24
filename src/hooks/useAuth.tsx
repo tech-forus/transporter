@@ -63,6 +63,8 @@ interface AuthUser {
   mustChange?: boolean;
   // A courier line of an aggregator ("Delhivery (Shipshopy)"): without role "employee" it is the courier's own login (view-only on bookings).
   isLine?: boolean;
+  // "aggregator" = a business selling several couriers (its home is /lines, not the single-carrier dashboard).
+  orgType?: 'transporter' | 'aggregator';
   // Set while the organisation owner is managing this courier's rates ("Manage rates"): the organisation's id.
   actingFor?: string;
   iat?: number;

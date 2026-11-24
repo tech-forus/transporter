@@ -13,6 +13,8 @@ export interface LineMember { name: string; phone: string; scope: 'all' | 'line'
 export interface Line {
   _id: string; courier: string; companyName: string; email: string; kycStatus: string; trackingLink: string;
   coverage: { pincodes: number; zones: string[] };
+  // Who can find this courier in the calculator: 'invited' = only the shipper who invited you, 'kyc' = public but waiting for KYC, 'everyone'.
+  listing?: 'invited' | 'kyc' | 'everyone';
   ratesStatus: 'none' | 'ok' | 'stale'; ratesUpdatedAt: string | null; ratesUpdatedBy: { name: string; kind: string } | null;
   team: LineMember[];
 }

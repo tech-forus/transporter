@@ -44,9 +44,24 @@ describe('OrgDashboard', () => {
     await waitFor(() => expect(get).toHaveBeenLastCalledWith(expect.stringContaining('line=L2')));
   });
 
-  it('says so when nothing is stuck', async () => {
+  it('shows no stuck box when nothing is stuck', async () => {
     get.mockResolvedValue({ data: { ...data, stuck: [] } });
     render(<OrgDashboard />);
-    await waitFor(() => expect(screen.getByText(/nothing is stuck/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Waiting to accept')).toBeTruthy());
+    expect(screen.queryByText(/stuck/i)).toBeNull();
+  });
+
+  it('leaves out a stage with no bookings, and the whole section when there is nothing at all', async () => {
+    get.mockResolvedValue({ data: { ...data, counts: { ...data.counts, awaitingPod: 0, done: 0 }, stuck: [] } });
+    const first = render(<OrgDashboard />);
+    await waitFor(() => expect(screen.getByText('Waiting to accept')).toBeTruthy());
+    expect(screen.queryByText('Waiting for POD')).toBeNull();
+    expect(screen.queryByText('Done')).toBeNull();
+    first.unmount();
+    get.mockResolvedValue({ data: { ...data, counts: {}, stuck: [], byLine: [], byPerson: [] } });
+    const { container } = render(<OrgDashboard />);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(container.innerHTML).toBe('');
   });
 });

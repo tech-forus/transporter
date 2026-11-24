@@ -7,7 +7,7 @@ type Stage = 'pendingAccept' | 'awaitingLr' | 'inTransit' | 'awaitingPod' | 'don
 interface Data {
   counts: Record<Stage, number>;
   stuck: { bookingId: string; bookingCode: string; line: string; stage: Stage; sinceMs: number; operator: string }[];
-  byLine: { lineId: string; courier: string }[];
+  byLine: { lineId: string; courier: string; counts: Record<Stage, number> }[];
   byPerson: { phone: string; name: string }[];
 }
 
@@ -19,7 +19,9 @@ const TONE: Record<Stage, string> = { pendingAccept: 'text-amber-700', awaitingL
 const hours = (ms: number) => { const h = Math.round(ms / 3600000); return h >= 48 ? `${Math.round(h / 24)} d` : `${h} h`; };
 const sel = 'px-3 py-1.5 text-xs border border-slate-200 dark:border-[#1d3f5c] rounded-lg bg-white dark:bg-[#0b1b2b]';
 
-export default function OrgDashboard() {
+// `onOpenByLine`: bookings still open (not done / declined) per courier, reported whenever the unfiltered view loads.
+// `silent`: only report the counts, show nothing (the Courier lines screen needs the numbers, the Dashboard shows the tiles).
+export default function OrgDashboard({ onOpenByLine, silent = false }: { onOpenByLine?: (open: Record<string, number>) => void; silent?: boolean }) {
   const [data, setData] = useState<Data | null>(null);
   const [line, setLine] = useState('');
   const [person, setPerson] = useState('');
@@ -30,16 +32,36 @@ export default function OrgDashboard() {
     if (line) q.set('line', line);
     if (person) q.set('person', person);
     axios.get(`${API_BASE_URL}/api/transporter/lines/dashboard${q.toString() ? `?${q}` : ''}`)
-      .then((r) => { setData(r.data); setFailed(false); })
+      .then((r) => {
+        setData(r.data); setFailed(false);
+        if (!line && !person && onOpenByLine) {
+          onOpenByLine(Object.fromEntries((r.data.byLine || []).map((l: Data['byLine'][number]) =>
+            [l.lineId, (['pendingAccept', 'awaitingLr', 'inTransit', 'awaitingPod'] as Stage[]).reduce((n, s) => n + (l.counts?.[s] || 0), 0)])));
+        }
+      })
       .catch(() => setFailed(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [line, person]);
 
+  if (silent) return null;
   if (failed) return <p className="text-xs text-red-600">Could not load the dashboard.</p>;
   if (!data) return null;
+  // Only what has something to show: a stage with no bookings gets no tile, and nothing stuck means no "stuck" box.
+  // With no bookings at all (and no filter chosen) the whole section is left out.
+  const tiles = TILES.filter((s) => (data.counts[s] ?? 0) > 0);
+  const filtered = !!(line || person);
+  if (!filtered && tiles.length === 0 && data.stuck.length === 0) return null;
   return (
-    <section aria-label="Organisation dashboard" className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <h2 className="text-sm font-extrabold text-slate-900 dark:text-white mr-auto">Bookings at a glance</h2>
+    <section aria-label="Organisation dashboard" className="space-y-2 min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        {tiles.map((s) => (
+          <div key={s} data-tile className="flex items-baseline gap-2 rounded-lg border border-slate-200 border-t-2 border-t-violet-600 bg-white px-3 py-1.5 dark:border-[#1d3f5c] dark:bg-[#0d2438]">
+            <span className="text-[11px] font-bold text-slate-500">{STAGE_LABEL[s]}</span>
+            <span className={`text-base font-extrabold ${TONE[s]}`}>{data.counts[s] ?? 0}</span>
+          </div>
+        ))}
+        {tiles.length === 0 && <span className="text-xs text-slate-500">No bookings for this selection.</span>}
+        <span className="mr-auto" />
         <label className="text-[11px] font-bold text-slate-500">Courier{' '}
           <select className={sel} value={line} onChange={(e) => setLine(e.target.value)}>
             <option value="">All couriers</option>
@@ -53,17 +75,9 @@ export default function OrgDashboard() {
           </select>
         </label>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {TILES.map((s) => (
-          <div key={s} data-tile className="rounded-xl border border-slate-200 dark:border-[#1d3f5c] p-3">
-            <p className="text-[11px] font-bold text-slate-500">{STAGE_LABEL[s]}</p>
-            <p className={`text-2xl font-extrabold ${TONE[s]}`}>{data.counts[s] ?? 0}</p>
-          </div>
-        ))}
-      </div>
-      <div className="rounded-xl border border-slate-200 dark:border-[#1d3f5c]">
-        <p className="px-3 pt-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">Stuck</p>
-        {data.stuck.length === 0 ? <p className="px-3 pb-3 pt-1 text-xs text-slate-500">Nothing is stuck.</p> : (
+      {data.stuck.length > 0 && (
+        <div className="rounded-xl border border-amber-200 dark:border-[#1d3f5c]">
+          <p className="px-3 pt-2 text-[11px] font-bold uppercase tracking-widest text-amber-700">Stuck</p>
           <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c] text-xs">
             {data.stuck.map((s) => (
               <li key={s.bookingId} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2">
@@ -75,8 +89,8 @@ export default function OrgDashboard() {
               </li>
             ))}
           </ul>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

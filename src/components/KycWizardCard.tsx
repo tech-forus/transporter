@@ -58,6 +58,8 @@ interface KycStatusResponse {
   // What is already on file for the primary vehicle / driver, so a re-upload does not start blank.
   vehicle?: { vehicleNumber: string; vehicleType: string } | null;
   driver?: { name: string; phone: string } | null;
+  // An aggregator organisation: vehicle RC and driver DL are optional for it.
+  aggregator?: boolean;
   documents: {
     aadhaar: SingleDocStatus;
     selfie: SingleDocStatus;
@@ -70,6 +72,7 @@ interface KycStatusResponse {
 type SingleFileKey = 'aadhaar' | 'selfie' | 'vehicleRc' | 'driverDl';
 
 interface StepDef {
+  optional?: boolean;
   key: SingleFileKey | 'businessPhotos';
   title: string;
   description: string;
@@ -83,7 +86,15 @@ const STEPS: StepDef[] = [
   { key: 'driverDl', title: 'Driver DL', description: "One driver's license. You can add more drivers later from your profile." },
 ];
 
-const validateFile = (file: File): string | null => {
+// An aggregator sells through couriers: it gives ID, selfie and premises photos; the vehicle and driver papers are optional
+// (the courier can also add them on each booking).
+const forAggregator = (s: StepDef): StepDef =>
+  s.key === 'aadhaar' ? { ...s, title: 'Aadhaar or PAN card', description: 'Upload the Aadhaar card or PAN card of the company representative.' }
+  : s.key === 'vehicleRc' ? { ...s, optional: true, title: 'Vehicle RC (optional)', description: 'Only if you own a vehicle. Otherwise skip: the courier can add vehicle details on each booking.' }
+  : s.key === 'driverDl' ? { ...s, optional: true, title: 'Driver DL (optional)', description: 'Only if you have a driver. Otherwise skip: the courier can add driver details on each booking.' }
+  : s;
+
+const validateFile =(file: File): string | null => {
   if (!ACCEPTED_TYPES.includes(file.type)) return 'Only JPG, PNG, or PDF files are allowed.';
   if (file.size > MAX_FILE_BYTES) return 'File must be 5MB or smaller.';
   return null;
@@ -129,6 +140,7 @@ export default function KycWizardCard({ onComplete }: KycWizardCardProps) {
   const [stepIndex, setStepIndex] = useState(0);
   // Only the documents that need attention (missing or rejected). A brand-new account needs all five.
   const [steps, setSteps] = useState<StepDef[]>(STEPS);
+  const [baseSteps, setBaseSteps] = useState<StepDef[]>(STEPS);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [priorStatus, setPriorStatus] = useState<KycStatusResponse | null>(null);
   const [singleFiles, setSingleFiles] = useState<Record<SingleFileKey, File | null>>({
@@ -151,9 +163,14 @@ export default function KycWizardCard({ onComplete }: KycWizardCardProps) {
       .get<{ success: boolean } & KycStatusResponse>(`${API_BASE_URL}/api/transporter/kyc/status`)
       .then(({ data }) => {
         setPriorStatus(data);
-        const needed = STEPS.filter((s) => {
+        const base = data.aggregator ? STEPS.map(forAggregator) : STEPS;
+        setBaseSteps(base);
+        const needed = base.filter((s) => {
           const doc = data.documents?.[s.key];
-          return !doc || doc.status === 'rejected';
+          if (doc?.status === 'rejected') return true;
+          // Optional papers are asked for only while nothing at all was submitted yet.
+          const submittedBefore = Object.values(data.documents || {}).some((d: any) => d && d.status);
+          return !doc && !(s.optional && submittedBefore);
         });
         if (needed.length > 0) setSteps(needed);
         setStepIndex(0);
@@ -174,7 +191,7 @@ export default function KycWizardCard({ onComplete }: KycWizardCardProps) {
   }, []);
 
   const step = steps[stepIndex];
-  const partial = steps.length < STEPS.length;
+  const partial = steps.length < baseSteps.length;
   const priorDoc = priorStatus?.documents[step.key] ?? null;
   const rejectedReason = priorDoc?.status === 'rejected' ? priorDoc.rejectionReason : null;
   const alreadyVerified = priorDoc?.status === 'verified';
@@ -222,6 +239,8 @@ export default function KycWizardCard({ onComplete }: KycWizardCardProps) {
 
     // A document an admin has already verified never needs re-picking — the
     // backend leaves it untouched when it's omitted from the submission.
+    // An optional paper can be skipped; one that is picked still needs its details below.
+    if (step.optional && !singleFiles[step.key]) return true;
     if (!alreadyVerified && !singleFiles[step.key]) {
       toast.error(`Please upload the ${step.title.toLowerCase()}.`);
       return false;
@@ -270,11 +289,11 @@ export default function KycWizardCard({ onComplete }: KycWizardCardProps) {
       if (singleFiles.vehicleRc) formData.append('vehicleRc', singleFiles.vehicleRc);
       if (singleFiles.driverDl) formData.append('driverDl', singleFiles.driverDl);
       // Vehicle / driver details travel only with the RC / DL they belong to.
-      if (steps.some((s) => s.key === 'vehicleRc')) {
+      if (steps.some((s) => s.key === 'vehicleRc' && (!s.optional || singleFiles.vehicleRc))) {
         formData.append('vehicleNumber', vehicleNumber.trim().toUpperCase().replace(/[\s-]/g, ''));
         formData.append('vehicleType', vehicleType);
       }
-      if (steps.some((s) => s.key === 'driverDl')) {
+      if (steps.some((s) => s.key === 'driverDl' && (!s.optional || singleFiles.driverDl))) {
         formData.append('driverName', driverName);
         formData.append('driverPhone', driverPhone);
       }

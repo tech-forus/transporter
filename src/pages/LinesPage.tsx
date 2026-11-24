@@ -4,14 +4,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Copy, KeyRound, Loader2, Plus, Truck } from 'lucide-react';
+import { Copy, Loader2, Plus, Truck } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
-import LineCard, { type Line } from '../components/lines/LineCard';
+import { type Line } from '../components/lines/LineCard';
+import LinesTable from '../components/lines/LinesTable';
 import OrgDashboard from '../components/lines/OrgDashboard';
 
 axios.defaults.withCredentials = true;
 
-interface LineBooking { _id: string; bookingCode: string; line: string; pickupPincode: string; dropPincode: string; transporterAckStatus: string; shipmentStatus?: string; lrNumber?: string; createdAt: string }
 type Gate = 'loading' | 'ok' | 'not_aggregator' | 'line_login';
 
 const input = 'w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-[#0b1b2b]';
@@ -23,18 +23,18 @@ export default function LinesPage() {
   const [lines, setLines] = useState<Line[]>([]);
   const [couriers, setCouriers] = useState<string[]>([]);
   const [suggested, setSuggested] = useState<string[]>([]);
-  const [bookings, setBookings] = useState<LineBooking[]>([]);
   const [courier, setCourier] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newLineId, setNewLineId] = useState<string | null>(null);
+  const [openByLine, setOpenByLine] = useState<Record<string, number>>({});
   const [shown, setShown] = useState<{ title: string; email: string; password: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
       const r = await axios.get(base);
-      setLines(r.data.lines || []); setCouriers(r.data.couriers || []); setSuggested(r.data.suggested || []); setGate('ok');
-      const b = await axios.get(`${base}/bookings`);
-      setBookings(b.data.data || []);
+      setLines(r.data.lines || []); setCouriers(r.data.couriers || []); setSuggested(r.data.suggested || []); setGate('ok'); if (!(r.data.lines || []).length) setAdding(true);
     } catch (e: any) {
       const code = e?.response?.data?.code;
       setGate(code === 'NOT_AGGREGATOR' ? 'not_aggregator' : code === 'OWNER_ONLY' ? 'line_login' : 'ok');
@@ -55,6 +55,7 @@ export default function LinesPage() {
     try {
       const r = await axios.post(base, { courier, email });
       setShown({ title: r.data.line.companyName, email: r.data.line.email, password: r.data.password });
+      setNewLineId(r.data.line._id); setAdding(false); // open the new courier's row: its setup checklist is the next thing to do
       setCourier(''); setEmail(''); await load();
     } catch (err: any) { toast.error(errText(err, 'Could not add the courier.')); }
     finally { setBusy(false); }
@@ -81,13 +82,17 @@ export default function LinesPage() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-5">
-      <div>
-        <h1 className="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2"><Truck size={20} /> Courier lines</h1>
-        <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">Add each courier you sell. Each one gets its own login, rates, tracking link and bookings. Shippers see it as "Courier (Your company)".</p>
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2"><Truck size={20} /> Courier lines</h1>
+          <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">Set up each courier you sell: login, pincodes, rates, tracking link and people. Shippers see it as "Courier (Your company)". Bookings are on your Dashboard.</p>
+        </div>
+        <button type="button" onClick={() => setAdding((a) => !a)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"><Plus size={14} /> {adding ? 'Close' : 'Add courier'}</button>
       </div>
 
-      <OrgDashboard />
+      {/* Bookings are on the Dashboard; this screen only needs each courier's open-booking count for its table. */}
+      <OrgDashboard silent onOpenByLine={setOpenByLine} />
 
       {shown && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm" role="status">
@@ -101,61 +106,48 @@ export default function LinesPage() {
         </div>
       )}
 
-      {suggested.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs">
-          <p className="font-bold text-amber-900">Couriers you chose at signup. Tap one, then enter its login e-mail:</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {suggested.map((c) => <button key={c} type="button" onClick={() => { setCourier(c); document.getElementById('line-email')?.focus(); }} className={`rounded-full border px-3 py-1 font-bold ${courier === c ? 'border-amber-500 bg-amber-500 text-white' : 'border-amber-300 bg-white text-amber-800'}`}>{c}</button>)}
-          </div>
+      {adding && (
+        <div className="space-y-3">
+          {suggested.length > 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs">
+              <p className="font-bold text-amber-900">Couriers you chose at signup. Tap one, then enter its login e-mail:</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {suggested.map((c) => <button key={c} type="button" onClick={() => { setCourier(c); document.getElementById('line-email')?.focus(); }} className={`rounded-full border px-3 py-1 font-bold ${courier === c ? 'border-amber-500 bg-amber-500 text-white' : 'border-amber-300 bg-white text-amber-800'}`}>{c}</button>)}
+              </div>
+            </div>
+          )}
+          <form onSubmit={add} className="rounded-2xl border border-slate-200 dark:border-[#1d3f5c] p-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <label className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf]">Courier
+              <input id="line-courier" list="line-couriers" className={input} value={courier} onChange={(e) => setCourier(e.target.value)} placeholder="Delhivery" required />
+              <datalist id="line-couriers">{couriers.map((c) => <option key={c} value={c} />)}</datalist>
+            </label>
+            <label className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf]">Login email for this courier
+              <input id="line-email" type="email" className={input} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="delhivery@yourcompany.in" required />
+            </label>
+            <button disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"><Plus size={14} /> Create courier</button>
+          </form>
+          <p className="text-[11px] text-slate-500">After creating it: set its pincodes, then its rates (Manage rates). A courier is shown to shippers only when it has both.</p>
         </div>
       )}
 
-      <form onSubmit={add} className="rounded-2xl border border-slate-200 dark:border-[#1d3f5c] p-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-        <label className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf]">Courier
-          <input id="line-courier" list="line-couriers" className={input} value={courier} onChange={(e) => setCourier(e.target.value)} placeholder="Delhivery" required />
-          <datalist id="line-couriers">{couriers.map((c) => <option key={c} value={c} />)}</datalist>
-        </label>
-        <label className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf]">Login email for this courier
-          <input id="line-email" type="email" className={input} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="delhivery@yourcompany.in" required />
-        </label>
-        <button disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"><Plus size={14} /> Add courier</button>
-      </form>
-
-      <div className="rounded-2xl border border-slate-200 dark:border-[#1d3f5c] divide-y divide-slate-100 dark:divide-[#1d3f5c]">
-        {lines.length === 0 && <p className="p-4 text-sm text-slate-500">No couriers added yet.</p>}
-        {lines.map((l) => (
-          <div key={l._id}>
-            <LineCard line={l} onChanged={load} onSecret={setShown} />
-            <div className="px-4 pb-3">
-              <button type="button" onClick={() => reset(l)} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-800"><KeyRound size={12} /> New password for the courier's own login ({l.email})</button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div>
-        <h2 className="text-sm font-extrabold text-slate-900 dark:text-white mb-2">Bookings across all couriers</h2>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-[#1d3f5c]">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 dark:bg-[#0b1b2b] text-slate-500"><tr>
-              {['Booking', 'Courier', 'Route', 'Status', 'LR / AWB'].map((h) => <th key={h} className="text-left px-3 py-2 font-bold uppercase tracking-wider text-[10px]">{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {bookings.length === 0 && <tr><td colSpan={5} className="px-3 py-4 text-slate-500">No bookings yet.</td></tr>}
-              {bookings.map((b) => (
-                <tr key={b._id} className="border-t border-slate-100 dark:border-[#1d3f5c]">
-                  <td className="px-3 py-2 font-mono">{b.bookingCode}</td>
-                  <td className="px-3 py-2">{b.line}</td>
-                  <td className="px-3 py-2">{b.pickupPincode} → {b.dropPincode}</td>
-                  <td className="px-3 py-2">{b.shipmentStatus || b.transporterAckStatus}</td>
-                  <td className="px-3 py-2 font-mono">{b.lrNumber || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {lines.some((l) => l.listing === 'kyc') && (
+        <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-bold">Your couriers are not visible to shippers yet</p>
+          <p className="mt-0.5 text-xs">
+            {lines[0]?.kycStatus === 'rejected'
+              ? 'A KYC document was rejected. Re-upload it from your profile; the reason is in the e-mail we sent.'
+              : 'Your KYC is under review. Shippers can find your couriers in their search only after our team verifies it. You will get a message here and on WhatsApp when it is done.'}
+          </p>
         </div>
-        <p className="mt-1 text-[11px] text-slate-500">To accept, decline or send documents for a booking, sign in to that courier's own login (or reply on WhatsApp as usual).</p>
-      </div>
+      )}
+
+      <section aria-label="Couriers" className="space-y-2">
+        <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">Your couriers</h2>
+        <LinesTable lines={lines} openByLine={openByLine} onChanged={load} onSecret={setShown} onReset={reset} autoOpenId={newLineId} />
+        <p className="text-[11px] text-slate-500 dark:text-[#8fb0cf]">
+          Who sees a courier in their results: a shipper who has <b>no vendors of their own</b> sees every live courier; a shipper who <b>has their own vendors</b> sees a courier only when it is <b>cheaper than their cheapest own vendor</b>. Keep your rates sharp to win those shippers.
+        </p>
+      </section>
     </div>
   );
 }
