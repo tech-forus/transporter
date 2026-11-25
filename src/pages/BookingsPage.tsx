@@ -712,17 +712,9 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
     setDecliningBooking(null);
   };
 
-  // Upcoming (needs action) vs History (resolved, confirmed+declined
-  // together, newest first) — a tab switcher, not sections you have to know
-  // to scroll past/expand.
   const byCreatedDesc = (a: Booking, b: Booking) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  const groupedBookings = useMemo(() => ({
-    upcoming: bookings.filter((b) => b.shipmentStatus !== 'cancelled' && (b.transporterAckStatus === 'pending' || b.transporterAckStatus === 'acknowledged')).sort(byCreatedDesc),
-    history: bookings.filter((b) => b.shipmentStatus === 'cancelled' || b.transporterAckStatus === 'confirmed' || b.transporterAckStatus === 'declined').sort(byCreatedDesc),
-  }), [bookings]);
-
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
-  // linesMode: one tab per stage (what each booking needs next), opening on the first stage that has something to do.
+  // One tab per stage (what each booking needs next), opening on the first stage that has something to do. An accepted booking
+  // stays visible (Needs AWB / In transit / Needs POD) instead of vanishing into a "History" tab.
   const [stageTab, setStageTab] = useState<Stage | 'all' | null>(null);
   const byStage = useMemo(() => {
     const m: Record<string, Booking[]> = {};
@@ -731,21 +723,20 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
     return m;
   }, [bookings]);
   useEffect(() => {
-    if (!linesMode || stageTab !== null || bookings.length === 0) return;
+    if (stageTab !== null || bookings.length === 0) return;
     setStageTab((['pendingAccept', 'awaitingLr', 'awaitingPod', 'inTransit'] as Stage[]).find((k) => byStage[k]?.length) || 'done');
-  }, [linesMode, stageTab, bookings.length, byStage]);
+  }, [stageTab, bookings.length, byStage]);
   useEffect(() => {
     if (!wantedId || bookings.length === 0) return;
     const hit = bookings.find((x) => x._id === wantedId);
     if (hit) {
-      if (linesMode) setStageTab(stageOf(hit));
-      setActiveTab(groupedBookings.history.some((x) => x._id === wantedId) ? 'history' : 'upcoming');
+      setStageTab(stageOf(hit));
       setViewingBooking(hit);
     } else {
       toast('That booking is no longer in your list.', { icon: 'ℹ️' });
     }
     setSearchParams({}, { replace: true });
-  }, [wantedId, bookings, groupedBookings, setSearchParams]);
+  }, [wantedId, bookings, setSearchParams]);
 
   // Count of pending bookings still inside the "New" window — drives the
   // notification dot next to the Upcoming tab so a new arrival is visible
@@ -972,7 +963,7 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
               </div>
             );
 
-            if (linesMode) {
+            {
               const tab = stageTab ?? 'pendingAccept';
               const shown = tab === 'all' ? [...bookings].sort(byCreatedDesc) : byStage[tab] || [];
               const hint = tab === 'all' ? 'Every booking, newest first.' : STAGE_TABS.find((t) => t.key === tab)?.hint;
@@ -991,7 +982,8 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                       );
                     })}
                     <button onClick={() => setStageTab('all')} className={tabCls(tab === 'all', true)}>All <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-black text-slate-500 dark:bg-white/10">{bookings.length}</span></button>
-                    <button
+                    {/* A single organisation list has no heading, so its Refresh sits here; the transporter page keeps its header Refresh. */}
+                    {linesMode && <button
                       type="button"
                       onClick={() => { fetchBookings(); }}
                       disabled={loading}
@@ -999,58 +991,13 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                       className="ml-auto mb-1 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white"
                     >
                       <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
-                    </button>
+                    </button>}
                   </div>
                   {hint && <p className="mb-3 text-xs text-slate-500 dark:text-[#8fb0cf]">{hint}</p>}
                   {shown.length > 0 ? renderTable(shown) : <p className="text-sm italic text-slate-400 dark:text-[#6f93b8]">Nothing here right now.</p>}
                 </div>
               );
             }
-
-            return (
-              <div>
-                {/* Tabs — Upcoming vs History (confirmed+declined together),
-                    with a notification dot for pending bookings still inside
-                    the "New" window. */}
-                <div className="flex items-center gap-6 mb-5 border-b border-slate-200 dark:border-[#1d3f5c]">
-                  <button
-                    onClick={() => setActiveTab('upcoming')}
-                    className={`relative flex items-center gap-2 px-1 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                      activeTab === 'upcoming' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-500 dark:text-[#8fb0cf] hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    Upcoming ({groupedBookings.upcoming.length})
-                    {newCount > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black">
-                        {newCount}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('history')}
-                    className={`flex items-center gap-2 px-1 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                      activeTab === 'history' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-500 dark:text-[#8fb0cf] hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    History ({groupedBookings.history.length})
-                  </button>
-                </div>
-
-                {activeTab === 'upcoming' ? (
-                  groupedBookings.upcoming.length > 0 ? (
-                    renderTable(groupedBookings.upcoming)
-                  ) : (
-                    <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">Nothing needs your response right now.</p>
-                  )
-                ) : (
-                  groupedBookings.history.length > 0 ? (
-                    renderTable(groupedBookings.history)
-                  ) : (
-                    <p className="text-sm text-slate-400 dark:text-[#6f93b8] italic">No confirmed or declined bookings yet.</p>
-                  )
-                )}
-              </div>
-            );
           })()}
         </div>
       </div>
