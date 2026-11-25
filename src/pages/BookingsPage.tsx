@@ -705,6 +705,15 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
     }
   };
 
+  // "Delete for me": gone from this list only (the shipper still has it).
+  const removeForMe = async (b: Booking) => {
+    if (!window.confirm(`Remove booking ${b.bookingCode} from your list? This only removes it for you; the shipper still sees it.`)) return;
+    try {
+      await axios.delete(`${API_BASE_URL}/api/bookings/${b._id}/portal`);
+      setBookings((prev) => prev.filter((x) => x._id !== b._id));
+    } catch { toast.error('Could not remove it right now — please try again.'); }
+  };
+
   const handleDeclineClick = (booking: Booking) => setDecliningBooking(booking);
   const confirmDecline = (reason?: string) => {
     if (!decliningBooking) return;
@@ -924,6 +933,7 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                   <td className={td}>
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => setViewingBooking(b)} className={btn}><Eye size={12} /> View</button>
+                      {!readOnlyLogin && <button onClick={() => removeForMe(b)} title="Remove from my list" aria-label={`Remove booking ${b.bookingCode} from my list`} className="inline-flex rounded p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>}
                       <ActionsMenu items={[
                         ...((isPending || isAckedOnly) ? [{ label: 'Confirm booking', icon: <CheckCircle2 size={13} />, tone: 'primary' as const, disabled: actingOn === b._id, onClick: () => setAckStatus(b._id, 'confirmed') }] : []),
                         ...(isPending ? [{ label: 'Acknowledge', icon: <ThumbsUp size={13} />, disabled: actingOn === b._id, onClick: () => setAckStatus(b._id, 'acknowledged') }] : []),
