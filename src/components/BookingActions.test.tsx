@@ -40,10 +40,9 @@ describe('BookingActions', () => {
     expect(container.textContent).not.toMatch(/save awb|mark delivered/i);
   });
 
-  it('shows nothing to a view-only courier login, a pending, declined or cancelled booking', () => {
+  it('shows nothing to a view-only courier login, a declined or cancelled booking', () => {
     const cases = [
       { booking: base, readOnly: true },
-      { booking: { ...base, transporterAckStatus: 'pending' as const } },
       { booking: { ...base, transporterAckStatus: 'declined' as const } },
       { booking: { ...base, shipmentStatus: 'cancelled' as const } },
     ];
@@ -52,6 +51,11 @@ describe('BookingActions', () => {
       expect(container.innerHTML).toBe('');
       unmount();
     }
+  });
+
+  it('is open on a booking nobody has answered yet: sending a document there accepts it (the server does that first)', () => {
+    const { container } = render(<BookingActions onChanged={() => {}} booking={{ ...base, transporterAckStatus: 'pending' as const }} />);
+    expect(container.innerHTML).not.toBe('');
   });
 
   it("shows the server's message when another operator already took the booking", async () => {

@@ -34,7 +34,8 @@ export default function BookingActions({ booking, onChanged, readOnly, initialKi
   const input = useRef<HTMLInputElement>(null);
   const base = `${API_BASE_URL}/api/bookings/${booking._id}/portal`;
 
-  const closed = readOnly || booking.transporterAckStatus !== 'confirmed' || ['cancelled', 'completed'].includes(booking.shipmentStatus || '') || !!booking.podAt;
+  // Open from the first reply on: a document sent on a booking nobody has answered yet accepts it (server side), like a reply by e-mail.
+  const closed = readOnly || !['pending', 'acknowledged', 'confirmed'].includes(booking.transporterAckStatus) || ['cancelled', 'completed'].includes(booking.shipmentStatus || '') || !!booking.podAt;
   if (closed && !uploaded) return null;
   const delivered = booking.shipmentStatus === 'delivered';
 

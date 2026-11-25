@@ -864,7 +864,8 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
             const td = `border border-slate-200 dark:border-[#1d3f5c] ${pad} py-2 align-top text-xs text-slate-700 dark:text-[#c9dbec]`;
             const btn = 'inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5 whitespace-nowrap';
             // Same rule BookingActions uses: only an accepted, still-open booking on an owner / employee login can send documents.
-            const canSendDocs = (b: Booking) => b.transporterAckStatus === 'confirmed' && !readOnlyLogin && !['cancelled', 'completed'].includes(b.shipmentStatus || '') && !b.podAt;
+            // Sending a document on a booking nobody has answered yet accepts it (the server does that first), like a reply by e-mail.
+            const canSendDocs = (b: Booking) => ['pending', 'acknowledged', 'confirmed'].includes(b.transporterAckStatus) && !readOnlyLogin && !['cancelled', 'completed'].includes(b.shipmentStatus || '') && !b.podAt;
             const renderRow = (b: Booking, i: number) => {
               const shipperName = [b.customerID?.firstName, b.customerID?.lastName].filter(Boolean).join(' ') || b.customerID?.companyName || 'A shipper';
               const isCancelled = b.shipmentStatus === 'cancelled';
@@ -931,7 +932,6 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                           { label: 'Send box slip', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'box_slip') },
                           { label: 'Send POD', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'pod') },
                         ] : []),
-                        ...(!readOnlyLogin && (isPending || isAckedOnly) ? [{ label: 'Send LR / POD (confirm first)', icon: <Paperclip size={13} />, disabled: true, onClick: () => undefined }] : []),
                         { label: `View files${(b.sharedFiles?.length ?? 0) > 0 ? ` (${b.sharedFiles!.length})` : ''}`, icon: <Paperclip size={13} />, onClick: () => openFiles(b._id) },
                         ...((isPending || isAckedOnly) ? [{ label: 'Decline', icon: <XCircle size={13} />, tone: 'danger' as const, disabled: actingOn === b._id, onClick: () => handleDeclineClick(b) }] : []),
                       ]} />
