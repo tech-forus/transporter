@@ -67,9 +67,10 @@ export interface MyDocuments {
   rateFiles: RateFileInfo[];
 }
 
-export function useMyDocuments() {
+// enabled=false skips the fetch (Profile renders for team members, who never see documents).
+export function useMyDocuments(enabled = true) {
   const [data, setData] = useState<MyDocuments | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -84,7 +85,7 @@ export function useMyDocuments() {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (enabled) refresh(); }, [refresh, enabled]);
 
   return { data, loading, error, refresh };
 }

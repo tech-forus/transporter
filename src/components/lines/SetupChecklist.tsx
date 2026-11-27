@@ -1,5 +1,6 @@
 // What a courier still needs before shippers can find and book it, in the order to do it. Shown at the top of an open courier row.
-// Pincodes and rates are required; the tracking link and people are optional but make bookings smoother.
+// Pincodes and rates are required; the tracking link and people are optional. It is shown only while a required step is
+// missing: after that the row's status badge and the table cells say everything, so it would only be noise.
 import { CheckCircle2, Circle } from 'lucide-react';
 import type { Line } from './LineCard';
 
@@ -15,12 +16,12 @@ export default function SetupChecklist({ line, onManageRates, busy }: Props) {
   ];
   const required = steps.filter((s) => s.required);
   const doneRequired = required.filter((s) => s.done).length;
-  const complete = steps.every((s) => s.done);
-  if (complete) return null;
+  if (doneRequired === required.length) return null;
+
   return (
-    <div role="group" aria-label={`Setup for ${line.companyName}`} className="m-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+    <div role="group" aria-label={`Setup for ${line.courier || line.companyName}`} className="mt-1 mb-2 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-extrabold text-violet-900">Set up {line.companyName}</p>
+        <p className="text-sm font-extrabold text-violet-900">Set up {line.courier || line.companyName}</p>
         <p className="text-[11px] font-bold text-violet-700">{doneRequired} of {required.length} required steps done</p>
       </div>
       <div className="mt-2 h-1.5 w-full rounded-full bg-violet-100"><div className="h-1.5 rounded-full bg-violet-600 transition-all" style={{ width: `${(doneRequired / required.length) * 100}%` }} /></div>
@@ -36,11 +37,7 @@ export default function SetupChecklist({ line, onManageRates, busy }: Props) {
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-[11px] text-slate-600">
-        {doneRequired === required.length
-          ? 'Required steps are done. Shippers who have no vendors of their own see this courier in their results; shippers who do see it when it is cheaper than their cheapest own vendor.'
-          : 'Shippers will not see this courier until the required steps are done.'}
-      </p>
+      <p className="mt-3 text-[11px] text-slate-600">Shippers will not see this courier until the required steps are done.</p>
     </div>
   );
 }

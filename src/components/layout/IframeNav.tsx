@@ -19,7 +19,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutDashboard, User as UserIcon, MoreHorizontal, ShieldCheck, LogOut, X } from 'lucide-react';
+import { PackageCheck, User as UserIcon, MoreHorizontal, ShieldCheck, LogOut, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { HOST, IS_VIEWPORT_FRAME } from '../../config/host';
 
@@ -69,13 +69,13 @@ const IframeNav: React.FC = () => {
   return (
     <>
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-white dark:bg-[#0d2438] border-t border-slate-100 dark:border-[#1d3f5c] flex items-stretch shadow-[0_-4px_16px_rgba(15,23,42,0.08)]">
-        <NavLink to="/dashboard" className={linkCls}>
+        <NavLink to="/bookings" className={linkCls}>
           {({ isActive }) => (
             <>
               <span className={`flex items-center justify-center w-9 h-7 rounded-full transition-colors ${isActive ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
-                <LayoutDashboard size={20} strokeWidth={isActive ? 2.5 : 2} />
+                <PackageCheck size={20} strokeWidth={isActive ? 2.5 : 2} />
               </span>
-              Dashboard
+              Bookings
             </>
           )}
         </NavLink>

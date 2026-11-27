@@ -6,10 +6,6 @@ import LineCard, { type Line } from './LineCard';
 
 vi.mock('axios');
 vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
-const loginWithToken = vi.fn();
-vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ loginWithToken }) }));
-const navigate = vi.fn();
-vi.mock('react-router-dom', async (orig) => ({ ...(await orig<typeof import('react-router-dom')>()), useNavigate: () => navigate }));
 vi.mock('../../lib/serviceabilitySheet', () => ({ parseServiceabilitySheet: vi.fn() }));
 import { parseServiceabilitySheet } from '../../lib/serviceabilitySheet';
 const post = vi.mocked(axios.post);
@@ -23,26 +19,35 @@ const line = (over: Partial<Line> = {}): Line => ({
   team: [{ name: 'Deepak', phone: '919811111111', scope: 'line', lineRole: 'primary', hasLogin: true }, { name: 'Anita', phone: '919800000001', scope: 'all', lineRole: null, hasLogin: false }],
   ...over,
 });
-const show = (l: Line, onChanged = vi.fn(), onSecret = vi.fn()) => render(<MemoryRouter><LineCard line={l} onChanged={onChanged} onSecret={onSecret} /></MemoryRouter>);
+const show = (l: Line, onChanged = vi.fn()) => render(<MemoryRouter><LineCard line={l} onChanged={onChanged} /></MemoryRouter>);
 
-beforeEach(() => { post.mockReset(); patch.mockReset(); loginWithToken.mockReset(); navigate.mockReset(); });
+beforeEach(() => { post.mockReset(); patch.mockReset(); put.mockReset(); });
 afterEach(cleanup);
 
 describe('LineCard', () => {
-  it('shows each person with their role, and who last saved the rates', () => {
+  it('shows each person with their role, and does not repeat the row header (name, rates, Manage rates)', () => {
     show(line());
     expect(screen.getByText('Deepak').closest('li')!.textContent).toMatch(/primary/i);
     expect(screen.getByText('Anita').closest('li')!.textContent).toMatch(/all couriers/i);
-    expect(screen.getByText(/rates ok/i)).toBeTruthy();
-    expect(screen.getByText(/updated by delhivery \(shipshopy\)/i)).toBeTruthy();
+    expect(screen.queryByText(/rates ok/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /manage rates/i })).toBeNull();
   });
 
-  it('warns when a line has no rates or stale rates', () => {
-    const { unmount } = show(line({ ratesStatus: 'none', ratesUpdatedAt: null, ratesUpdatedBy: null }));
-    expect(screen.getByText(/no rates yet/i)).toBeTruthy();
-    unmount();
-    show(line({ ratesStatus: 'stale' }));
-    expect(screen.getByText(/not updated for 90/i)).toBeTruthy();
+  it('opened from "+ Add" in the People column, the add-person form is already open', () => {
+    render(<MemoryRouter><LineCard line={line({ team: [] })} onChanged={vi.fn()} focus="people" /></MemoryRouter>);
+    expect(screen.getByLabelText(/^name/i)).toBeTruthy();
+  });
+
+  it('"New password" asks first (it signs the courier out), then shows the new login right there', async () => {
+    post.mockResolvedValue({ data: { password: 'Xy12abCD' } });
+    show(line());
+    fireEvent.click(screen.getByRole('button', { name: /^new password$/i }));
+    expect(screen.getByText(/signs out whoever is using this login/i)).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /create new password/i }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith(expect.stringContaining('/lines/L1/reset-password')));
+    expect(await screen.findByText('Xy12abCD')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /copy login details/i })).toBeTruthy();
   });
 
   it('adds an operator: OTP request carries role and consent, then verify', async () => {
@@ -62,25 +67,27 @@ describe('LineCard', () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
-  it('"Manage rates" starts a 30-minute session as this courier and opens its rates', async () => {
-    post.mockResolvedValue({ data: { token: 'line-token' } });
-    show(line());
-    fireEvent.click(screen.getByRole('button', { name: /manage rates/i }));
-    await waitFor(() => expect(post).toHaveBeenCalledWith(expect.stringContaining('/lines/L1/manage-token')));
-    await waitFor(() => expect(loginWithToken).toHaveBeenCalledWith('line-token'));
-    expect(navigate).toHaveBeenCalledWith('/profile/rates');
-  });
-
   it('shows how many pincodes the courier serves, and warns when it serves none (shippers would never see it)', () => {
     const { unmount } = show(line());
-    expect(screen.getByText(/serves 1,200 pincodes/i)).toBeTruthy();
+    expect(screen.getByText('1,200').parentElement!.textContent).toBe('1,200');
     unmount();
     show(line({ coverage: { pincodes: 0, zones: [] } }));
-    expect(screen.getByText(/no pincodes yet/i)).toBeTruthy();
-    expect(screen.getByText(/shippers will not see this courier/i)).toBeTruthy();
+    expect(screen.getByText(/none yet\. shippers will not see this courier/i)).toBeTruthy();
+    expect(screen.getByText(/upload sheet/i)).toBeTruthy();
   });
 
-  it('uploading a serviceability sheet saves its rows; a bad sheet shows why and saves nothing', async () => {
+  it('a first serviceability sheet saves at once', async () => {
+    put.mockResolvedValue({ data: { success: true, pincodes: 1, zones: ['N1'] } });
+    show(line({ coverage: { pincodes: 0, zones: [] } }));
+    vi.mocked(parseServiceabilitySheet).mockReturnValueOnce({ rows: [{ pincode: '110020', zone: 'N1', isOda: false }] });
+    const file = new File([new Uint8Array([1])], 's.xlsx');
+    Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(1) });
+    fireEvent.change(screen.getByLabelText(/serviceability sheet/i), { target: { files: [file] } });
+    await waitFor(() => expect(put).toHaveBeenCalled());
+  });
+
+  it('replacing a serviceability sheet asks first (old vs new count), then saves; a bad sheet shows why and saves nothing', async () => {
+    put.mockReset();
     put.mockResolvedValue({ data: { success: true, pincodes: 2, zones: ['N1'] } });
     const onChanged = vi.fn();
     show(line(), onChanged);
@@ -88,6 +95,10 @@ describe('LineCard', () => {
     const file = new File([new Uint8Array([1, 2, 3])], 'serviceability.xlsx');
     Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(3) });
     fireEvent.change(screen.getByLabelText(/serviceability sheet/i), { target: { files: [file] } });
+    expect(await screen.findByText(/replace 1,200 pincodes \(2 zones\) with 2 pincodes \(1 zones\)/i)).toBeTruthy();
+    expect(screen.getByText(/1,198 fewer pincodes/i)).toBeTruthy();
+    expect(put).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /^replace$/i }));
     await waitFor(() => expect(put).toHaveBeenCalledWith(expect.stringContaining('/lines/L1/serviceability'), { service: [{ pincode: '110020', zone: 'N1', isOda: false }, { pincode: '201301', zone: 'N1', isOda: true }] }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     put.mockClear();

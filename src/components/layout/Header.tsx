@@ -91,9 +91,6 @@ const UserProfileDropdown: React.FC = () => {
                                 <p className="text-xs text-slate-500 truncate">{userEmail}</p>
                             </div>
                             <hr className="my-1 border-slate-100" />
-                            <Link to="/dashboard" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
-                                <LayoutDashboard size={16} /> Dashboard
-                            </Link>
                             <Link to="/bookings" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md">
                                 <PackageCheck size={16} /> Bookings
                             </Link>
@@ -157,7 +154,6 @@ const MobileNav: React.FC<{ isOpen: boolean; closeMenu: () => void }> = ({ isOpe
                          <div className="flex flex-col gap-2">
                            {isAuthenticated ? (
                              <>
-                               <MobileNavLink to="/dashboard" icon={<LayoutDashboard size={20}/>}>Dashboard</MobileNavLink>
                                <MobileNavLink to="/bookings" icon={<PackageCheck size={20}/>}>Bookings</MobileNavLink>
                                {user?.role !== 'employee' && <MobileNavLink to="/mis-bills" icon={<FileSpreadsheet size={20}/>}>Bills</MobileNavLink>}
                                <MobileNavLink to="/profile" icon={<UserIcon size={20}/>}>My Profile</MobileNavLink>

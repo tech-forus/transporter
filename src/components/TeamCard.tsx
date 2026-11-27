@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Users, Plus, Trash2, Loader2, ShieldCheck, X, KeyRound, Copy } from 'lucide-react';
+import { Plus, Trash2, Loader2, ShieldCheck, X, KeyRound, Copy } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import { useReportIframeHeight } from '../hooks/useReportIframeHeight';
 
@@ -59,16 +59,11 @@ const TeamCard = ({ team, onChange }: { team: TeamMember[]; onChange: (t: TeamMe
   };
 
   return (
-    <div className="bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100 dark:border-[#1d3f5c]">
-        <div className="w-7 h-7 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 flex-none"><Users className="w-4 h-4" /></div>
-        <h2 className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf] uppercase tracking-widest">WhatsApp Booking Team</h2>
-        <span className="ml-auto text-xs text-slate-400 dark:text-[#6f93b8]">{team.length}/{MAX}</span>
-      </div>
-      <div className="px-5 py-4 space-y-3">
-        <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">
-          Everyone here gets your FreightCompare booking requests on WhatsApp, together with your own WhatsApp number. The first person to tap Accept handles the booking, and files the shipper sends go to them.
-        </p>
+    // Rendered inside the Profile "Team" card, under the on-ground contact.
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500 dark:text-[#8fb0cf]" title="Gets your booking requests on WhatsApp. First to tap Accept handles it.">
+        WhatsApp booking team <span className="text-slate-400">· {team.length}/{MAX} · first to tap Accept handles a booking</span>
+      </p>
         {team.length > 0 && (
           <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c] rounded-xl border border-slate-200 dark:border-[#1d3f5c]">
             {team.map((m) => (
@@ -142,7 +137,6 @@ const TeamCard = ({ team, onChange }: { team: TeamMember[]; onChange: (t: TeamMe
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

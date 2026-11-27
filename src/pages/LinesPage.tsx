@@ -4,10 +4,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Copy, Loader2, Plus, Truck } from 'lucide-react';
+import { Loader2, Plus, Truck } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import { type Line } from '../components/lines/LineCard';
 import LinesTable from '../components/lines/LinesTable';
+import CredentialsBox from '../components/lines/CredentialsBox';
 import OrgDashboard from '../components/lines/OrgDashboard';
 
 axios.defaults.withCredentials = true;
@@ -23,6 +24,7 @@ export default function LinesPage() {
   const [lines, setLines] = useState<Line[]>([]);
   const [couriers, setCouriers] = useState<string[]>([]);
   const [suggested, setSuggested] = useState<string[]>([]);
+  const [invitedBy, setInvitedBy] = useState<string | null>(null);
   const [courier, setCourier] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,7 +36,7 @@ export default function LinesPage() {
   const load = useCallback(async () => {
     try {
       const r = await axios.get(base);
-      setLines(r.data.lines || []); setCouriers(r.data.couriers || []); setSuggested(r.data.suggested || []); setGate('ok'); if (!(r.data.lines || []).length) setAdding(true);
+      setLines(r.data.lines || []); setCouriers(r.data.couriers || []); setSuggested(r.data.suggested || []); setInvitedBy(r.data.invitedBy || null); setGate('ok'); if (!(r.data.lines || []).length) setAdding(true);
     } catch (e: any) {
       const code = e?.response?.data?.code;
       setGate(code === 'NOT_AGGREGATOR' ? 'not_aggregator' : code === 'OWNER_ONLY' ? 'line_login' : 'ok');
@@ -54,17 +56,11 @@ export default function LinesPage() {
     setBusy(true);
     try {
       const r = await axios.post(base, { courier, email });
-      setShown({ title: r.data.line.companyName, email: r.data.line.email, password: r.data.password });
+      setShown({ title: `Login for ${r.data.line.companyName}`, email: r.data.line.email, password: r.data.password });
       setNewLineId(r.data.line._id); setAdding(false); // open the new courier's row: its setup checklist is the next thing to do
       setCourier(''); setEmail(''); await load();
     } catch (err: any) { toast.error(errText(err, 'Could not add the courier.')); }
     finally { setBusy(false); }
-  };
-  const reset = async (l: Line) => {
-    try {
-      const r = await axios.post(`${base}/${l._id}/reset-password`);
-      setShown({ title: l.companyName, email: l.email, password: r.data.password });
-    } catch (e: any) { toast.error(errText(e, 'Could not reset the password.')); }
   };
 
   if (gate === 'loading') return <div className="p-10 flex justify-center"><Loader2 className="animate-spin" /></div>;
@@ -86,25 +82,21 @@ export default function LinesPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2"><Truck size={20} /> Courier lines</h1>
-          <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">Set up each courier you sell: login, pincodes, rates, tracking link and people. Shippers see it as "Courier (Your company)". Bookings are on your Dashboard.</p>
+          <p className="text-xs text-slate-500 dark:text-[#8fb0cf]">Each courier you sell, shown to shippers as "Courier (Your company)".</p>
         </div>
-        <button type="button" onClick={() => setAdding((a) => !a)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"><Plus size={14} /> {adding ? 'Close' : 'Add courier'}</button>
+        {/* Filled only while there is no courier yet: then adding one IS the next step. Otherwise it must not compete. */}
+        <button type="button" onClick={() => setAdding((a) => !a)}
+          className={lines.length === 0 ? 'inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white'
+            : 'inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-[#1d3f5c] bg-white dark:bg-transparent px-4 py-2 text-xs font-bold text-slate-700 dark:text-white hover:bg-slate-50'}>
+          <Plus size={14} /> {adding ? 'Close' : 'Add courier'}
+        </button>
       </div>
 
       {/* Bookings are on the Dashboard; this screen only needs each courier's open-booking count for its table. */}
       <OrgDashboard silent onOpenByLine={setOpenByLine} />
 
-      {shown && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm" role="status">
-          <p className="font-bold text-emerald-900">Login for {shown.title}</p>
-          <p className="text-emerald-800">Email: <b>{shown.email}</b></p>
-          <p className="text-emerald-800 flex items-center gap-2">Password: <b className="font-mono text-base">{shown.password}</b>
-            <button type="button" className="inline-flex items-center gap-1 text-xs underline" onClick={() => navigator.clipboard?.writeText(shown.password).catch(() => {})}><Copy size={12} /> Copy</button>
-          </p>
-          <p className="text-xs text-emerald-700 mt-1">Shown once. Share it with the person who handles this courier.</p>
-          <button type="button" className="mt-2 text-xs font-bold text-emerald-900 underline" onClick={() => setShown(null)}>Done</button>
-        </div>
-      )}
+      {/* A courier just added: its login appears here, under the Add form it came from. Password resets show inside the row. */}
+      {shown && <CredentialsBox creds={shown} onClose={() => setShown(null)} />}
 
       {adding && (
         <div className="space-y-3">
@@ -143,10 +135,7 @@ export default function LinesPage() {
 
       <section aria-label="Couriers" className="space-y-2">
         <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">Your couriers</h2>
-        <LinesTable lines={lines} openByLine={openByLine} onChanged={load} onSecret={setShown} onReset={reset} autoOpenId={newLineId} />
-        <p className="text-[11px] text-slate-500 dark:text-[#8fb0cf]">
-          Who sees a courier in their results: a shipper who has <b>no vendors of their own</b> sees every live courier; a shipper who <b>has their own vendors</b> sees a courier only when it is <b>cheaper than their cheapest own vendor</b>. Keep your rates sharp to win those shippers.
-        </p>
+        <LinesTable lines={lines} openByLine={openByLine} onChanged={load} autoOpenId={newLineId} invitedBy={invitedBy} />
       </section>
     </div>
   );

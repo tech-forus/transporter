@@ -48,10 +48,8 @@ describe('setup checklist of a new courier', () => {
     expect(screen.getByText(/will not see this courier until the required steps are done/)).toBeTruthy();
     cleanup();
   });
-  it('shows the visibility note once the required steps are done, and disappears when everything is done', () => {
-    const { container, rerender } = render(<SetupChecklist line={{ ...line, coverage: { pincodes: 5, zones: ['N1'] }, ratesStatus: 'ok' }} onManageRates={() => undefined} />);
-    expect(screen.getByText(/cheaper than their cheapest own vendor/)).toBeTruthy();
-    rerender(<SetupChecklist line={{ ...line, coverage: { pincodes: 5, zones: ['N1'] }, ratesStatus: 'ok', trackingLink: 'https://x/{awb}', team: [{}] }} onManageRates={() => undefined} />);
+  it('disappears once the required steps are done (the row badge and cells say the rest)', () => {
+    const { container } = render(<SetupChecklist line={{ ...line, coverage: { pincodes: 5, zones: ['N1'] }, ratesStatus: 'ok' }} onManageRates={() => undefined} />);
     expect(container.innerHTML).toBe('');
   });
 });

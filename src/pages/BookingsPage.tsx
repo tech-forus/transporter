@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import {
   RefreshCw, ChevronDown, Trash2, IndianRupee, Clock, Mail, Phone,
   CheckCircle2, XCircle, ThumbsUp, Bell, Eye, X,
-  TrendingUp, ArrowRight, AlertTriangle, Paperclip, Download,
+  TrendingUp, ArrowRight, AlertTriangle, Paperclip, Download, Search, FileText,
 } from 'lucide-react';
 import { useRateSetup } from '../hooks/useRateSetup';
 import GoPublicCard, { PUBLIC_STATUS_REFRESH_EVENT, usePublicStatus } from '../components/GoPublicCard';
@@ -145,15 +145,6 @@ const saveFile = async (bookingId: string, fileId: string, filename: string) => 
 
 const FILE_KIND: Record<string, string> = { lr: 'LR', box_slip: 'Box slip', pod: 'POD', freight_invoice: 'Freight invoice', packing_list: 'Packing list', invoice: 'Goods invoice', eway_bill: 'E-way bill' };
 const fmtPhone = (p?: string) => (p && p.length === 12 ? `+91 ${p.slice(2, 7)} ${p.slice(7)}` : p || '');
-
-// `accent` drives the colored left stripe on each card (dashboard-style
-// visual grouping at a glance); `badge` is the pill text/border colors.
-const STATUS_THEME: Record<Booking['transporterAckStatus'], { badge: string; accent: string }> = {
-  pending: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-blue-300' },
-  acknowledged: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-blue-500' },
-  confirmed: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-blue-700' },
-  declined: { badge: 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200', accent: 'bg-slate-400' },
-};
 
 // Fixed picker rather than free text — a decline reason is only useful if
 // it's consistent enough to act on later (both for the shipper, once
@@ -530,6 +521,15 @@ const ActionsMenu = ({ items }: { items: MenuItem[] }) => {
     return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
   }, [pos]);
   if (items.length === 0) return null;
+  // Only one thing left to do (e.g. a finished booking): a plain button for it, no dropdown.
+  if (items.length === 1) {
+    const it = items[0];
+    return (
+      <button type="button" disabled={it.disabled} onClick={it.onClick} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-[#1d3f5c] dark:bg-transparent dark:text-white dark:hover:bg-white/5 whitespace-nowrap">
+        {it.icon} {it.label === 'Booking details' ? 'Details' : it.label}
+      </button>
+    );
+  }
   return (
     <>
       <button
@@ -586,9 +586,53 @@ const STAGE_TABS: { key: Stage; label: string; action: boolean; hint: string }[]
   { key: 'awaitingLr', label: 'Needs AWB', action: true, hint: 'Accepted: add the LR / AWB number when the courier picks it up.' },
   { key: 'inTransit', label: 'In transit', action: false, hint: 'Picked up and on the way.' },
   { key: 'awaitingPod', label: 'Needs POD', action: true, hint: 'Delivered: send the proof of delivery (POD).' },
-  { key: 'done', label: 'Done', action: false, hint: 'Delivered with the proof received.' },
   { key: 'closed', label: 'Declined / cancelled', action: false, hint: 'Declined by the courier or cancelled by the shipper.' },
 ];
+
+// One status per booking: the latest thing that happened (not the reply status and the shipment status side by side).
+const STATUS_LABEL: Record<Stage, (b: Booking) => string> = {
+  pendingAccept: (b) => (b.transporterAckStatus === 'acknowledged' ? 'Acknowledged' : 'Awaiting reply'),
+  awaitingLr: () => 'Confirmed',
+  inTransit: () => 'In transit',
+  awaitingPod: () => 'Delivered · POD pending',
+  done: () => 'Delivered · POD received',
+  closed: (b) => (b.shipmentStatus === 'cancelled' ? 'Cancelled by shipper' : 'Declined'),
+};
+const STATUS_TONE: Record<Stage, string> = {
+  pendingAccept: 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200',
+  awaitingLr: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+  inTransit: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+  awaitingPod: 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200',
+  done: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+  closed: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300',
+};
+
+// One date format on this page: "25 Nov 2026", time as "4:58 PM".
+const fmtDay = (d: Date) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtClock = (hhmm?: string) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || '');
+  if (!m) return hhmm || '';
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+};
+
+// AWB -> the courier's own tracking page (same lookup as the Track page). The tab opens before the lookup so it is not popup-blocked.
+const trackAwb = async (awb: string, lineId?: string) => {
+  const w = window.open('', '_blank');
+  if (w) w.opener = null;
+  try {
+    const q = new URLSearchParams({ awb, ...(lineId ? { line: lineId } : {}) });
+    const r = await axios.get(`${API_BASE_URL}/api/transporter/lines/track?${q}`);
+    if (r.data?.mode === 'home') {
+      try { await navigator.clipboard.writeText(awb); toast.success(`${awb} copied: paste it on the courier's page.`); } catch { /* no clipboard */ }
+    }
+    if (r.data?.url && w) w.location.href = r.data.url;
+    else { w?.close(); toast.error('No tracking page is set for this courier.'); }
+  } catch (err: any) {
+    w?.close();
+    toast.error(err?.response?.data?.message || 'Could not open tracking.');
+  }
+};
 
 // `linesMode`: an aggregator organisation's bookings screen (on Courier lines): every courier's bookings in one list, with the same
 // Confirm / Decline / Send LR / box slip / POD / files actions a transporter has. Each action is sent for that booking's courier.
@@ -721,25 +765,49 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
     setDecliningBooking(null);
   };
 
-  const byCreatedDesc = (a: Booking, b: Booking) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  // Order picker next to the search box, same as the shipper's Bookings page.
+  const [sort, setSort] = useState<'latest' | 'oldest'>('latest');
+  const byCreatedDesc = (a: Booking, b: Booking) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) * (sort === 'oldest' ? -1 : 1);
   // One tab per stage (what each booking needs next), opening on the first stage that has something to do. An accepted booking
   // stays visible (Needs AWB / In transit / Needs POD) instead of vanishing into a "History" tab.
   const [stageTab, setStageTab] = useState<Stage | 'all' | null>(null);
+  // One search box: booking ID, LR / AWB, shipper name or company, pincode, invoice no., phone, e-mail.
+  const [query, setQuery] = useState('');
+  // Organisation view: show one courier's bookings (lineId; '' = every courier).
+  const [courier, setCourier] = useState(() => searchParams.get('courier') || ''); // Courier lines links here with ?courier=<lineId>
+  const couriers = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of bookings) if (b.lineId) m.set(b.lineId, (b.line || '').replace(/\s*\([^)]*\)\s*$/, '') || b.line || 'Courier');
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [bookings]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const scoped = courier ? bookings.filter((b) => b.lineId === courier) : bookings;
+    if (!q) return scoped;
+    const qDigits = q.replace(/\D/g, '');
+    return scoped.filter((b) => {
+      const c = b.customerID;
+      const text = [b.bookingCode, b.lrNumber, c?.firstName, c?.lastName, c?.companyName, c?.email, b.line, b.pickupPincode, b.dropPincode, b.invoiceNo].filter(Boolean).join(' ').toLowerCase();
+      return text.includes(q) || (qDigits.length >= 4 && String(c?.phone ?? '').replace(/\D/g, '').includes(qDigits));
+    });
+  }, [bookings, query, courier]);
   const byStage = useMemo(() => {
     const m: Record<string, Booking[]> = {};
-    for (const b of bookings) (m[stageOf(b)] ||= []).push(b);
+    for (const b of filtered) (m[stageOf(b)] ||= []).push(b);
     for (const k of Object.keys(m)) m[k].sort(byCreatedDesc);
     return m;
-  }, [bookings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, sort]);
   useEffect(() => {
     if (stageTab !== null || bookings.length === 0) return;
-    setStageTab((['pendingAccept', 'awaitingLr', 'awaitingPod', 'inTransit'] as Stage[]).find((k) => byStage[k]?.length) || 'done');
+    setStageTab((['pendingAccept', 'awaitingLr', 'awaitingPod', 'inTransit'] as Stage[]).find((k) => byStage[k]?.length) || 'all');
   }, [stageTab, bookings.length, byStage]);
   useEffect(() => {
     if (!wantedId || bookings.length === 0) return;
     const hit = bookings.find((x) => x._id === wantedId);
     if (hit) {
-      setStageTab(stageOf(hit));
+      const st = stageOf(hit);
+      setStageTab(st === 'done' ? 'all' : st); // delivered with POD has no tab of its own: it is in All
       setViewingBooking(hit);
     } else {
       toast('That booking is no longer in your list.', { icon: 'ℹ️' });
@@ -882,15 +950,16 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
               const isAckedOnly = b.transporterAckStatus === 'acknowledged' && !isCancelled;
               const isNew = isPending && (Date.now() - new Date(b.createdAt).getTime()) < NEW_BADGE_WINDOW_MS;
               const showContact = !(isCancelled || b.transporterAckStatus === 'declined');
-              const status = STATUS_THEME[b.transporterAckStatus];
+              const stage = stageOf(b);
               return (
                 <tr key={b._id} className={i % 2 ? 'bg-slate-50/60 dark:bg-white/[0.03]' : 'bg-white dark:bg-[#0d2438]'}>
                   <td className={td}>
                     <p className="font-bold text-slate-900 dark:text-white whitespace-nowrap">{b.bookingCode}</p>
-                    <p className="text-[11px] text-slate-400 whitespace-nowrap">{new Date(b.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    <p className="text-[11px] text-slate-400 whitespace-nowrap">{fmtDay(new Date(b.createdAt))}</p>
                   </td>
-                  {linesMode && <td className={`${td} font-semibold text-slate-900 dark:text-white`}>{b.line || '—'}</td>}
-                  <td className={td}>
+                  {/* Line names are "<courier> (<your org>)": the org part is you, so only the courier is shown (full name on hover). */}
+                  {linesMode && <td className={`${td} font-semibold text-slate-900 dark:text-white`} title={b.line || undefined}>{b.line ? b.line.replace(/\s*\([^)]*\)\s*$/, '') || b.line : '—'}</td>}
+                  <td className={`${td} min-w-[130px]`}>
                     <p className="font-semibold text-slate-900 dark:text-white">{shipperName}</p>
                     {b.customerID?.companyName && shipperName !== b.customerID.companyName && <p className="text-[11px] text-slate-500">{b.customerID.companyName}</p>}
                   </td>
@@ -903,7 +972,7 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                             <a href={`https://wa.me/91${digitsOnly(b.customerID.phone)}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-emerald-600 hover:text-emerald-700"><WhatsAppIcon size={12} /></a>
                           </p>
                         )}
-                        {b.customerID?.email && <a href={`mailto:${b.customerID.email}`} className="flex items-center gap-1 break-all hover:text-blue-700"><Mail size={11} className="shrink-0" /> {b.customerID.email}</a>}
+                        {b.customerID?.email && <a href={`mailto:${b.customerID.email}`} title={b.customerID.email} className="flex min-w-0 items-center gap-1 hover:text-blue-700"><Mail size={11} className="shrink-0" /> <span className={`block truncate ${linesMode ? 'max-w-[150px]' : 'max-w-[210px]'}`}>{b.customerID.email}</span></a>}
                       </div>
                     ) : <span className="text-slate-300">—</span>}
                   </td>
@@ -913,27 +982,27 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                   </td>
                   {!linesMode && <td className={`${td} whitespace-nowrap tabular-nums`}>{b.totalBoxes} box{b.totalBoxes === 1 ? '' : 'es'}<br /><span className="text-slate-500">{b.totalChargeableWeight} kg</span></td>}
                   <td className={`${td} whitespace-nowrap text-right font-bold tabular-nums text-slate-900 dark:text-white`}>₹{(b.freightCharge || b.invoiceValue || 0).toLocaleString('en-IN')}</td>
-                  <td className={`${td} tabular-nums ${linesMode ? '' : 'whitespace-nowrap'}`}>
-                    {b.pickupDate || '—'} {b.pickupTime || ''}
+                  <td className={`${td} tabular-nums whitespace-nowrap`}>
+                    {b.pickupDate && Number.isFinite(new Date(b.pickupDate).getTime())
+                      ? <>{fmtDay(new Date(b.pickupDate))}{b.pickupTime && <p className="text-[11px] text-slate-500">{fmtClock(b.pickupTime)}</p>}</>
+                      : (b.pickupDate || '—')}
                     {(isPending || isAckedOnly) && <div><PickupBadge pickupDate={b.pickupDate} pickupTime={b.pickupTime} /></div>}
                   </td>
                   <td className={td}>
                     <div className="flex flex-col items-start gap-1">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${status.badge}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${status.accent}`} />{b.transporterAckStatus}
+                      <span className={`inline-flex items-start gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold leading-4 ${STATUS_TONE[stage]}`}>
+                        {stage === 'done' && <CheckCircle2 size={11} className="mt-0.5 shrink-0" />}
+                        {/* "Delivered · POD received" -> "Delivered" / "POD received": two clean lines, never a word per line. */}
+                        <span>{STATUS_LABEL[stage](b).split(' · ').map((part) => <span key={part} className="block whitespace-nowrap">{part}</span>)}</span>
                       </span>
                       {isNew && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-medium text-white">New</span>}
-                      {b.shipmentStatus && (
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${isCancelled ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'}`}>{SHIPMENT_LABEL[b.shipmentStatus]}</span>
-                      )}
                       {b.transporterAckStatus === 'declined' && b.transporterDeclineReason && <span className="text-[11px] text-red-600">{b.transporterDeclineReason}</span>}
                     </div>
                   </td>
-                  <td className={`${td} whitespace-nowrap`}>{b.lrNumber || <span className="text-slate-300">—</span>}</td>
+                  <td className={`${td} whitespace-nowrap tabular-nums`}>{b.lrNumber ? <button type="button" onClick={() => trackAwb(b.lrNumber!, linesMode ? b.lineId : undefined)} title="Track on the courier's site" className="font-semibold text-blue-700 underline-offset-2 hover:underline dark:text-blue-300">{b.lrNumber}</button> : <span className="text-slate-300">—</span>}</td>
                   <td className={td}>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => setViewingBooking(b)} className={btn}><Eye size={12} /> View</button>
-                      {!readOnlyLogin && <button onClick={() => removeForMe(b)} title="Remove from my list" aria-label={`Remove booking ${b.bookingCode} from my list`} className="inline-flex rounded p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>}
+                      <button onClick={() => openFiles(b._id)} title="Files for this booking" className={btn}><Eye size={12} /> View{(b.sharedFiles?.length ?? 0) > 0 ? ` (${b.sharedFiles!.length})` : ''}</button>
                       <ActionsMenu items={[
                         ...((isPending || isAckedOnly) ? [{ label: 'Confirm booking', icon: <CheckCircle2 size={13} />, tone: 'primary' as const, disabled: actingOn === b._id, onClick: () => setAckStatus(b._id, 'confirmed') }] : []),
                         ...(isPending ? [{ label: 'Acknowledge', icon: <ThumbsUp size={13} />, disabled: actingOn === b._id, onClick: () => setAckStatus(b._id, 'acknowledged') }] : []),
@@ -942,8 +1011,10 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
                           { label: 'Send box slip', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'box_slip') },
                           { label: 'Send POD', icon: <Paperclip size={13} />, onClick: () => openFiles(b._id, 'pod') },
                         ] : []),
-                        { label: `View files${(b.sharedFiles?.length ?? 0) > 0 ? ` (${b.sharedFiles!.length})` : ''}`, icon: <Paperclip size={13} />, onClick: () => openFiles(b._id) },
+                        { label: 'Booking details', icon: <FileText size={13} />, onClick: () => setViewingBooking(b) },
                         ...((isPending || isAckedOnly) ? [{ label: 'Decline', icon: <XCircle size={13} />, tone: 'danger' as const, disabled: actingOn === b._id, onClick: () => handleDeclineClick(b) }] : []),
+                        // Only a declined / cancelled booking can be removed: a live or delivered one is the record behind billing and MIS.
+                        ...(stage === 'closed' && !readOnlyLogin ? [{ label: 'Remove from my list', icon: <Trash2 size={13} />, tone: 'danger' as const, onClick: () => removeForMe(b) }] : []),
                       ]} />
                     </div>
                   </td>
@@ -975,36 +1046,70 @@ const BookingsPage: React.FC<{ linesMode?: boolean }> = ({ linesMode = false }) 
 
             {
               const tab = stageTab ?? 'pendingAccept';
-              const shown = tab === 'all' ? [...bookings].sort(byCreatedDesc) : byStage[tab] || [];
+              const shown = tab === 'all' ? [...filtered].sort(byCreatedDesc) : byStage[tab] || [];
               const hint = tab === 'all' ? 'Every booking, newest first.' : STAGE_TABS.find((t) => t.key === tab)?.hint;
-              const tabCls = (on: boolean, hot: boolean) => `relative flex items-center gap-1.5 px-1 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${on ? 'border-blue-600 text-blue-700 dark:text-blue-300' : `border-transparent ${hot ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-[#6f93b8]'} hover:text-slate-900 dark:hover:text-white`}`;
+              // KPI strip: one card, one tile per stage, label and count on the same line (same look as the stats card above).
+              // The selected tile is the filter; amber count = bookings waiting on you.
+              const tiles = [
+                ...STAGE_TABS.map((t) => ({ key: t.key as Stage | 'all', label: t.label, n: byStage[t.key]?.length || 0, action: t.action })),
+                { key: 'all' as const, label: 'All', n: filtered.length, action: false },
+              ];
               return (
                 <div>
-                  <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-slate-200 dark:border-[#1d3f5c]">
-                    {STAGE_TABS.map((t) => {
-                      const n = byStage[t.key]?.length || 0;
+                  {/* Same KPI cards as the shipper's Bookings page: one card per stage, label and count on one line. */}
+                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                    {tiles.map((t) => {
+                      const on = tab === t.key;
+                      const hot = t.action && t.n > 0;
                       return (
-                        <button key={t.key} onClick={() => setStageTab(t.key)} className={tabCls(tab === t.key, n > 0)}>
-                          {t.label}
-                          <span className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-black ${n > 0 && t.action ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500 dark:bg-white/10'}`}>{n}</span>
-                          {t.key === 'pendingAccept' && newCount > 0 && <span className="h-2 w-2 rounded-full bg-red-500" aria-label="New booking" />}
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => setStageTab(t.key)}
+                          aria-pressed={on}
+                          className={`flex items-center justify-between gap-2 whitespace-nowrap rounded-xl border px-3 py-2.5 text-left shadow-sm transition-colors ${on ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600 dark:bg-blue-900/20' : 'border-slate-200 bg-white hover:border-slate-300 dark:border-[#1d3f5c] dark:bg-[#0d2438]'}`}
+                        >
+                          <span className={`flex min-w-0 items-center gap-1.5 truncate text-xs font-bold ${on ? 'text-blue-700 dark:text-blue-300' : t.n > 0 ? 'text-slate-700 dark:text-white' : 'text-slate-400 dark:text-[#6f93b8]'}`}>
+                            {t.label}
+                            {t.key === 'pendingAccept' && newCount > 0 && <span className="h-2 w-2 flex-none rounded-full bg-red-500" aria-label="New booking" />}
+                          </span>
+                          <span className={`shrink-0 text-xl font-extrabold tabular-nums ${hot ? 'text-amber-600 dark:text-amber-300' : on ? 'text-blue-700 dark:text-blue-300' : t.n > 0 ? 'text-slate-900 dark:text-white' : 'text-slate-300 dark:text-[#3d5f80]'}`}>{t.n}</span>
                         </button>
                       );
                     })}
-                    <button onClick={() => setStageTab('all')} className={tabCls(tab === 'all', true)}>All <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-black text-slate-500 dark:bg-white/10">{bookings.length}</span></button>
+                  </div>
+                  {/* Search + filters on one line (as on the shipper's page), then Refresh. */}
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <div className="relative w-full max-w-md">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by booking ID, AWB, shipper, phone or pincode..." aria-label="Search bookings"
+                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm shadow-sm placeholder-slate-400 transition focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white" />
+                    </div>
+                    {linesMode && couriers.length > 1 && (
+                      <select aria-label="Courier" value={courier} onChange={(e) => setCourier(e.target.value)}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white">
+                        <option value="">All couriers</option>
+                        {couriers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                      </select>
+                    )}
+                    <select aria-label="Order" value={sort} onChange={(e) => setSort(e.target.value as 'latest' | 'oldest')}
+                      className="ml-auto rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white">
+                      <option value="latest">Latest first</option>
+                      <option value="oldest">Oldest first</option>
+                    </select>
                     {/* A single organisation list has no heading, so its Refresh sits here; the transporter page keeps its header Refresh. */}
                     {linesMode && <button
                       type="button"
                       onClick={() => { fetchBookings(); }}
                       disabled={loading}
                       title="Refresh bookings"
-                      className="ml-auto mb-1 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60 dark:border-[#1d3f5c] dark:bg-[#0d2438] dark:text-white"
                     >
-                      <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+                      <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
                     </button>}
                   </div>
                   {hint && <p className="mb-3 text-xs text-slate-500 dark:text-[#8fb0cf]">{hint}</p>}
-                  {shown.length > 0 ? renderTable(shown) : <p className="text-sm italic text-slate-400 dark:text-[#6f93b8]">Nothing here right now.</p>}
+                  {shown.length > 0 ? renderTable(shown) : <p className="text-sm italic text-slate-400 dark:text-[#6f93b8]">{query.trim() ? `No booking in this tab matches "${query.trim()}".` : 'Nothing here right now.'}</p>}
                 </div>
               );
             }
