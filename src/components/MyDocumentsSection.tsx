@@ -1,18 +1,19 @@
-// Profile > "Documents & Files": everything the transporter uploaded at signup
+// Profile > "KYC documents": everything the transporter uploaded at signup
 // and in KYC — view it, replace it, see its review status — plus their uploaded
-// rate files and a fleet summary. Works the same for Business and Individual
+// rate files. (The fleet summary lives in Operations on the Profile page.) Works the same for Business and Individual
 // accounts, and for referral and non-referral signups (nothing here depends on
 // either).
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
-  CreditCard, Camera, Building2, FileSpreadsheet, Truck, Contact, Eye, RefreshCw,
-  Loader2, FolderOpen, ArrowRight, X,
+  FileSpreadsheet, Eye, RefreshCw,
+  Loader2, X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/apiConfig';
 import DocStatusBadge from './DocStatusBadge';
+import SectionCard from './SectionCard';
 import LiveSelfieCapture from './LiveSelfieCapture';
 import {
   useMyDocuments, openMyFile, validateDocFile, formatSize, formatDate,
@@ -34,16 +35,36 @@ const CATEGORY_LABELS: Record<string, string> = {
 const categoryLabel = (c: string) => CATEGORY_LABELS[c] || c.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()) || 'Rate file';
 
 interface TileProps {
-  icon: React.ReactNode;
-  tone: string;
   title: string;
   hint: string;
   info: (DocInfo | PhotoGroupInfo) | null;
   kind: Kind;
+  showStatus: boolean; // false when the card header already shows the one status all documents share
   onReplaced: () => void;
 }
 
-const DocTile: React.FC<TileProps> = ({ icon, tone, title, hint, info, kind, onReplaced }) => {
+// Small preview of one office photo; PDFs (or a failed load) fall back to a numbered button. Click opens it full size.
+const PhotoThumb: React.FC<{ fileId: string; fileName?: string; index: number }> = ({ fileId, fileName, index }) => {
+  const [src, setSrc] = useState<string | null>(null);
+  const isImage = !/\.pdf$/i.test(fileName || '');
+  useEffect(() => {
+    if (!isImage) return undefined;
+    let url: string | null = null;
+    let alive = true;
+    axios.get(`${API_BASE_URL}/api/transporter/kyc/my-file/${fileId}`, { responseType: 'blob' })
+      .then((res) => { if (alive) { url = URL.createObjectURL(res.data); setSrc(url); } })
+      .catch(() => { /* keep the numbered fallback */ });
+    return () => { alive = false; if (url) URL.revokeObjectURL(url); };
+  }, [fileId, isImage]);
+  return (
+    <button onClick={() => openMyFile(fileId)} aria-label={`Open photo ${index}`} title={`Photo ${index}`}
+      className="flex h-7 w-9 flex-none items-center justify-center overflow-hidden rounded-md bg-slate-100 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 hover:ring-blue-400 dark:bg-white/5 dark:ring-[#1d3f5c]">
+      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : index}
+    </button>
+  );
+};
+
+const DocTile: React.FC<TileProps> = ({ title, hint, info, kind, showStatus, onReplaced }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [selfieOpen, setSelfieOpen] = useState(false);
@@ -80,48 +101,29 @@ const DocTile: React.FC<TileProps> = ({ icon, tone, title, hint, info, kind, onR
 
   const startReplace = () => (kind === 'selfie' ? setSelfieOpen(true) : inputRef.current?.click());
 
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${tone}`}>{icon}</span>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900">{title}</p>
-            <p className="text-xs text-slate-400">{hint}</p>
-          </div>
-        </div>
-        {info && <DocStatusBadge status={status} />}
-      </div>
+  const btn = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold';
 
-      {info ? (
-        <>
-          <p className="mt-3 text-xs text-slate-500">
-            {isGroup ? `${files.length} photos` : files[0]?.fileName}
-            {!isGroup && files[0]?.size ? ` · ${formatSize(files[0].size)}` : ''} · uploaded {formatDate(info.uploadedAt)}
-          </p>
-          {status === 'rejected' && (
-            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-              {info.rejectionReason ? `Reason: ${info.rejectionReason}. ` : ''}Please replace this document to keep your account active.
-            </p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {files.map((f, i) => (
-              <button key={f.fileId} onClick={() => openMyFile(f.fileId)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                <Eye size={13} /> {isGroup ? `Photo ${i + 1}` : 'View'}
-              </button>
-            ))}
-            <button onClick={startReplace} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-60">
-              {busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Replace
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="mt-3">
-          <p className="mb-2 text-xs text-slate-400">Not uploaded yet.</p>
-          <button onClick={startReplace} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60">
-            {busy && <Loader2 size={13} className="animate-spin" />} Upload
+  // One line per document: name (+ photo thumbs) · status only if it differs from the card's · View/Replace.
+  // Upload date and file name live in the tooltip — they matter rarely and repeated on every row.
+  return (
+    <li className="py-1.5">
+      <div className="flex items-center gap-2" title={info ? `${hint} · uploaded ${formatDate(info.uploadedAt)}` : hint}>
+        <span className="min-w-0 flex-1 text-sm font-medium text-slate-800 dark:text-white">{title}</span>
+        {isGroup && files.map((f, i) => <PhotoThumb key={f.fileId} fileId={f.fileId} fileName={f.fileName} index={i + 1} />)}
+        {showStatus && info && <DocStatusBadge status={status} />}
+        {!isGroup && files.map((f) => (
+          <button key={f.fileId} onClick={() => openMyFile(f.fileId)} className={`${btn} text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:text-[#8fb0cf] dark:hover:bg-white/5`}>
+            <Eye size={13} /> View
           </button>
-        </div>
+        ))}
+        <button onClick={startReplace} disabled={busy} className={`${btn} ${info ? 'text-slate-500 hover:text-blue-600 dark:text-[#8fb0cf] hover:bg-slate-100 dark:hover:bg-white/5' : 'bg-blue-600 text-white hover:bg-blue-700'} disabled:opacity-60`}>
+          {busy ? <Loader2 size={13} className="animate-spin" /> : info && <RefreshCw size={13} />} {info ? 'Replace' : 'Upload'}
+        </button>
+      </div>
+      {status === 'rejected' && info && (
+        <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+          {info.rejectionReason ? `Reason: ${info.rejectionReason}. ` : ''}Please replace this document to keep your account active.
+        </p>
       )}
 
       <input
@@ -144,52 +146,35 @@ const DocTile: React.FC<TileProps> = ({ icon, tone, title, hint, info, kind, onR
           </div>
         </div>
       )}
-    </div>
+    </li>
   );
 };
 
-const MyDocumentsSection: React.FC = () => {
-  const { data, loading, error, refresh } = useMyDocuments();
+// Data comes from the Profile page (it also feeds the Fleet row in Operations), so the API is called once.
+const MyDocumentsSection: React.FC<{ docs: ReturnType<typeof useMyDocuments> }> = ({ docs }) => {
+  const { data, loading, error, refresh } = docs;
+  // All uploaded and in the same state (the usual case) -> one badge in the header instead of one per row.
+  const infos = data ? [data.documents.aadhaar, data.documents.selfie, data.documents.businessPhotos] : [];
+  const statuses = new Set(infos.map((i) => (i ? i.status ?? 'pending' : 'missing')));
+  const shared = statuses.size === 1 && !statuses.has('missing') ? ([...statuses][0] as DocStatus) : null;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/80 flex items-center gap-2.5">
-        <FolderOpen className="text-blue-600 w-4 h-4" />
-        <h2 className="text-xs font-bold text-slate-600 uppercase tracking-widest">Documents &amp; Files</h2>
-      </div>
-
-      <div className="p-5 space-y-5">
+    <SectionCard title="KYC documents" right={shared && <DocStatusBadge status={shared} />}>
+      <div className="space-y-3">
         {loading && <p className="flex items-center gap-2 text-sm text-slate-400"><Loader2 size={15} className="animate-spin" /> Loading your documents…</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         {data && (
           <>
-            <div>
-              <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-slate-400">Identity &amp; location</p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <DocTile kind="aadhaar" title="Aadhaar card" hint="Of the company representative" icon={<CreditCard size={18} />} tone="bg-blue-50 text-blue-600" info={data.documents.aadhaar} onReplaced={refresh} />
-                <DocTile kind="selfie" title="Live selfie" hint="Matched with your Aadhaar" icon={<Camera size={18} />} tone="bg-violet-50 text-violet-600" info={data.documents.selfie} onReplaced={refresh} />
-                <DocTile kind="businessPhotos" title="Office / warehouse photos" hint="At least 3, different angles" icon={<Building2 size={18} />} tone="bg-blue-50 text-blue-600" info={data.documents.businessPhotos} onReplaced={refresh} />
-              </div>
-            </div>
-
-            <Link to="/profile/fleet" className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3.5 hover:border-blue-300 hover:bg-blue-50/30 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Truck size={18} /></span>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">Vehicles &amp; drivers</p>
-                  <p className="text-xs text-slate-500 flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1"><Truck size={12} /> {data.vehicles.length} vehicle{data.vehicles.length === 1 ? '' : 's'}</span>
-                    <span className="inline-flex items-center gap-1"><Contact size={12} /> {data.drivers.length} driver{data.drivers.length === 1 ? '' : 's'}</span>
-                  </p>
-                </div>
-              </div>
-              <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600">Manage <ArrowRight size={14} /></span>
-            </Link>
+            <ul className="divide-y divide-slate-100 dark:divide-[#1d3f5c]">
+              <DocTile kind="aadhaar" title="Aadhaar card" hint="Of the company representative" info={data.documents.aadhaar} showStatus={!shared} onReplaced={refresh} />
+              <DocTile kind="selfie" title="Live selfie" hint="Matched with your Aadhaar" info={data.documents.selfie} showStatus={!shared} onReplaced={refresh} />
+              <DocTile kind="businessPhotos" title="Office / warehouse photos" hint="At least 3, different angles" info={data.documents.businessPhotos} showStatus={!shared} onReplaced={refresh} />
+            </ul>
 
             {data.rateFiles.length > 0 && (
               <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-slate-400">Rate files you uploaded at signup</p>
+                <p className="mb-1.5 text-xs text-slate-500 dark:text-[#8fb0cf]">Rate files you uploaded at signup</p>
                 <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200">
                   {data.rateFiles.map((f) => (
                     <li key={f.fileId} className="flex items-center justify-between gap-3 px-4 py-3">
@@ -212,7 +197,7 @@ const MyDocumentsSection: React.FC = () => {
           </>
         )}
       </div>
-    </div>
+    </SectionCard>
   );
 };
 

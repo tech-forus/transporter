@@ -6,7 +6,7 @@ import BookingsPage from './BookingsPage';
 export default function AggregatorDashboardPage() {
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
-      <h1 className="text-xl font-extrabold text-slate-900 dark:text-white leading-8">Dashboard</h1>
+      <h1 className="text-xl font-extrabold text-slate-900 dark:text-white leading-8">Bookings</h1>
       <BookingsPage linesMode />
     </div>
   );

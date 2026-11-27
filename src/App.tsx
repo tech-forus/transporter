@@ -73,17 +73,17 @@ export const PublicRoute: React.FC<React.PropsWithChildren> = ({ children }) => 
 // ALL its couriers (AggregatorDashboardPage), and setting the couriers up is the Courier lines page.
 export const isAggregatorOwner = (user: any) => user?.orgType === 'aggregator' && !user.isLine && user.role !== 'employee';
 
-// Every login ends on /dashboard: an aggregator sees its all-couriers dashboard, everyone else the single-carrier bookings feed.
-export const DashboardSwitch: React.FC = () => {
+// Bookings is the home page: an aggregator sees every courier's bookings, everyone else the single-carrier bookings feed.
+export const BookingsSwitch: React.FC = () => {
   const { user } = useAuth();
   return isAggregatorOwner(user) ? <AggregatorDashboardPage /> : <BookingsPage />;
 };
 
-// "/bookings" is the same screen as the dashboard for an aggregator (one place for all its bookings).
-export const DashboardHome: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const { user } = useAuth();
-  const { search } = useLocation(); // keep "?booking=<id>" (from the bell / notifications) so the booking still opens
-  return isAggregatorOwner(user) ? <Navigate to={`/dashboard${search}`} replace /> : <>{children}</>;
+// "/dashboard" was the same screen; old links, logins and notifications that still point there land on /bookings.
+// Keeps "?booking=<id>" (from the bell / notifications) so the booking still opens.
+const DashboardRedirect: React.FC = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/bookings${search}`} replace />;
 };
 
 // Lets the host page (freight-compare-frontend's TransporterProfileDropdown,
@@ -127,6 +127,13 @@ const APP_PAGE = /^\/(dashboard|go-public|setup\/lanes|profile|invite|bidding|bo
 
 const HostNavigationListener: React.FC = () => {
   const navigate = useNavigate();
+  const { pathname: routePath, search: routeSearch } = useLocation();
+  // Embedded in the website: report the signed-in page so its address bar shows it (/transporter/portal/bookings).
+  useEffect(() => {
+    if (window.parent !== window && APP_PAGE.test(routePath)) {
+      window.parent.postMessage({ type: 'transporter_route', path: routePath + routeSearch }, '*');
+    }
+  }, [routePath, routeSearch]);
   useEffect(() => {
     const { hostname, pathname, search } = window.location;
     // Unsaved rate drafts live in THIS origin's storage; the website frame is another origin, so with a draft here, stay (never strand it).
@@ -214,7 +221,7 @@ function App() {
           {/* KycGate now sits INSIDE MainLayout (not wrapping it) — Header/
               Footer stay visible and usable while a blocked transporter sees
               only the page body blurred behind the KYC wizard overlay. */}
-          <Route path="/dashboard" element={<PrivateRoute><MainLayout><KycGate><DashboardSwitch /></KycGate></MainLayout></PrivateRoute>} />
+          <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/go-public" element={<PrivateRoute><MainLayout fillScreen><KycGate><GoPublicPage /></KycGate></MainLayout></PrivateRoute>} />
           {/* First-time lane setup — outside KycGate, like /addprice, so rates come before KYC as in normal signup. */}
           <Route path="/setup/lanes" element={<PrivateRoute><MainLayout><SetupLanesPage /></MainLayout></PrivateRoute>} />
@@ -225,7 +232,7 @@ function App() {
           <Route path="/invite" element={<PrivateRoute><MainLayout><KycGate><InviteTransportersPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/fleet" element={<PrivateRoute><MainLayout><KycGate><FleetPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/profile/bids" element={<PrivateRoute><MainLayout><KycGate><BidsPage /></KycGate></MainLayout></PrivateRoute>} />
-          <Route path="/bookings" element={<PrivateRoute><DashboardHome><MainLayout><KycGate><BookingsPage /></KycGate></MainLayout></DashboardHome></PrivateRoute>} />
+          <Route path="/bookings" element={<PrivateRoute><MainLayout><KycGate><BookingsSwitch /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/lines" element={<PrivateRoute><MainLayout><KycGate><LinesPage /></KycGate></MainLayout></PrivateRoute>} />
           <Route path="/notifications" element={<PrivateRoute><MainLayout><NotificationsPage /></MainLayout></PrivateRoute>} />
           <Route path="/track" element={<PrivateRoute><MainLayout><TrackPage /></MainLayout></PrivateRoute>} />

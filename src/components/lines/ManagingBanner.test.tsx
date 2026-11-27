@@ -24,6 +24,7 @@ describe('ManagingBanner', () => {
     post.mockResolvedValue({ data: { token: 'owner-token' } });
     show();
     expect(screen.getByText(/Delhivery \(Shipshopy\)/)).toBeTruthy();
+    expect(screen.queryByText(/session ends/i)).toBeNull(); // no countdown in normal use
     fireEvent.click(screen.getByRole('button', { name: /back to organisation/i }));
     await waitFor(() => expect(post).toHaveBeenCalledWith(expect.stringContaining('/api/transporter/lines/manage-exit')));
     await waitFor(() => expect(loginWithToken).toHaveBeenCalledWith('owner-token'));

@@ -1,5 +1,5 @@
 // Shown while the organisation owner is working on a courier line's rates ("Manage rates": a timed session as that courier,
-// token `exp`). Says how long is left; one tap returns to the owner's own session. Unpublished rate edits are kept as a draft.
+// token `exp`). Warns only in the last 10 minutes; one tap returns to the owner's own session. Unpublished rate edits are kept as a draft.
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -39,7 +39,9 @@ export default function ManagingBanner() {
     <div role="status" className={`sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs font-bold text-white ${ending ? 'bg-red-600' : 'bg-violet-500'}`}>
       <span>
         You are managing rates for {user.companyName} on behalf of your organisation.
-        {left !== null && <> Session {left <= 0 ? 'ended. Sign in again; your unpublished changes are kept as a draft.' : `ends in ${timeLeft(left)}${ending ? '. Publish your changes soon.' : '.'}`}</>}
+        {/* No running countdown (noise). Only the last 10 minutes warn, so an expiry never surprises someone mid-edit. */}
+        {left !== null && left <= 0 && <> Session ended. Sign in again; your unpublished changes are kept as a draft.</>}
+        {left !== null && left > 0 && ending && <> Session ends in {timeLeft(left)}. Publish your changes soon.</>}
       </span>
       <button type="button" disabled={busy} onClick={back} className="rounded-lg bg-white/90 px-3 py-1 text-violet-800 disabled:opacity-60">Back to organisation</button>
     </div>

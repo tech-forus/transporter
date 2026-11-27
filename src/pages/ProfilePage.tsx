@@ -7,12 +7,12 @@ import GoPublicCard from '../components/GoPublicCard';
 import MyDocumentsSection from '../components/MyDocumentsSection';
 import LinkedShippersCard from '../components/LinkedShippersCard';
 import TeamCard, { TeamMember } from '../components/TeamCard';
+import SectionCard from '../components/SectionCard';
+import { useMyDocuments } from '../hooks/useMyDocuments';
 
 import {
-  Building, Mail, Phone, Clock, Globe, Truck, MapPin, Calendar,
-  DollarSign, Package, Loader, AlertTriangle, ShieldCheck,
-  BadgeCheck, Star, Users, Route, ArrowLeft, Pencil, Check, Loader2, Bell,
-  Lock, KeyRound,
+  Loader, AlertTriangle, ShieldCheck, BadgeCheck, Star, ArrowLeft, Pencil, Check, Loader2,
+  Lock, KeyRound, ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import EmployeePasswordForm from '../components/EmployeePasswordForm';
@@ -97,6 +97,15 @@ const enforceNumberDigits = (raw: string) => raw.replace(/\D/g, '');
 
 type FieldStatus = 'idle' | 'saving' | 'saved';
 
+// One table row: fixed label column + value. Shared by every field row so all columns line up.
+const ROW = 'grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-x-3 border-b border-slate-100 py-1 dark:border-white/5';
+// Field table: 1 → 2 → 3 label/value pairs per line as the screen widens.
+const TABLE = 'grid grid-cols-1 gap-x-8 md:grid-cols-2 xl:grid-cols-3';
+const FULL_ROW = 'md:col-span-2 xl:col-span-3';
+
+// Shown next to "KYC under review". Change it if the review team's turnaround changes.
+const KYC_REVIEW_ETA = 'usually 1–2 working days';
+
 // ---------------------------------------------------------------------------
 // EditableField — click the value to edit it in place; saves on blur/Enter,
 // reverts + toasts on failure, flashes a checkmark on success. Same pattern
@@ -114,7 +123,9 @@ const EditableField = ({
   pattern,
   patternMessage,
   liveFilter,
-  icon,
+  displayAs,
+  zeroIsEmpty,
+  nudge,
 }: {
   label: string;
   fieldKey: string;
@@ -126,7 +137,9 @@ const EditableField = ({
   pattern?: RegExp;
   patternMessage?: string;
   liveFilter?: (raw: string) => string;
-  icon?: React.ReactNode;
+  displayAs?: string; // shown instead of the value when not editing (e.g. "Same as phone")
+  zeroIsEmpty?: boolean; // counts like trucks/turnover: 0 means "never filled in", not a real zero
+  nudge?: boolean; // one of the missing fields the profile-progress prompt names: its "+ Add" is highlighted
 }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ''));
@@ -166,7 +179,40 @@ const EditableField = ({
     }
   };
 
-  if (editing) {
+  const raw = options?.find((o) => o.value === String(value))?.label ?? value;
+  const hasValue = raw !== null && raw !== undefined && raw !== '' && !(zeroIsEmpty && Number(raw) === 0);
+  const displayValue = hasValue ? (displayAs ?? raw) : null;
+  // Only derived values ("Same as phone") are greyed; a re-cased name is still the real value.
+  const derived = hasValue && !!displayAs && displayAs.startsWith('Same as');
+
+  // One table row: fixed label column, value (or its editor) beside it.
+  return (
+    <div id={`field-${fieldKey}`} className={ROW}>
+      <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-[#6f93b8]">
+        {label}
+        {status === 'saving' && <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-400" />}
+        {status === 'saved' && <Check className="w-2.5 h-2.5 text-blue-500" />}
+      </span>
+      {editing ? renderEditor() : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="group -mx-1.5 flex min-w-0 items-baseline gap-1.5 rounded-md px-1.5 py-0.5 text-left hover:bg-blue-50/70 dark:hover:bg-white/5"
+        >
+          <span className={`min-w-0 break-words text-sm font-medium ${derived ? 'text-slate-500 dark:text-[#8fb0cf]' : 'text-slate-800 dark:text-white'}`}>
+            {/* Empty fields stay quiet; only the ones the progress nudge names get the accent. */}
+            {hasValue ? displayValue : nudge
+              ? <span className="font-semibold text-blue-600 dark:text-blue-400">+ Add</span>
+              : <span className="font-normal text-slate-400 group-hover:text-blue-600 dark:text-[#6f93b8]">+ Add</span>}
+          </span>
+          {/* Always faintly visible: the pencil is the edit hint (replaces the old "click any value to edit" line). */}
+          {hasValue && status === 'idle' && <Pencil className="w-2.5 h-2.5 flex-none opacity-30 group-hover:opacity-100 transition-opacity text-blue-500" />}
+        </button>
+      )}
+    </div>
+  );
+
+  function renderEditor() {
     if (options) {
       return (
         <select
@@ -197,54 +243,20 @@ const EditableField = ({
       />
     );
   }
-
-  const displayValue = options?.find((o) => o.value === String(value))?.label ?? value;
-  const hasValue = displayValue !== null && displayValue !== undefined && displayValue !== '';
-
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className="group w-full text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-blue-50/70 transition-colors flex items-start gap-2.5"
-    >
-      {icon && <span className="text-slate-400 dark:text-[#6f93b8] mt-0.5 flex-none">{icon}</span>}
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-0.5 flex items-center gap-1">
-          {label}
-          {status === 'saving' && <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-400" />}
-          {status === 'saved' && <Check className="w-2.5 h-2.5 text-blue-500" />}
-          {status === 'idle' && <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400" />}
-        </p>
-        <p className="text-sm font-semibold text-slate-800 dark:text-white break-words">
-          {hasValue ? displayValue : <span className="font-normal text-slate-300 dark:text-[#5c7c9a]">Click to add</span>}
-        </p>
-      </div>
-    </button>
-  );
 };
 
-// Read-only counterpart to EditableField, for values that aren't editable
-// here (rating, verification, approval status) — kept visually identical so
-// the grid stays even instead of mixing button and plain rows.
-const StaticField = ({ label, value, icon }: { label: string; value: React.ReactNode; icon?: React.ReactNode }) => (
-  <div className="flex items-start gap-2.5 px-2 py-1.5">
-    {icon && <span className="text-slate-400 dark:text-[#6f93b8] mt-0.5 flex-none">{icon}</span>}
-    <div className="min-w-0 flex-1">
-      <p className="text-[10px] font-bold text-slate-400 dark:text-[#6f93b8] uppercase tracking-widest mb-0.5">{label}</p>
-      <p className="text-sm font-semibold text-slate-800 dark:text-white break-words">{value}</p>
-    </div>
-  </div>
-);
-
-const SCard = ({ icon, title, children, className }: { icon: React.ReactNode; title: string; children: React.ReactNode; className?: string }) => (
-  <div className={`bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm overflow-hidden ${className ?? ''}`}>
-    <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100 dark:border-[#1d3f5c]">
-      <div className="w-7 h-7 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 flex-none">{icon}</div>
-      <h2 className="text-xs font-bold text-slate-600 dark:text-[#8fb0cf] uppercase tracking-widest">{title}</h2>
-    </div>
-    <div className="px-5 py-4">{children}</div>
-  </div>
-);
+// Names/addresses fetched from GST arrive in ALL CAPS; show them in normal case (the stored value is unchanged).
+const titleCase = (t: string) => t.toLowerCase().replace(/(^|[^\p{L}\d])(\p{L})/gu, (_m, pre, c) => pre + c.toUpperCase());
+const tidyCaps = (v?: string | number | null) => {
+  const t = String(v ?? '');
+  return /[A-Z]/.test(t) && t === t.toUpperCase() ? titleCase(t) : undefined;
+};
+// Addresses are often part caps ("2A/3, HAMDARD BUILDING, Central Delhi"): re-case each all-caps comma part.
+const tidyAddress = (v?: string | null) => {
+  const t = String(v ?? '');
+  const out = t.split(',').map((p) => (/[A-Z]{2}/.test(p) && p === p.toUpperCase() && /[A-Z]{4}/.test(p) ? titleCase(p) : p)).join(',');
+  return out === t ? undefined : out;
+};
 
 const PwdInput = ({ id, label, value, onChange, disabled }: {
   id: string; label: string; value: string;
@@ -256,7 +268,6 @@ const PwdInput = ({ id, label, value, onChange, disabled }: {
       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-[#6f93b8] pointer-events-none" />
       <input
         id={id} name={id} type="password" required value={value} onChange={onChange} disabled={disabled}
-        placeholder="••••••••"
         className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-[#1d3f5c] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:bg-slate-50 bg-white dark:bg-[#0d2438]"
       />
     </div>
@@ -407,12 +418,29 @@ const CreatePasswordForm = ({ email, onCreated }: { email: string; onCreated: ()
   );
 };
 
+// Password is one row of the Business details table; its form opens under the table.
+const PasswordRow = ({ action, open, onToggle }: { action: 'Change' | 'Create'; open: boolean; onToggle: () => void }) => (
+  <div className={ROW}>
+    <span className="text-xs text-slate-500 dark:text-[#6f93b8]">Password</span>
+    <span className="flex items-baseline gap-3 text-sm">
+      <span className="text-slate-400">{action === 'Create' ? 'None yet · Google sign-in' : '••••••••'}</span>
+      <button type="button" onClick={onToggle} className="text-xs font-semibold text-slate-500 hover:text-blue-600 dark:text-[#8fb0cf]">{open ? 'Cancel' : action}</button>
+    </span>
+  </div>
+);
+
+// Opens a field's inline editor (which focuses and scrolls to it). Used by the profile-progress nudge.
+const editField = (key: string) => document.querySelector<HTMLButtonElement>(`#field-${key} button`)?.click();
+
 const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
   const isEmployee = (user as any)?.role === 'employee'; // a team member: the owner-only sections stay hidden
   const [profile, setProfile] = useState<TransporterProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const docs = useMyDocuments(!isEmployee); // feeds KYC documents + the Fleet row
+  const [contactOpen, setContactOpen] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
 
   const loadProfile = () => {
     if (!user?._id) {
@@ -459,7 +487,7 @@ const ProfilePage: React.FC = () => {
   // growing to fit it — that nested double-scroll is what reads as "scroll
   // not smooth". Re-reports once loading finishes and the real content
   // (with its actual field values) has rendered.
-  useReportIframeHeight([loading, profile]);
+  useReportIframeHeight([loading, profile, docs.data, contactOpen, pwdOpen]);
 
   // Direct-to-DB save for every field that isn't a login/contact credential —
   // same split as freight-compare-frontend's shipper Profile.tsx.
@@ -602,200 +630,185 @@ const ProfilePage: React.FC = () => {
   }
 
   const isIndividual = profile.accountType === 'individual';
-  const laneRateCount = profile.individualLaneRates?.length || 0;
+  const address = profile.address || profile.formattedAddress || [profile.flatNumber, profile.buildingName, profile.area, profile.landmark, profile.city].filter(Boolean).join(', ') || '';
+  const same = (a?: string | number | null, b?: string | number | null) => !!a && String(a).trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+  const ratings = profile.totalRatings || 0;
+  const pill = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold';
+  // On-ground contact is blank or matches the business contact field for field.
+  const blankOr = (v: unknown, base: unknown) => !v || same(v as string, base as string);
+  const contactIsDefault = blankOr(profile.employeeName, profile.firstName) && blankOr(profile.employeePhone, profile.phone) && blankOr(profile.employeeAddress, address);
+  const addrLower = address.toLowerCase();
+  const addressHasStatePin = !!profile.state && !!profile.pincode && addrLower.includes(String(profile.state).toLowerCase()) && addrLower.includes(String(profile.pincode));
+  const isAggregator = (user as any)?.orgType === 'aggregator';
+  const accountLabel = (user as any)?.isLine ? 'Courier line' : isAggregator ? 'Courier aggregator' : `${isIndividual ? 'Owner-operator' : 'Business'} transporter`;
+  // Couriers number shipments by AWB, road transporters by LR; the backend fills in either token.
+  const trackTerm = isAggregator || (user as any)?.isLine ? 'AWB' : 'LR';
+  const trackToken = trackTerm === 'AWB' ? '{awb}' : '{lr}';
+  // Fields shippers use to choose a carrier; the first two missing ones are named in the prompt.
+  // [label, value, fieldKey] — the key lets the nudge open that field's editor.
+  const checks: [string, unknown, string][] = [
+    ['delivery TAT', profile.deliveryTat, 'deliveryTat'],
+    ['tracking link', profile.trackingLink, 'trackingLink'],
+    ['delivery mode', profile.deliveryMode, 'deliveryMode'],
+    ['years of experience', profile.experience, 'experience'],
+    ['website', profile.websiteLink, 'websiteLink'],
+    ['address', address, 'address'],
+    ...(isAggregator ? [] : [['number of trucks', profile.noOfTrucks, 'noOfTrucks'], ['max load', profile.maxLoading, 'maxLoading']] as [string, unknown, string][]),
+  ];
+  const missing = checks.filter(([, v]) => v === undefined || v === null || String(v).trim() === '' || v === 0);
+  const nudged = new Set(missing.slice(0, 2).map(([, , key]) => key)); // same two the prompt names
+  const completeness = { missing, pct: Math.round(((checks.length - missing.length) / checks.length) * 100) };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#08141f]">
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-[#8fb0cf] hover:text-blue-600 mb-4 transition-colors">
-          <ArrowLeft size={16} /> Back
-        </Link>
+      <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 sm:px-6">
 
-        <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-2xl font-bold shadow-md flex-none">
-            {profile.companyName?.charAt(0) || 'T'}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{profile.companyName}</h1>
-              {profile.isVerified && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-full px-2.5 py-1 flex-none">
-                  <BadgeCheck size={13} /> Verified
-                </span>
-              )}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-lg font-bold flex-none">
+              {profile.companyName?.charAt(0) || 'T'}
             </div>
-            <p className="text-sm text-slate-500 dark:text-[#8fb0cf] mt-0.5">
-              {isIndividual ? 'Individual / Owner-Operator' : 'Business'} Transporter · Click any value below to edit
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white truncate">{tidyCaps(profile.companyName) ?? profile.companyName}</h1>
+                {profile.isVerified
+                  ? <span className={`${pill} bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300`}><BadgeCheck size={12} /> Verified</span>
+                  : <span className={`${pill} bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300`}>KYC under review · {KYC_REVIEW_ETA}</span>}
+                {profile.approvalStatus && profile.approvalStatus !== 'approved' && (
+                  <span className={`${pill} ${profile.approvalStatus === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {profile.approvalStatus === 'rejected' ? 'Not approved' : 'Approval pending'}
+                  </span>
+                )}
+                {/* Only once there is a rating: "No ratings yet" is noise the transporter can't act on. */}
+                {ratings > 0 && (
+                  <span className={`${pill} bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-[#8fb0cf]`}>
+                    <Star size={12} /> {(profile.rating ?? 0).toFixed(1)} ({ratings})
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-[#8fb0cf] mt-0.5">{accountLabel}</p>
+            </div>
           </div>
+
+          {!isEmployee && (
+            <div className="flex min-w-[280px] flex-1 flex-col gap-1 lg:ml-auto lg:max-w-md">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-slate-800 dark:text-white whitespace-nowrap">Profile {completeness.pct}%</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                  <div className="h-full rounded-full bg-blue-600" style={{ width: `${completeness.pct}%` }} />
+                </div>
+              </div>
+              <span className="text-xs text-slate-500 dark:text-[#8fb0cf]">
+                {completeness.missing.length
+                  ? <>Add {completeness.missing.slice(0, 2).map(([label, , key], i) => (
+                      <React.Fragment key={key}>
+                        {i > 0 && ' and '}
+                        <button type="button" onClick={() => editField(key)} className="font-bold text-blue-600 underline decoration-dotted underline-offset-2 hover:text-blue-800 dark:text-blue-400">{label}</button>
+                      </React.Fragment>
+                    ))} to rank higher with shippers.</>
+                  : 'Complete. Shippers see everything they need.'}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Every section stacks below the one before it, full width, with the
-            same 4-column field grid throughout — one consistent shape
-            instead of mismatched boxes. */}
-        <div className="flex flex-col gap-4">
+        {/* Same slim bar as Bookings: Go public, or Review rates / Set up rates before going public. */}
+        <GoPublicCard wide />
 
-          <SCard icon={<Building className="w-4 h-4" />} title="Company & Business">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
-              <EditableField label="Company Name" fieldKey="companyName" value={profile.companyName} onSave={saveField} maxLength={200} icon={<Building size={14} />} />
-              <EditableField label="Company Contact" fieldKey="firstName" value={profile.firstName} onSave={saveField} maxLength={50} icon={<Users size={14} />} />
-              {!isIndividual && (
-                <EditableField label="GST Number" fieldKey="gstNo" value={profile.gstNo} onSave={saveField} maxLength={15} icon={<BadgeCheck size={14} />} />
-              )}
-              <EditableField label="Years of Experience" fieldKey="experience" value={profile.experience} onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={2} icon={<Calendar size={14} />} />
-              <EditableField label="Number of Trucks" fieldKey="noOfTrucks" value={profile.noOfTrucks} onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={4} icon={<Truck size={14} />} />
-              <EditableField label="Max Loading Capacity (kg)" fieldKey="maxLoading" value={profile.maxLoading} onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={6} icon={<Package size={14} />} />
-              <EditableField label="Annual Turnover (₹)" fieldKey="annualTurnover" value={profile.annualTurnover} onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={12} icon={<DollarSign size={14} />} />
-            </div>
-          </SCard>
+        {/* Left: what shippers read about you. Right: documents, links, team, account. Stacks on narrow screens. */}
+        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-3">
+            <SectionCard title="Business details">
+              <div className={grid}>
+                <EditableField label="Company name" fieldKey="companyName" value={profile.companyName} displayAs={tidyCaps(profile.companyName)} onSave={saveField} maxLength={200} />
+                {!isIndividual && <EditableField label="GST number" fieldKey="gstNo" value={profile.gstNo} onSave={saveField} maxLength={15} />}
+                <EditableField label="Contact person" fieldKey="firstName" value={profile.firstName} displayAs={tidyCaps(profile.firstName)} onSave={saveField} maxLength={50} />
+                <EditableField label="Website" fieldKey="websiteLink" nudge={nudged.has('websiteLink')} value={profile.websiteLink} onSave={saveField} maxLength={500} />
+                <EditableField label="Email" fieldKey="email" value={profile.email} onSave={saveContactFieldWithOtp} type="email" maxLength={100} pattern={EMAIL_PATTERN} patternMessage="Please enter a valid email address." />
+                <EditableField label="Phone" fieldKey="phone" value={profile.phone} onSave={saveContactFieldWithOtp} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} pattern={PHONE_PATTERN} patternMessage="Enter a valid 10-digit mobile number." />
+                <EditableField label="WhatsApp" fieldKey="whatsapp" value={profile.whatsapp} displayAs={same(profile.whatsapp, profile.phone) ? 'Same as phone' : undefined} onSave={saveContactFieldWithOtp} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} pattern={PHONE_PATTERN} patternMessage="Enter a valid 10-digit mobile number." />
+                {/* Turnover is only for our review (admin go-public screen); shippers never see it. */}
+                <EditableField label="Turnover ₹ (private)" fieldKey="annualTurnover" value={profile.annualTurnover} zeroIsEmpty onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={12} />
+                {/* Address falls back to the map-picker address (Individual accounts never collect the plain field). */}
+                <div className="md:col-span-2">
+                  <EditableField label="Address" fieldKey="address" nudge={nudged.has('address')} value={address} displayAs={tidyAddress(address)} onSave={saveField} maxLength={300} />
+                </div>
+                {/* State/pincode are usually already at the end of the address; show them only when they add something. */}
+                {!isIndividual && !addressHasStatePin && (
+                  <>
+                    <EditableField label="State" fieldKey="state" value={profile.state} onSave={saveField} maxLength={50} />
+                    <EditableField label="Pincode" fieldKey="pincode" value={profile.pincode} onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={6} />
+                  </>
+                )}
+              </div>
+            </SectionCard>
 
-          <SCard icon={<Phone className="w-4 h-4" />} title="Contact Information">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
-              <EditableField label="Email Address" fieldKey="email" value={profile.email} onSave={saveContactFieldWithOtp} type="email" maxLength={100} pattern={EMAIL_PATTERN} patternMessage="Please enter a valid email address." icon={<Mail size={14} />} />
-              <EditableField label="Phone Number" fieldKey="phone" value={profile.phone} onSave={saveContactFieldWithOtp} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} pattern={PHONE_PATTERN} patternMessage="Enter a valid 10-digit mobile number." icon={<Phone size={14} />} />
-              <EditableField label="WhatsApp Number" fieldKey="whatsapp" value={profile.whatsapp} onSave={saveContactFieldWithOtp} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} pattern={PHONE_PATTERN} patternMessage="Enter a valid 10-digit mobile number." icon={<Phone size={14} />} />
-              <EditableField label="Website" fieldKey="websiteLink" value={profile.websiteLink} onSave={saveField} maxLength={500} icon={<Globe size={14} />} />
-              {/* Address shown for BOTH account types now — Individual never
-                  collects the plain `address` string (Business-only per
-                  transporterModel), but now always has a structured
-                  formattedAddress from the "Confirm Your Location" map
-                  picker (signup + Google sign-in gate). Falls back to that
-                  whenever the plain field is blank, so GST-fetched
-                  addresses (Business) keep showing exactly as before. */}
-              <EditableField
-                label="Address" fieldKey="address"
-                value={profile.address || profile.formattedAddress || [profile.flatNumber, profile.buildingName, profile.area, profile.landmark, profile.city].filter(Boolean).join(', ') || ''}
-                onSave={saveField} maxLength={300} icon={<MapPin size={14} />}
-              />
-              {!isIndividual && (
-                <>
-                  <EditableField label="State" fieldKey="state" value={profile.state} onSave={saveField} maxLength={50} icon={<MapPin size={14} />} />
-                  <EditableField label="Pincode" fieldKey="pincode" value={profile.pincode} onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={6} icon={<MapPin size={14} />} />
-                </>
-              )}
-            </div>
-          </SCard>
-
-          {!isEmployee && (
-<>
-<SCard icon={<Users className="w-4 h-4" />} title="On-Ground Contact">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
-              <EditableField label="Employee Name" fieldKey="employeeName" value={profile.employeeName} onSave={saveField} maxLength={100} icon={<Users size={14} />} />
-              <EditableField label="Employee Phone" fieldKey="employeePhone" value={profile.employeePhone} onSave={saveField} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} icon={<Phone size={14} />} />
-              <EditableField label="Employee Address" fieldKey="employeeAddress" value={profile.employeeAddress} onSave={saveField} maxLength={300} icon={<MapPin size={14} />} />
-            </div>
-            <p className="mt-2 text-xs text-slate-400 dark:text-[#6f93b8]">Shown to shippers as your on-ground contact. To let someone receive and accept bookings on WhatsApp, add them to your WhatsApp Booking Team below.</p>
-          </SCard>
-
-          <TeamCard team={profile.team || []} onChange={(team) => setProfile((prev) => (prev ? { ...prev, team } : prev))} />
-</>
-)}
-
-          {!isEmployee && (
-<SCard icon={<Clock className="w-4 h-4" />} title="Operational Details">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
-              {/* Office Start/End are Business-only per transporterModel's
-                  own conditional `required` (accountType !== 'individual')
-                  — an owner-operator never fills these in at signup, so
-                  showing them as empty "Click to add" on an Individual
-                  profile is the same irrelevant-field noise as GST Number
-                  above, which is already gated the same way. */}
-              {!isIndividual && (
-                <>
-                  <EditableField label="Office Start" fieldKey="officeStart" value={profile.officeStart} onSave={saveField} maxLength={20} icon={<Clock size={14} />} />
-                  <EditableField label="Office End" fieldKey="officeEnd" value={profile.officeEnd} onSave={saveField} maxLength={20} icon={<Clock size={14} />} />
-                </>
-              )}
-              <EditableField label="Delivery Mode" fieldKey="deliveryMode" value={profile.deliveryMode} onSave={saveField} maxLength={50} icon={<Package size={14} />} />
-              <EditableField label="Standard Delivery TAT" fieldKey="deliveryTat" value={profile.deliveryTat} onSave={saveField} maxLength={50} icon={<Calendar size={14} />} />
-              <EditableField label="Tracking Link" fieldKey="trackingLink" value={profile.trackingLink} onSave={saveField} maxLength={500} icon={<Route size={14} />} />
-            </div>
-            <p className="mt-2 text-xs text-slate-400 dark:text-[#6f93b8]">
-              Tracking Link: your shipment-tracking page, starting with https://. Put <code className="font-mono">{'{awb}'}</code> where the LR / AWB number goes, e.g. <code className="font-mono">https://yoursite.in/track?lr={'{awb}'}</code>. Shippers get this link on WhatsApp when you send the LR.
-            </p>
-          </SCard>
-)}
-
-          <GoPublicCard />
-          <LinkedShippersCard />
-
-          {!isEmployee && (
-<>
-<SCard icon={<ShieldCheck className="w-4 h-4" />} title="Verification & Rating">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
-              <StaticField
-                label="Approval Status"
-                value={profile.approvalStatus ? profile.approvalStatus.charAt(0).toUpperCase() + profile.approvalStatus.slice(1) : '—'}
-                icon={<BadgeCheck size={14} />}
-              />
-              <StaticField label="Verified" value={profile.isVerified ? 'Yes' : 'Not yet verified'} icon={<ShieldCheck size={14} />} />
-              <StaticField
-                label="Rating"
-                value={`${(profile.rating ?? 3).toFixed(1)} / 5 (${profile.totalRatings || 0} ratings)`}
-                icon={<Star size={14} />}
-              />
-            </div>
-          </SCard>
-
-          {/* Uploaded documents, fleet summary and rate files: view / replace / manage */}
-          <MyDocumentsSection />
-</>
-)}
-
-          {isEmployee ? (
-<SCard icon={<Lock className="w-4 h-4" />} title="Change Password"><EmployeePasswordForm /></SCard>
-) : (
-<SCard icon={<Lock className="w-4 h-4" />} title={hasPassword ? "Change Password" : "Create Password"}>
-            {hasPassword ? (
-              <ChangePasswordForm />
-            ) : (
-              <CreatePasswordForm email={profile.email} onCreated={() => setHasPassword(true)} />
+            {!isEmployee && (
+              <SectionCard title="Operations">
+                <div className={grid}>
+                  {/* Office hours are Business-only (transporterModel requires them only for accountType !== 'individual'). */}
+                  {!isIndividual && <EditableField label="Office start" fieldKey="officeStart" value={profile.officeStart} onSave={saveField} maxLength={20} />}
+                  {!isIndividual && <EditableField label="Office end" fieldKey="officeEnd" value={profile.officeEnd} onSave={saveField} maxLength={20} />}
+                  <EditableField label="Delivery mode" fieldKey="deliveryMode" nudge={nudged.has('deliveryMode')} value={profile.deliveryMode} onSave={saveField} maxLength={50} />
+                  <EditableField label="Delivery TAT" fieldKey="deliveryTat" nudge={nudged.has('deliveryTat')} value={profile.deliveryTat} onSave={saveField} maxLength={50} />
+                  <EditableField label="Trucks" fieldKey="noOfTrucks" nudge={nudged.has('noOfTrucks')} value={profile.noOfTrucks} zeroIsEmpty onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={4} />
+                  <EditableField label="Max load (kg)" fieldKey="maxLoading" nudge={nudged.has('maxLoading')} value={profile.maxLoading} zeroIsEmpty onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={6} />
+                  <EditableField label="Experience (years)" fieldKey="experience" nudge={nudged.has('experience')} value={profile.experience} zeroIsEmpty onSave={saveField} type="tel" liveFilter={enforceNumberDigits} maxLength={2} />
+                  {/* Registered vehicles/drivers (RC, DL) live on the Fleet page; this is the summary + way in. */}
+                  <div className="grid grid-cols-[8.5rem_minmax(0,1fr)] items-baseline gap-x-3 border-b border-slate-100 py-1 dark:border-white/5">
+                    <span className="text-xs text-slate-500 dark:text-[#6f93b8]">Vehicles &amp; drivers</span>
+                    <Link to="/profile/fleet" className="inline-flex items-baseline gap-1.5 px-0 py-0.5 text-sm font-medium text-slate-800 hover:text-blue-700 dark:text-white">
+                      {!docs.data ? '—' : docs.data.vehicles.length + docs.data.drivers.length === 0 ? 'None yet' : `${docs.data.vehicles.length} vehicle${docs.data.vehicles.length === 1 ? '' : 's'} · ${docs.data.drivers.length} driver${docs.data.drivers.length === 1 ? '' : 's'}`}
+                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-slate-500 hover:text-blue-600 dark:text-[#8fb0cf]">Manage <ArrowRight size={12} /></span>
+                    </Link>
+                  </div>
+                  <div className="md:col-span-2">
+                    <EditableField label="Tracking link" fieldKey="trackingLink" nudge={nudged.has('trackingLink')} value={profile.trackingLink} onSave={saveField} maxLength={500} />
+                    <p className="pt-1 text-xs text-slate-400 sm:pl-[9.25rem] dark:text-[#6f93b8]">
+                      e.g. <code className="font-mono">https://yoursite.in/track?{trackTerm.toLowerCase()}={trackToken}</code> ({trackToken} = {trackTerm} number)
+                    </p>
+                  </div>
+                </div>
+              </SectionCard>
             )}
-          </SCard>
-)}
+          </div>
 
-          <Link
-            to="/profile/rates"
-            className="flex items-center justify-between gap-3 bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm px-5 py-4 hover:border-blue-300 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400 flex-none">
-                <Route className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800 dark:text-white">
-                  {isIndividual ? `Lane Rates (${laneRateCount})` : 'Rate Card & Zone Rates'}
-                </p>
-                <p className="text-xs text-slate-400 dark:text-[#6f93b8]">
-                  {isIndividual
-                    ? 'View and manage your pricing per origin-destination lane'
-                    : 'View your saved rate card and zone-to-zone pricing'}
-                </p>
-              </div>
-            </div>
-            <ArrowLeft className="w-4 h-4 text-slate-300 dark:text-[#5c7c9a] rotate-180" />
-          </Link>
+          <div className="flex min-w-0 flex-col gap-3">
+            {!isEmployee && <MyDocumentsSection docs={docs} />}
 
+            <LinkedShippersCard />
 
-          {/* Moved out of the old Dashboard.tsx (2026-09-21) — /dashboard
-              now shows the real booking feed instead. Own page (like Lane
-              Rates above) rather than inline, since it's a whole list, not
-              a profile field. */}
-          <Link
-            to="/profile/bids"
-            className="flex items-center justify-between gap-3 bg-white dark:bg-[#0d2438] rounded-2xl border border-slate-200 dark:border-[#1d3f5c] shadow-sm px-5 py-4 hover:border-blue-300 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400 flex-none">
-                <Bell className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800 dark:text-white">Available Bids</p>
-                <p className="text-xs text-slate-400 dark:text-[#6f93b8]">View bids matching your service zones</p>
-              </div>
-            </div>
-            <ArrowLeft className="w-4 h-4 text-slate-300 dark:text-[#5c7c9a] rotate-180" />
-          </Link>
+            {!isEmployee && (
+              <SectionCard title="Team">
+                <div className="mb-1 flex items-baseline gap-2 text-xs">
+                  <span className="text-slate-500 dark:text-[#8fb0cf]">On-ground contact</span>
+                  {/* Usually identical to the business contact: one line until it differs or the owner edits it. */}
+                  {!contactOpen && contactIsDefault && (
+                    <span className="ml-auto flex items-baseline gap-2">
+                      <span className="text-slate-500 dark:text-[#8fb0cf]">Same as business contact</span>
+                      <button type="button" onClick={() => setContactOpen(true)} className="font-semibold text-slate-500 hover:text-blue-600 dark:text-[#8fb0cf]">Change</button>
+                    </span>
+                  )}
+                </div>
+                <div className={contactOpen || !contactIsDefault ? 'mb-3' : 'hidden'}>
+                  <EditableField label="Name" fieldKey="employeeName" value={profile.employeeName} displayAs={same(profile.employeeName, profile.firstName) ? 'Same as contact person' : tidyCaps(profile.employeeName)} onSave={saveField} maxLength={100} />
+                  <EditableField label="Phone" fieldKey="employeePhone" value={profile.employeePhone} displayAs={same(profile.employeePhone, profile.phone) ? 'Same as phone' : undefined} onSave={saveField} type="tel" liveFilter={enforcePhoneDigits} maxLength={10} />
+                  <EditableField label="Address" fieldKey="employeeAddress" value={profile.employeeAddress} displayAs={same(profile.employeeAddress, address) ? 'Same as business address' : tidyAddress(profile.employeeAddress)} onSave={saveField} maxLength={300} />
+                </div>
+                <TeamCard team={profile.team || []} onChange={(team) => setProfile((prev) => (prev ? { ...prev, team } : prev))} />
+              </SectionCard>
+            )}
+
+            {isEmployee ? (
+              <PasswordSection title="Password" action="Change"><EmployeePasswordForm /></PasswordSection>
+            ) : hasPassword ? (
+              <PasswordSection title="Password" action="Change"><ChangePasswordForm /></PasswordSection>
+            ) : (
+              <PasswordSection title="Password" action="Create">
+                <CreatePasswordForm email={profile.email} onCreated={() => setHasPassword(true)} />
+              </PasswordSection>
+            )}
+          </div>
         </div>
       </div>
 

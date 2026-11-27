@@ -116,6 +116,8 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean; wide?: boole
   );
 
   const v = status.visibility;
+  // The admin approves a public listing only after KYC is verified, so say so before they ask.
+  const kycPending = !!status.kycStatus && status.kycStatus !== 'verified' && status.kycStatus !== 'exempt';
   if (v === 'public') {
     return wrap(
       <>
@@ -192,20 +194,22 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean; wide?: boole
           <span className="text-xl font-bold leading-none tracking-tight">{WAITING_SHIPPERS_LABEL}</span>
           <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-100">shippers are waiting</span>
         </span>
-        <p className="min-w-[240px] flex-1 truncate text-xs text-blue-50">
+        <p className="min-w-[240px] flex-1 text-xs text-blue-50">
           {v === 'rejected'
             ? `Your last request wasn't approved${status.rejectionReason ? `: ${status.rejectionReason}` : ''}. Update your info and try again.`
             : needsSetup
               ? 'Add your rates first: shippers need prices to book you. After going public, every shipper can find and book you.'
-              : 'Today only your inviting shipper sees you. After going public, every shipper can find and book you.'}
+              : kycPending
+                ? 'Today only your inviting shipper sees you. You can request to go public now; we approve it once your KYC is verified.'
+                : 'Today only your inviting shipper sees you. After going public, every shipper can find and book you.'}
         </p>
         <div className="flex flex-none gap-2">
           {needsSetup ? (
             <Link to={setupPath} className="rounded-md bg-white px-3.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">Set up rates</Link>
           ) : (
             <>
-              <button onClick={go} disabled={busy} className="rounded-md bg-white px-3.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60">Go public</button>
-              <Link to="/profile/rates/edit" className="rounded-md px-3.5 py-1 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
+              <button onClick={go} disabled={busy} className="rounded-md bg-white px-3.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60">{kycPending ? 'Request to go public' : 'Go public'}</button>
+              <Link to="/profile/rates/edit" className="rounded-md px-3.5 py-1 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">Review rates</Link>
             </>
           )}
         </div>
@@ -245,8 +249,8 @@ const GoPublicCard: React.FC<{ banner?: boolean; sidebar?: boolean; wide?: boole
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <button onClick={go} disabled={busy} className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60">Go public</button>
-            <Link to="/profile/rates/edit" className="rounded-lg px-4 py-2 text-center text-sm font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">Edit first</Link>
+            <button onClick={go} disabled={busy} className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60">{kycPending ? 'Request to go public' : 'Go public'}</button>
+            <Link to="/profile/rates/edit" className="rounded-lg px-4 py-2 text-center text-sm font-semibold text-white ring-1 ring-white/40 hover:bg-white/10">Review rates</Link>
           </div>
         )}
       </div>
