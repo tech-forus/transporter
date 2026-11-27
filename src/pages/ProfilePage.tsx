@@ -719,7 +719,7 @@ const ProfilePage: React.FC = () => {
         <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-3">
             <SectionCard title="Business details">
-              <div className={grid}>
+              <div className={TABLE}>
                 <EditableField label="Company name" fieldKey="companyName" value={profile.companyName} displayAs={tidyCaps(profile.companyName)} onSave={saveField} maxLength={200} />
                 {!isIndividual && <EditableField label="GST number" fieldKey="gstNo" value={profile.gstNo} onSave={saveField} maxLength={15} />}
                 <EditableField label="Contact person" fieldKey="firstName" value={profile.firstName} displayAs={tidyCaps(profile.firstName)} onSave={saveField} maxLength={50} />
@@ -745,7 +745,7 @@ const ProfilePage: React.FC = () => {
 
             {!isEmployee && (
               <SectionCard title="Operations">
-                <div className={grid}>
+                <div className={TABLE}>
                   {/* Office hours are Business-only (transporterModel requires them only for accountType !== 'individual'). */}
                   {!isIndividual && <EditableField label="Office start" fieldKey="officeStart" value={profile.officeStart} onSave={saveField} maxLength={20} />}
                   {!isIndividual && <EditableField label="Office end" fieldKey="officeEnd" value={profile.officeEnd} onSave={saveField} maxLength={20} />}
@@ -799,15 +799,16 @@ const ProfilePage: React.FC = () => {
               </SectionCard>
             )}
 
-            {isEmployee ? (
-              <PasswordSection title="Password" action="Change"><EmployeePasswordForm /></PasswordSection>
-            ) : hasPassword ? (
-              <PasswordSection title="Password" action="Change"><ChangePasswordForm /></PasswordSection>
-            ) : (
-              <PasswordSection title="Password" action="Create">
-                <CreatePasswordForm email={profile.email} onCreated={() => setHasPassword(true)} />
-              </PasswordSection>
-            )}
+            <SectionCard title="Password">
+              <PasswordRow action={isEmployee || hasPassword ? 'Change' : 'Create'} open={pwdOpen} onToggle={() => setPwdOpen((o) => !o)} />
+              {pwdOpen && (
+                <div className="mt-3">
+                  {isEmployee ? <EmployeePasswordForm /> : hasPassword ? <ChangePasswordForm /> : (
+                    <CreatePasswordForm email={profile.email} onCreated={() => { setHasPassword(true); setPwdOpen(false); }} />
+                  )}
+                </div>
+              )}
+            </SectionCard>
           </div>
         </div>
       </div>
